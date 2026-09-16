@@ -8,6 +8,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"testing"
 )
@@ -29,8 +30,15 @@ func TestStoreRefusesWorldReadableFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if perm := info.Mode().Perm(); perm != 0o600 {
+	if perm := info.Mode().Perm(); runtime.GOOS != "windows" && perm != 0o600 {
 		t.Errorf("new store is mode %#o, want 0600", perm)
+	}
+	if runtime.GOOS == "windows" {
+		// The rest of this test widens the mode and expects the store to
+		// refuse it. Windows has no mode to widen — chmod there only
+		// toggles the read-only attribute — so the refusal cannot be
+		// provoked, and insecureMode is a no-op by design.
+		return
 	}
 
 	if err := os.Chmod(s.Path, 0o644); err != nil {
@@ -73,8 +81,13 @@ func TestDeleteIsAtomicAndKeepsOthers(t *testing.T) {
 	if got, _ := s.Get("https://b/mcp"); got != nil {
 		t.Error("the deleted entry is still present")
 	}
-	if info, err := os.Stat(s.Path); err != nil || info.Mode().Perm() != 0o600 {
-		t.Errorf("Delete must preserve 0600: %v", err)
+	info, err := os.Stat(s.Path)
+	if err != nil {
+		t.Fatalf("Delete lost the store: %v", err)
+	}
+	// Windows synthesises this mode; there is nothing to preserve there.
+	if runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
+		t.Errorf("Delete must preserve 0600, got %#o", info.Mode().Perm())
 	}
 	// No temporary file may be left behind holding secrets.
 	entries, err := os.ReadDir(filepath.Dir(s.Path))

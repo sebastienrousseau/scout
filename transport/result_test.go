@@ -15,12 +15,12 @@ import (
 
 func TestResultType(t *testing.T) {
 	cases := map[string]string{
-		``:                              ResultComplete,
-		`{}`:                            ResultComplete, // absent means complete
-		`{"resultType":"complete"}`:     ResultComplete,
-		`{"resultType":"input_required"}`: ResultInputRequired,
+		``:                                   ResultComplete,
+		`{}`:                                 ResultComplete, // absent means complete
+		`{"resultType":"complete"}`:          ResultComplete,
+		`{"resultType":"input_required"}`:    ResultInputRequired,
 		`{"resultType":"io.example/custom"}`: "io.example/custom",
-		`not json`:                      ResultComplete,
+		`not json`:                           ResultComplete,
 	}
 	for in, want := range cases {
 		if got := ResultType(json.RawMessage(in)); got != want {
@@ -159,12 +159,12 @@ func TestEncodeHeaderValue(t *testing.T) {
 		}
 	}
 	unsafe := []string{
-		"Hello, 世界",      // non-ASCII
-		" padded ",        // leading and trailing space
-		"line1\nline2",    // control character
-		"trailing\t",      // trailing tab
-		"=?base64?x?=",    // would be mistaken for the sentinel
-		"\x00null",        // NUL
+		"Hello, 世界",    // non-ASCII
+		" padded ",     // leading and trailing space
+		"line1\nline2", // control character
+		"trailing\t",   // trailing tab
+		"=?base64?x?=", // would be mistaken for the sentinel
+		"\x00null",     // NUL
 	}
 	for _, v := range unsafe {
 		enc := EncodeHeaderValue(v)

@@ -18,11 +18,11 @@ import (
 
 // Report is the full diagnostic output.
 type Report struct {
-	Scout    Meta      `json:"scout"`
-	Target   Target    `json:"target"`
+	Scout    Meta         `json:"scout"`
+	Target   Target       `json:"target"`
 	Started  time.Time    `json:"started"`
 	Duration probe.Millis `json:"duration_ms"`
-	TraceID  string `json:"trace_id"`
+	TraceID  string       `json:"trace_id"`
 
 	Auth      AuthSummary         `json:"auth"`
 	Server    *ServerInfo         `json:"server,omitempty"`

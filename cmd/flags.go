@@ -12,6 +12,7 @@ import (
 
 	"github.com/sebastienrousseau/scout/diagnostics"
 	"github.com/sebastienrousseau/scout/internal/creds"
+	"github.com/sebastienrousseau/scout/internal/engine"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -58,8 +59,8 @@ var (
 	allowPlaintextAuth    bool
 	allowResourceMismatch bool
 	skipEraCheck          bool
-	maxRes      int
-	maxPrompts  int
+	maxRes                int
+	maxPrompts            int
 
 	// output
 	interactive   bool
@@ -140,7 +141,7 @@ func outputFlags() *pflag.FlagSet {
 	outOnce.Do(func() {
 		fs := pflag.NewFlagSet("output", pflag.ContinueOnError)
 		fs.BoolVarP(&interactive, "interactive", "i", false, "pick the tools to exercise in an interactive selector before the run")
-		fs.StringVar(&output, "output", "text", "output format: text, json, md, ndjson")
+		fs.StringVar(&output, "output", "text", "output format: text, json, md, ndjson, html")
 		fs.StringVar(&reportDir, "report-dir", "", "write report.{txt,md,json}, telemetry.ndjson and telemetry.har here")
 		fs.BoolVar(&captureBodies, "capture-bodies", false, "record request/response bodies in telemetry (redacted, capped)")
 		fs.BoolVar(&withEvents, "events", false, "embed every telemetry event in JSON output")
@@ -167,6 +168,72 @@ func knownFlagNames() map[string]bool {
 	}
 	walk(rootCmd)
 	return known
+}
+
+// buildSpec turns the parsed flags into the one value that configures a
+// run. It is the only place package-level flag state is read: everything
+// downstream takes the spec, which is what lets the TUI and the web UI
+// drive exactly the run the CLI would have.
+func buildSpec(args []string, onlyPhases []string) (engine.RunSpec, error) {
+	endpoint, err := resolveEndpoint(args)
+	if err != nil {
+		return engine.RunSpec{}, err
+	}
+	overrides, err := parseToolArgs(toolArgs)
+	if err != nil {
+		return engine.RunSpec{}, err
+	}
+	hdrs := map[string]string{}
+	for _, h := range headers {
+		k, v, err := creds.ParseHeader(h)
+		if err != nil {
+			return engine.RunSpec{}, err
+		}
+		hdrs[k] = v
+	}
+	prm := url.Values{}
+	for _, p := range params {
+		k, v, err := creds.ParseParam(p)
+		if err != nil {
+			return engine.RunSpec{}, err
+		}
+		prm.Add(k, v)
+	}
+	phases := phasesOnly
+	if len(onlyPhases) > 0 {
+		phases = onlyPhases
+	}
+
+	spec := engine.RunSpec{
+		Version: Version,
+		Target:  engine.TargetSpec{Endpoint: endpoint},
+		Creds: engine.CredSpec{
+			Mode: authMode, Token: token, TokenEnv: tokenEnv,
+			Headers: hdrs, Basic: basic,
+			ClientID: clientID, ClientSecret: clientSecret, ClientSecretEnv: clientSecretEnv,
+			ClientMetadataURL: clientMetadataURL, Scope: scope, Params: prm,
+			TokenURL: tokenURL, AuthURL: authURL, Resource: resource,
+			RedirectPort: redirectPort, TokenAuthMethod: tokenAuthMethod,
+		},
+		Policy: engine.PolicySpec{
+			AllowMutations: allowMutations, AllowDestructive: allowDestructive,
+			Only: onlyTools, Deny: denyTools, ToolArgs: overrides,
+			AllowPlaintextAuth: allowPlaintextAuth, AllowPrivateHosts: allowPrivateHosts,
+			AllowResourceMismatch: allowResourceMismatch, SkipEraCheck: skipEraCheck,
+		},
+		Pacing: engine.PacingSpec{
+			Samples: samples, Concurrency: concurrency, RPS: rps,
+			CallTimeout: callTimeout, Seed: seed, FillOptional: fillOpt,
+			AllowLoad: allowLoad, MaxResources: maxRes, MaxPrompts: maxPrompts,
+		},
+		Phases: engine.PhaseSpec{Only: phases, Skip: phasesSkip},
+		Output: engine.OutputSpec{
+			Format: engine.Format(output), ReportDir: reportDir,
+			CaptureBodies: captureBodies, WithEvents: withEvents,
+			Verbose: verbose, NoColor: noColor, Interactive: interactive,
+		},
+	}
+	return spec.WithDefaults(), nil
 }
 
 // buildCreds turns the credential flags and environment into a model.
@@ -231,10 +298,4 @@ func parseToolArgs(items []string) (map[string]map[string]any, error) {
 	return out, nil
 }
 
-func validOutput(o string) bool {
-	switch o {
-	case "text", "json", "md", "ndjson":
-		return true
-	}
-	return false
-}
+func validOutput(o string) bool { return engine.Format(o).Valid() }

@@ -1,0 +1,210 @@
+{{- /*
+SPDX-FileCopyrightText: 2026 Sebastien Rousseau <sebastian.rousseau@gmail.com>
+SPDX-License-Identifier: GPL-3.0-only
+
+The one report template. It serves the shareable HTML file, the browser in
+scout serve, and — through the print stylesheet — the PDF. Every string it
+renders came from a server nobody vetted, so html/template's contextual
+escaping is doing real work here and must not be bypassed.
+*/ -}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>scout · {{ .Report.Target.Host }}</title>
+<style>{{ .CSS }}</style>
+</head>
+<body>
+
+<header class="mast">
+  <div class="wrap mast-in">
+    <div class="target">
+      <span class="eyebrow">MCP diagnostic</span>
+      <span class="endpoint">{{ .Report.Target.Endpoint }}</span>
+      <span class="sub">
+        {{- with .Report.Server }}{{ .Name }} {{ .Version }} · protocol {{ .Protocol }} · {{ end -}}
+        {{ .AuthLine }} · {{ .Started }}
+      </span>
+    </div>
+
+    <div class="verdict {{ .VerdictClass }}">
+      <h1>{{ .Verdict }}</h1>
+      {{- if .Report.Score.Assessed }}
+      <div class="score">
+        <span class="num">{{ .ScoreTotal }}</span>
+        <span class="of">/ 100</span>
+        <span class="grade">{{ .GradeWord }}</span>
+      </div>
+      {{- end }}
+    </div>
+
+    <p class="explain">{{ .Explain }}</p>
+
+    <div class="counts">
+      {{- if .Report.Counts.Fail }}<span class="count fail">{{ .Report.Counts.Fail }} failed</span>{{ end }}
+      {{- if .Report.Counts.Warn }}<span class="count warn">{{ .Report.Counts.Warn }} to improve</span>{{ end }}
+      {{- if .Report.Counts.Pass }}<span class="count pass">{{ .Report.Counts.Pass }} passed</span>{{ end }}
+      {{- if .Report.Counts.Info }}<span class="count info">{{ .Report.Counts.Info }} noted</span>{{ end }}
+      {{- if .Report.Counts.Skip }}<span class="count skip">{{ .Report.Counts.Skip }} skipped</span>{{ end }}
+    </div>
+  </div>
+</header>
+
+<main>
+
+{{- if .FixFirst }}
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">Act on these</span>
+      <h2>What to fix first</h2>
+    </div>
+    <ol class="fix-first">
+      {{- range $i, $f := .FixFirst }}
+      <li{{ if eq $f.Status "warn" }} class="warn"{{ end }}>
+        <span class="rank">{{ inc $i }}</span>
+        <span class="what">{{ $f.Title }}</span>
+        <span class="why">{{ $f.Detail }}{{ with $f.Advice }} — {{ . }}{{ end }}</span>
+      </li>
+      {{- end }}
+    </ol>
+  </div>
+</section>
+{{- end }}
+
+<section class="detail">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">Step by step</span>
+      <h2>What scout checked</h2>
+    </div>
+    <div class="phases">
+      {{- range .Report.Phases }}
+      <div class="phase">
+        <div class="phase-head">
+          <span class="status {{ .Status }}">{{ .Status }}</span>
+          <span class="name">{{ .Title }}</span>
+          <span class="dur">{{ ms .Duration }}</span>
+        </div>
+        {{- with .Summary }}<p class="phase-summary">{{ . }}</p>{{ end }}
+        {{- with .Skipped }}<p class="phase-summary">Skipped: {{ . }}</p>{{ end }}
+        {{- $findings := visible .Findings $.Verbose }}
+        {{- if $findings }}
+        <div class="findings">
+          {{- range $findings }}
+          <div class="finding" data-status="{{ .Status }}">
+            <span class="status {{ .Status }}">{{ .Status }}</span>
+            <span class="f-title">{{ .Title }}</span>
+            <span class="f-id">{{ .ID }}</span>
+            {{- with .Detail }}<p class="f-detail">{{ . }}</p>{{ end }}
+            {{- with .Advice }}<p class="f-advice">{{ . }}</p>{{ end }}
+            {{- if and $.Verbose .Evidence }}<p class="f-ev">{{ join .Evidence ", " }}</p>{{ end }}
+          </div>
+          {{- end }}
+        </div>
+        {{- end }}
+      </div>
+      {{- end }}
+    </div>
+  </div>
+</section>
+
+{{- if .Report.Catalog.Tools }}
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">{{ len .Report.Catalog.Tools }} tools</span>
+      <h2>What an agent sees</h2>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th>Tool</th><th>Description</th><th>Behaviour</th><th>Contract</th></tr>
+        </thead>
+        <tbody>
+          {{- range .Report.Catalog.Tools }}
+          <tr>
+            <td class="name">{{ .Name }}</td>
+            <td>{{ .Description }}</td>
+            <td>
+              {{- if .ReadOnly }}<span class="pill ro">read only</span>
+              {{- else if .Destructive }}<span class="pill dx">destructive</span>
+              {{- else }}<span class="pill">mutating</span>{{ end }}
+              {{- if not .Annotated }} <span class="pill">unannotated</span>{{ end }}
+            </td>
+            <td>{{ if .OutputSchema }}outputSchema{{ else }}<span class="pill">none</span>{{ end }}</td>
+          </tr>
+          {{- end }}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+{{- end }}
+
+{{- with .Report.Perf }}
+{{- if .Tools }}
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">Latency</span>
+      <h2>How fast it answers</h2>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th>Tool</th><th>Cold</th><th>p50</th><th>p95</th><th>Max</th><th>Errors</th></tr>
+        </thead>
+        <tbody>
+          {{- range .Tools }}
+          <tr>
+            <td class="name">{{ .Name }}</td>
+            <td class="num">{{ ms .Cold }}</td>
+            <td class="num">{{ ms .P50 }}</td>
+            <td class="num">{{ ms .P95 }}</td>
+            <td class="num">{{ ms .Max }}</td>
+            <td class="num">{{ .Errors }}</td>
+          </tr>
+          {{- end }}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+{{- end }}
+{{- end }}
+
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">Provenance</span>
+      <h2>How this report was produced</h2>
+    </div>
+    <dl class="meta">
+      <div><dt>scout</dt><dd>{{ .Report.Scout.Version }}</dd></div>
+      <div><dt>Schema</dt><dd>v{{ .Report.Scout.SchemaVersion }}</dd></div>
+      <div><dt>Started</dt><dd>{{ .Started }}</dd></div>
+      <div><dt>Duration</dt><dd>{{ ms .Report.Duration }}</dd></div>
+      <div><dt>Requests</dt><dd>{{ .Report.Telemetry.Requests }}</dd></div>
+      <div><dt>Trace</dt><dd class="mono">{{ .Report.TraceID }}</dd></div>
+      <div><dt>Credentials</dt><dd>{{ .Report.Auth.Mode }}</dd></div>
+      {{- with .Report.Auth.Issuer }}<div><dt>Issuer</dt><dd>{{ . }}</dd></div>{{ end }}
+    </dl>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>
+      Every finding above is tied to a request scout made; nothing is reported as passing
+      without one. Secrets are masked at the recorder, so this document is safe to share.
+    </p>
+    <p class="print-only">Generated by scout {{ .Report.Scout.Version }} · {{ .Started }}</p>
+  </div>
+</footer>
+
+</body>
+</html>

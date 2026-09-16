@@ -31,13 +31,13 @@ type ToolPerf struct {
 
 // ConcurrencyResult is the outcome of a parallel burst.
 type ConcurrencyResult struct {
-	Tool        string        `json:"tool"`
-	Workers     int           `json:"workers"`
-	Calls       int           `json:"calls"`
-	OK          int           `json:"ok"`
-	Errors      int           `json:"errors"`
-	RateLimited int           `json:"rate_limited"`
-	RetryAfter  bool          `json:"retry_after_header"`
+	Tool        string  `json:"tool"`
+	Workers     int     `json:"workers"`
+	Calls       int     `json:"calls"`
+	OK          int     `json:"ok"`
+	Errors      int     `json:"errors"`
+	RateLimited int     `json:"rate_limited"`
+	RetryAfter  bool    `json:"retry_after_header"`
 	Wall        Millis  `json:"wall_ms"`
 	Throughput  float64 `json:"calls_per_second"`
 	P50         Millis  `json:"p50_ms"`
@@ -63,13 +63,14 @@ func phasePerformance(ctx context.Context, s *Session) []Finding {
 	// ping baseline
 	{
 		var lat diagnostics.Latencies
-		tp := ToolPerf{Name: "ping", Samples: s.Opts.Samples}
+		live, liveParams := s.liveness()
+		tp := ToolPerf{Name: live, Samples: s.Opts.Samples}
 		for i := 0; i < s.Opts.Samples; i++ {
 			if err := limiter.Wait(ctx); err != nil {
 				return out
 			}
 			t0 := time.Now()
-			if err := s.Client.Ping(pctx("ping")); err != nil {
+			if err := s.Client.Call(pctx(live), live, liveParams, nil); err != nil {
 				tp.Errors++
 				continue
 			}
@@ -81,10 +82,10 @@ func phasePerformance(ctx context.Context, s *Session) []Finding {
 		}
 		tp.P50, tp.P95, tp.Max = Millis(lat.Percentile(50)), Millis(lat.Percentile(95)), Millis(lat.Max())
 		s.Perf.Ping = &tp
-		c := s.check("performance.ping", "Round-trip baseline (ping)")
+		c := s.check("performance.ping", "Round-trip baseline ("+live+")")
 		switch {
 		case tp.Errors == s.Opts.Samples:
-			out = append(out, c.fail(Major, "every ping failed", ""))
+			out = append(out, c.fail(Major, "every "+live+" failed", ""))
 		case tp.P50.Duration() > 500*time.Millisecond:
 			out = append(out, c.warn(fmt.Sprintf("p50 %s p95 %s over %d samples", ms(tp.P50), ms(tp.P95), lat.Len()), "a slow no-op round trip points at the transport or auth layer, not the tools"))
 		default:
@@ -169,7 +170,7 @@ func phasePerformance(ctx context.Context, s *Session) []Finding {
 		per := s.Opts.Samples
 		cr := ConcurrencyResult{Tool: tool, Workers: workers, Calls: workers * per}
 		if tool == "" {
-			cr.Tool = "ping"
+			cr.Tool = s.livenessName()
 		}
 		var mu sync.Mutex
 		var lat diagnostics.Latencies
@@ -190,7 +191,8 @@ func phasePerformance(ctx context.Context, s *Session) []Finding {
 					var err error
 					var isErr bool
 					if tool == "" {
-						err = s.Client.Ping(cctx)
+						lm, lp := s.liveness()
+						err = s.Client.Call(cctx, lm, lp, nil)
 					} else {
 						var res *transportCallResult
 						res, err = callTool(cctx, s, tool, args)

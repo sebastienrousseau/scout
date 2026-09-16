@@ -110,10 +110,31 @@ uses [Semantic Versioning](https://semver.org/).
   server on the current revision is recognised even when it refuses the
   handshake-era first contact.
 
-  **The nine-phase diagnostic itself still opens with `initialize`, so a run
-  against a stateless-only server stops at first contact** — with a finding
-  that says so plainly rather than blaming the server. Moving the pipeline
-  onto the stateless binding is the remaining work.
+  The nine-phase diagnostic runs on both generations. The era is settled on
+  the credential-free transport before first contact, because the shape of
+  that first request depends on the answer, and the phases that assumed a
+  handshake now branch:
+
+  - `handshake` reports `handshake.server_info` from `server/discover` in
+    place of `initialize`, and warns when a server implements neither.
+  - `protocol.routing_headers` checks that a request whose `Mcp-Method`
+    disagrees with its body is refused with `-32020`. Mirrored headers only
+    buy a gateway anything if the server validates them; one that does not
+    lets the gateway and the server act on different requests.
+  - `protocol.get_stream` expects `405` on this revision, and warns when a
+    server still serves the standalone stream it removed.
+  - `resilience.stateless` replaces the session-recovery check: it sends the
+    same request over two independent connections and compares the answers,
+    because independence from the connection is what lets the server sit
+    behind a round-robin load balancer.
+  - The raw conformance probes are built through the active dialect, so they
+    are well-formed requests of whichever generation is being tested. Before
+    this they were rejected for missing `_meta` on a stateless server, and
+    every protocol finding described the probe rather than the server.
+
+  `--skip-era-check` suppresses the single `server/discover` that settles the
+  generation. This project treats a new unavoidable request to the server
+  under test as a breaking change, and that is the opt-out.
 - `internal/hostile`: MCP servers that misbehave on purpose, and the table
   test asserting scout answers every one of them with a finding or a typed
   error rather than a panic, a hang, or an unbounded allocation. The rest of

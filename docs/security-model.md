@@ -231,4 +231,4 @@ Otherwise it is re-reviewed annually.
 
 If you have questions or believe a claim above is not adequately
 supported by the linked evidence, please file a security advisory per
-[SECURITY.md](../SECURITY.md).
+[SECURITY.md](https://github.com/sebastienrousseau/scout/blob/main/SECURITY.md).

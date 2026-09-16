@@ -1,0 +1,2 @@
+User-agent: *
+Sitemap: https://sebastienrousseau.github.io/scout/sitemap.xml

@@ -75,9 +75,15 @@ jobs:
       # No actions/setup-go: the runner ships a toolchain, and GOTOOLCHAIN=auto
       # honours the `go` directive in go.mod, so the version is pinned by go.mod
       # rather than by a workflow input that can drift from it.
+      # CGO_ENABLED is '0' for the workflow, because everything scout ships
+      # is a static binary. The race detector is the one exception: it is
+      # implemented in C and `go test -race` refuses to build without cgo.
+      # Without this the step fails before running a single test, which is
+      # exactly what it did the first time this workflow ran.
       - name: Test with race detector and randomised order
         env:
           GOTOOLCHAIN: auto
+          CGO_ENABLED: '1'
         run: |
           set -euo pipefail
           go version
@@ -195,11 +201,13 @@ jobs:
           GOBIN: ${{ github.workspace }}/.gobin
         run: |
           set -euo pipefail
-          goversion="$(go list -m -f '{{.GoVersion}}')"
-          echo "building govulncheck with go${goversion}"
-          # Pinned, not @latest: whatever @latest resolves to at run time
+          # GOTOOLCHAIN=auto so the install resolves whatever toolchain
+          # the scanner itself needs; the analysis runs against this
+          # module as declared in go.mod either way.
+          #
+          # Pinned, not @latest: whatever @latest resolved to at run time
           # would execute in CI, and everything else here is pinned.
-          GOTOOLCHAIN="go${goversion}" go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
+          GOTOOLCHAIN=auto go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
           "${GOBIN}/govulncheck" -version
           "${GOBIN}/govulncheck" ./...
 

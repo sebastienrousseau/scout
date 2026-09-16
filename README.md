@@ -115,7 +115,7 @@ not apply. Use a release artefact if you need `version` to be meaningful.
 
 ### Build from source
 
-Requires Go 1.24+:
+Requires Go 1.26.8+:
 
 ```bash
 git clone https://github.com/sebastienrousseau/scout.git
@@ -843,14 +843,9 @@ scout is opinionated, and the opinions do not suit everyone.
 - **Your server is stdio-only.** scout tests the Streamable HTTP
   transport. A bridge can expose a stdio server over HTTP, but the
   transport findings then describe the bridge.
-- **Your server speaks only `2026-07-28`.** scout detects the current
-  stateless revision and says so, and its transport implements the binding —
-  `_meta` protocol fields, the `Mcp-Method`/`Mcp-Name` routing headers,
-  `resultType` and the Multi Round-Trip Request flow. The nine-phase
-  diagnostic still opens with the handshake-era `initialize`, so a run
-  against a server that implements only the stateless revision stops at
-  first contact and tells you why. A server that still speaks a handshake
-  revision is diagnosed in full, and told how far behind it is.
+- **You need the Tasks or Apps extensions checked.** scout diagnoses the
+  core protocol on both the handshake revisions and the stateless
+  `2026-07-28` one, but it does not yet exercise the optional extensions.
 - **You want an agent to exercise the server.** scout's execution phase is
   deterministic: generated or supplied arguments, one call per tool. The
   `diagnostics.Model` interface exists for a model-driven probe, but no
@@ -864,7 +859,7 @@ scout is opinionated, and the opinions do not suit everyone.
 
 | | |
 |---|---|
-| **Go** | The `go` directive in [`go.mod`](go.mod) — currently **1.24** |
+| **Go** | The `go` directive in [`go.mod`](go.mod) — currently **1.26.8** |
 | **Network** | Outbound HTTPS to the server under test and its authorization server |
 
 The Go floor is stated in exactly one place, `go.mod`, and CI sets

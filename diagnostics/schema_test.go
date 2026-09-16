@@ -15,15 +15,15 @@ import (
 // like that for "unbounded" fields, so it took no malice to crash a run.
 func TestGeneratorSurvivesHostileBounds(t *testing.T) {
 	schemas := map[string]string{
-		"int64 overflow":      `{"type":"object","required":["n"],"properties":{"n":{"type":"integer","minimum":0,"maximum":1e19}}}`,
-		"negative overflow":   `{"type":"object","required":["n"],"properties":{"n":{"type":"integer","minimum":-1e19,"maximum":0}}}`,
-		"both overflow":       `{"type":"object","required":["n"],"properties":{"n":{"type":"integer","minimum":-1e300,"maximum":1e300}}}`,
-		"inverted bounds":     `{"type":"object","required":["n"],"properties":{"n":{"type":"integer","minimum":10,"maximum":1}}}`,
-		"exclusive collapse":  `{"type":"object","required":["n"],"properties":{"n":{"type":"integer","exclusiveMinimum":5,"exclusiveMaximum":6}}}`,
-		"huge minLength":      `{"type":"object","required":["s"],"properties":{"s":{"type":"string","minLength":1000000000}}}`,
-		"huge minItems":       `{"type":"object","required":["a"],"properties":{"a":{"type":"array","minItems":1000000000,"items":{"type":"string"}}}}`,
-		"only maximum":        `{"type":"object","required":["n"],"properties":{"n":{"type":"integer","maximum":1e19}}}`,
-		"only minimum":        `{"type":"object","required":["n"],"properties":{"n":{"type":"integer","minimum":1e19}}}`,
+		"int64 overflow":     `{"type":"object","required":["n"],"properties":{"n":{"type":"integer","minimum":0,"maximum":1e19}}}`,
+		"negative overflow":  `{"type":"object","required":["n"],"properties":{"n":{"type":"integer","minimum":-1e19,"maximum":0}}}`,
+		"both overflow":      `{"type":"object","required":["n"],"properties":{"n":{"type":"integer","minimum":-1e300,"maximum":1e300}}}`,
+		"inverted bounds":    `{"type":"object","required":["n"],"properties":{"n":{"type":"integer","minimum":10,"maximum":1}}}`,
+		"exclusive collapse": `{"type":"object","required":["n"],"properties":{"n":{"type":"integer","exclusiveMinimum":5,"exclusiveMaximum":6}}}`,
+		"huge minLength":     `{"type":"object","required":["s"],"properties":{"s":{"type":"string","minLength":1000000000}}}`,
+		"huge minItems":      `{"type":"object","required":["a"],"properties":{"a":{"type":"array","minItems":1000000000,"items":{"type":"string"}}}}`,
+		"only maximum":       `{"type":"object","required":["n"],"properties":{"n":{"type":"integer","maximum":1e19}}}`,
+		"only minimum":       `{"type":"object","required":["n"],"properties":{"n":{"type":"integer","minimum":1e19}}}`,
 	}
 	for name, schema := range schemas {
 		t.Run(name, func(t *testing.T) {

@@ -4,9 +4,9 @@
 package auth
 
 import (
-	"errors"
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"

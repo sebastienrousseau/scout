@@ -37,22 +37,22 @@ type ToolResult struct {
 
 // ResourceResult records one resources/read.
 type ResourceResult struct {
-	URI      string        `json:"uri"`
-	Duration Millis        `json:"duration_ms"`
-	OK       bool          `json:"ok"`
-	Error    string        `json:"error,omitempty"`
-	Bytes    int           `json:"bytes,omitempty"`
-	MimeType string        `json:"mime_type,omitempty"`
-	Items    int           `json:"items,omitempty"`
+	URI      string `json:"uri"`
+	Duration Millis `json:"duration_ms"`
+	OK       bool   `json:"ok"`
+	Error    string `json:"error,omitempty"`
+	Bytes    int    `json:"bytes,omitempty"`
+	MimeType string `json:"mime_type,omitempty"`
+	Items    int    `json:"items,omitempty"`
 }
 
 // PromptResult records one prompts/get.
 type PromptResult struct {
-	Name     string        `json:"name"`
-	Duration Millis        `json:"duration_ms"`
-	OK       bool          `json:"ok"`
-	Error    string        `json:"error,omitempty"`
-	Messages int           `json:"messages,omitempty"`
+	Name     string `json:"name"`
+	Duration Millis `json:"duration_ms"`
+	OK       bool   `json:"ok"`
+	Error    string `json:"error,omitempty"`
+	Messages int    `json:"messages,omitempty"`
 }
 
 // phaseExecution invokes what the policy allows and validates content.

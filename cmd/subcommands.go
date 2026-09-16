@@ -210,7 +210,16 @@ redirect on a loopback port, and save the tokens (0600) to the store so
 		if err := store.Put(st); err != nil {
 			return err
 		}
-		fmt.Fprintf(os.Stderr, "authorized as a user of %s; token stored in %s\n", done.Initialize.ServerInfo.Name, creds.DefaultStorePath())
+		// Say where the secret actually went: "stored in tokens.json" would
+		// be wrong when the OS keychain holds it, and an operator auditing
+		// their machine needs to know which.
+		switch backend := store.Backend(); backend {
+		case "file":
+			fmt.Fprintf(os.Stderr, "authorized as a user of %s; token stored in %s (mode 0600)\n", done.Initialize.ServerInfo.Name, creds.DefaultStorePath())
+			fmt.Fprintf(os.Stderr, "note: no OS keyring was available, so the refresh token is on disk in the clear\n")
+		default:
+			fmt.Fprintf(os.Stderr, "authorized as a user of %s; secrets stored in the %s keyring, the rest in %s\n", done.Initialize.ServerInfo.Name, backend, creds.DefaultStorePath())
+		}
 		diag.Infof("run: scout check %s --auth authorization-code", endpoint)
 		return nil
 	},

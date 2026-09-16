@@ -38,3 +38,9 @@ linters:
       - path: internal/hostile/
         linters: [gosec, errcheck, noctx]
 
+# gofmt runs as its own CI step, but only in CI. Declaring it here too means
+# `golangci-lint run` locally reports the same formatting the gate enforces,
+# rather than passing clean and letting the push find it.
+formatters:
+  enable:
+    - gofmt

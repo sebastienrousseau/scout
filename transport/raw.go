@@ -42,6 +42,10 @@ type RawOptions struct {
 	OmitSession bool
 	// OmitProtocolVersion suppresses the MCP-Protocol-Version header.
 	OmitProtocolVersion bool
+	// SkipDialect sends Request exactly as given, without the protocol
+	// metadata the active dialect would add. Use it for a probe whose whole
+	// point is to send something malformed.
+	SkipDialect bool
 }
 
 // NextID reserves a fresh JSON-RPC id.
@@ -55,8 +59,19 @@ func (s *Streamable) Do(ctx context.Context, opts RawOptions) (*RawResult, error
 	if method == "" {
 		method = http.MethodPost
 	}
+	d := s.Dialect()
 	body := opts.Body
 	if body == nil && opts.Request != nil {
+		// A conformance probe must still be a well-formed request of the
+		// generation the server speaks, or what it answers says more about
+		// the probe than the server. The stateless revision rejects a
+		// request without its _meta fields before it ever looks at the
+		// method being tested.
+		if !opts.SkipDialect {
+			if err := d.PrepareBody(opts.Request); err != nil {
+				return nil, err
+			}
+		}
 		b, err := json.Marshal(opts.Request)
 		if err != nil {
 			return nil, err
@@ -76,12 +91,23 @@ func (s *Streamable) Do(ctx context.Context, opts RawOptions) (*RawResult, error
 		req.Header.Set("Content-Type", "application/json")
 	}
 	req.Header.Set("Accept", "application/json, text/event-stream")
-	if !opts.OmitProtocolVersion {
+	if !opts.SkipDialect {
+		// The dialect owns the routing headers; anything the caller sets
+		// below still wins, which is how a mismatch probe is written.
+		if err := d.PrepareHeaders(req.Header, opts.Request); err != nil {
+			return nil, err
+		}
+	}
+	if opts.OmitProtocolVersion {
+		req.Header.Del(HeaderProtocolVersion)
+	} else if req.Header.Get(HeaderProtocolVersion) == "" {
 		if v := s.ProtocolVersion(); v != "" {
 			req.Header.Set(HeaderProtocolVersion, v)
 		}
 	}
-	if !opts.OmitSession {
+	if opts.OmitSession {
+		req.Header.Del(HeaderSessionID)
+	} else if d.Stateful() {
 		if sid := s.SessionID(); sid != "" {
 			req.Header.Set(HeaderSessionID, sid)
 		}

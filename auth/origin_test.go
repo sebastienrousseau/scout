@@ -13,12 +13,12 @@ import (
 
 func TestOriginNormalisation(t *testing.T) {
 	cases := map[string]string{
-		"https://Example.com/mcp":       "https://example.com",
-		"https://example.com:443/mcp":   "https://example.com",
-		"http://example.com:80/x":       "http://example.com",
-		"https://example.com:8443/mcp":  "https://example.com:8443",
-		"HTTPS://EXAMPLE.COM:8443/a/b":  "https://example.com:8443",
-		"http://[::1]:3000/mcp":         "http://[::1]:3000",
+		"https://Example.com/mcp":      "https://example.com",
+		"https://example.com:443/mcp":  "https://example.com",
+		"http://example.com:80/x":      "http://example.com",
+		"https://example.com:8443/mcp": "https://example.com:8443",
+		"HTTPS://EXAMPLE.COM:8443/a/b": "https://example.com:8443",
+		"http://[::1]:3000/mcp":        "http://[::1]:3000",
 	}
 	for in, want := range cases {
 		got, err := Origin(in)
@@ -126,7 +126,10 @@ func TestBearerDoesNotFollowRedirectOffOrigin(t *testing.T) {
 
 func TestAPIKeyDoesNotFollowRedirectOffOrigin(t *testing.T) {
 	victimURL, received := leakRig(t, "X-Api-Key")
-	tr := NewHeaderTransport(nil, map[string]string{"X-Api-Key": "sk-live-123456"}, nil)
+	// A distinctive value rather than a realistic-looking vendor key: the
+	// assertion is that it never reaches the other origin, and a fixture
+	// shaped like a real credential only trips secret scanners.
+	tr := NewHeaderTransport(nil, map[string]string{"X-Api-Key": "api-key-that-must-not-travel"}, nil)
 	resp, err := (&http.Client{Transport: tr}).Get(victimURL)
 	if err == nil {
 		_ = resp.Body.Close()
