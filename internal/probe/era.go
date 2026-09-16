@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/sebastienrousseau/scout"
@@ -31,26 +32,28 @@ func checkEra(ctx context.Context, s *Session) Finding {
 		return c.skip("--skip-era-check was passed, so the probe that identifies the protocol generation was not sent")
 	}
 
-	// One request, on the transport the rest of the phase uses, with the
-	// dialect put back afterwards. Running a full negotiation here would
-	// repeat the initialize handshake that follows, which is both wasteful
-	// and extra load on a server scout is only meant to observe.
-	disc, stateless := statelessProbe(ctx, s, s.Client.Transport(), "handshake")
+	// The discovery phase already settled this, on the credential-free
+	// transport, because first contact had to know which request to send.
+	// Asking again would be a second request against a server scout is only
+	// meant to observe.
+	if s.Era == nil {
+		s.settleEra(ctx)
+	}
+	var disc *scout.DiscoverResult
+	stateless := s.Stateless()
+	if s.Era != nil {
+		disc = s.Era.Discovered
+	}
 	if stateless {
 		detail := "speaks " + scout.StatelessVersions[0] + ", the current stateless revision"
 		if disc != nil && disc.ServerInfo.Name != "" {
 			detail += " (" + disc.ServerInfo.Name + " " + disc.ServerInfo.Version + ")"
 		}
-		s.Era = &scout.Negotiation{
-			Era: scout.EraStateless, Version: scout.StatelessVersions[0], Discovered: disc,
-			Reason: "it answered a stateless request",
-		}
 		return c.pass(detail)
 	}
 
 	// Not stateless. The version is whatever the handshake that follows
-	// negotiates, so record the era now and let the handshake fill it in.
-	s.Era = &scout.Negotiation{Era: scout.EraSession, Reason: "it did not answer a stateless request"}
+	// negotiates, and the era was already recorded.
 	return c.warn(
 		"speaks a handshake revision: it uses initialize and "+transport.HeaderSessionID+", which "+scout.StatelessVersions[0]+" removed",
 		"the current revision is "+scout.StatelessVersions[0]+
@@ -115,4 +118,213 @@ func isStatelessMethodNotFound(err error) bool {
 		he.StatusCode == http.StatusNotFound &&
 		he.RPCError != nil &&
 		he.RPCError.Code == transport.CodeMethodNotFound
+}
+
+// settleEra decides which generation the server speaks, before anything
+// depends on the answer. It is credential-free and costs one request.
+//
+// Under the handshake revisions the era was implicit: initialize either
+// worked or it did not. The stateless revision removed initialize, so a
+// diagnostic that opens with one learns nothing from a server that speaks
+// it — the refusal is about the missing method, not about authorization.
+func (s *Session) settleEra(ctx context.Context) {
+	if s.Era != nil || s.Opts.SkipEraCheck {
+		return
+	}
+	if disc, ok := statelessProbe(ctx, s, s.Bare, "discovery"); ok {
+		s.Era = &scout.Negotiation{
+			Era: scout.EraStateless, Version: scout.StatelessVersions[0], Discovered: disc,
+			Reason: "it answered a stateless request",
+		}
+		return
+	}
+	s.Era = &scout.Negotiation{Era: scout.EraSession, Reason: "it did not answer a stateless request"}
+}
+
+// Stateless reports whether the server speaks the stateless revision.
+func (s *Session) Stateless() bool {
+	return s.Era != nil && s.Era.Era == scout.EraStateless
+}
+
+// firstContact makes the opening unauthenticated request in whichever
+// shape the server's generation calls for.
+func (s *Session) firstContact(ctx context.Context) (*transport.RawResult, error) {
+	tr := s.Bare
+	cctx := telemetry.WithPhase(ctx, "discovery", "unauthenticated first contact")
+	id := tr.NextID()
+
+	if !s.Stateless() {
+		return tr.Do(cctx, transport.RawOptions{
+			Request:     &transport.Request{JSONRPC: "2.0", ID: &id, Method: "initialize", Params: initParams(s)},
+			OmitSession: true,
+		})
+	}
+
+	// On the stateless revision, tools/list is the cheapest request that
+	// every server implements and that authorization applies to.
+	caps, err := json.Marshal(struct{}{})
+	if err != nil {
+		return nil, err
+	}
+	d := &transport.Stateless{
+		ProtocolVersion: scout.StatelessVersions[0],
+		ClientInfo:      transport.Implementation{Name: "scout", Version: s.Opts.Version},
+		Capabilities:    caps,
+	}
+	rpc := &transport.Request{JSONRPC: "2.0", ID: &id, Method: "tools/list", Params: json.RawMessage(`{}`)}
+	if err := d.PrepareBody(rpc); err != nil {
+		return nil, err
+	}
+	hdr := http.Header{}
+	if err := d.PrepareHeaders(hdr, rpc); err != nil {
+		return nil, err
+	}
+	headers := map[string]string{transport.HeaderSessionID: ""} // never send one
+	for k := range hdr {
+		headers[k] = hdr.Get(k)
+	}
+	return tr.Do(cctx, transport.RawOptions{Request: rpc, Headers: headers, OmitSession: true, OmitProtocolVersion: true})
+}
+
+// setupStateless prepares the session for a server on the stateless
+// revision, in place of the handshake the revision removed.
+//
+// There is no initialize to report on, so what replaces those findings is
+// what the revision put in its stead: whether server/discover answers, and
+// whether the routing headers a gateway depends on are honoured.
+func (s *Session) setupStateless(ctx context.Context) []Finding {
+	var out []Finding
+
+	caps, err := json.Marshal(struct{}{})
+	if err != nil {
+		return append(out, s.check("handshake.stateless", "Stateless session setup").fail(Major, err.Error(), ""))
+	}
+	s.Client.Transport().SetDialect(&transport.Stateless{
+		ProtocolVersion: scout.StatelessVersions[0],
+		ClientInfo:      transport.Implementation{Name: "scout", Version: s.Opts.Version},
+		Capabilities:    caps,
+	})
+
+	c := s.check("handshake.server_info", "Server identifies itself")
+	if d := s.Era.Discovered; d != nil && d.ServerInfo.Name != "" {
+		s.Init = &scout.InitializeResult{
+			ProtocolVersion: scout.StatelessVersions[0],
+			ServerInfo:      d.ServerInfo,
+			Capabilities:    d.Capabilities,
+			Instructions:    d.Instructions,
+		}
+		out = append(out, c.pass(fmt.Sprintf("%s %s via server/discover", d.ServerInfo.Name, d.ServerInfo.Version)))
+	} else {
+		// server/discover is optional, so its absence is not a failure —
+		// but nothing else on this revision tells a client who it is
+		// talking to, and a report with no server name is harder to act on.
+		s.Init = &scout.InitializeResult{ProtocolVersion: scout.StatelessVersions[0]}
+		out = append(out, c.warn("the server does not implement server/discover, so it never names itself",
+			"implement server/discover: it is the only way a client on this revision learns your name, version, capabilities and instructions in one call"))
+	}
+
+	out = append(out, s.checkRoutingHeaders(ctx))
+	return out
+}
+
+// checkRoutingHeaders verifies the server honours the headers the stateless
+// revision requires a client to mirror its body into.
+//
+// The point of those headers is that a gateway, rate limiter or WAF can
+// route and meter on them without parsing JSON. That only holds if the
+// server rejects a request whose headers disagree with its body — otherwise
+// the two components are acting on different truths, which is exactly the
+// confusion the mirroring was meant to remove.
+func (s *Session) checkRoutingHeaders(ctx context.Context) Finding {
+	c := s.check("protocol.routing_headers", "Mirrored routing headers are validated")
+	tr := s.Client.Transport()
+	id := tr.NextID()
+
+	rpc := &transport.Request{JSONRPC: "2.0", ID: &id, Method: "tools/list", Params: json.RawMessage(`{}`)}
+	if err := tr.Dialect().PrepareBody(rpc); err != nil {
+		return c.skip("could not build the probe: " + err.Error())
+	}
+	// Deliberately disagree with the body.
+	raw, err := tr.Do(telemetry.WithPhase(ctx, "protocol", "header mismatch"), transport.RawOptions{
+		Request: rpc,
+		Headers: map[string]string{
+			transport.HeaderMethod:            "tools/call",
+			transport.HeaderProtocolVersion:   scout.StatelessVersions[0],
+		},
+		OmitSession:         true,
+		OmitProtocolVersion: true,
+	})
+	if err != nil {
+		return c.skip("the probe did not complete: " + err.Error())
+	}
+	switch {
+	case raw.Status == http.StatusBadRequest && raw.Response != nil && raw.Response.Error != nil &&
+		raw.Response.Error.Code == transport.CodeHeaderMismatch:
+		return c.pass("a header disagreeing with the body is refused with -32020")
+	case raw.Status >= 400:
+		return c.warn(fmt.Sprintf("refused with HTTP %d, but not the -32020 the revision defines", raw.Status),
+			"answer 400 with JSON-RPC error -32020 (HeaderMismatch) so a client can tell this apart from an ordinary rejection")
+	default:
+		return c.fail(Major, fmt.Sprintf("accepted a request whose %s header said tools/call while the body said tools/list (HTTP %d)", transport.HeaderMethod, raw.Status),
+			"validate the mirrored headers against the body and refuse a mismatch with -32020: a gateway routing on the header and a server executing the body would otherwise act on different requests")
+	}
+}
+
+// checkStatelessness verifies the server treats each request independently.
+//
+// This is the whole point of the revision: if any request depends on a
+// previous one having been seen on the same connection, the server cannot
+// sit behind a round-robin load balancer, and the operator will discover
+// that under load rather than here. The probe interleaves the same call
+// across two independent connections; a server that is genuinely stateless
+// cannot tell the difference.
+func (s *Session) checkStatelessness(ctx context.Context) Finding {
+	c := s.check("resilience.stateless", "Requests do not depend on the connection")
+	if len(s.Tools) == 0 {
+		return c.skip("no tool to exercise")
+	}
+
+	caps, err := json.Marshal(struct{}{})
+	if err != nil {
+		return c.skip(err.Error())
+	}
+	dialect := func() *transport.Stateless {
+		return &transport.Stateless{
+			ProtocolVersion: scout.StatelessVersions[0],
+			ClientInfo:      transport.Implementation{Name: "scout", Version: s.Opts.Version},
+			Capabilities:    caps,
+		}
+	}
+
+	// Two transports means two connection pools, so the second request
+	// cannot inherit anything the first established.
+	base := &http.Client{Transport: s.Transport, Timeout: s.Opts.CallTimeout}
+	first := transport.New(s.Opts.Endpoint, base)
+	first.SetDialect(dialect())
+	second := transport.New(s.Opts.Endpoint, &http.Client{Transport: s.Transport, Timeout: s.Opts.CallTimeout})
+	second.SetDialect(dialect())
+
+	cctx := telemetry.WithPhase(ctx, "resilience", "statelessness")
+	var a, b listToolsShape
+	if err := first.Call(cctx, "tools/list", map[string]any{}, &a); err != nil {
+		return c.skip("the first request did not complete: " + err.Error())
+	}
+	if err := second.Call(cctx, "tools/list", map[string]any{}, &b); err != nil {
+		return c.fail(Major,
+			"the same request succeeded on one connection and failed on another: "+err.Error(),
+			"every request must carry what the server needs; nothing may be inferred from a previous request on the same connection, or a load balancer will break this server")
+	}
+	if len(a.Tools) != len(b.Tools) {
+		return c.fail(Major,
+			fmt.Sprintf("the same request returned %d tools on one connection and %d on another", len(a.Tools), len(b.Tools)),
+			"a request's answer must not depend on which connection carried it")
+	}
+	return c.pass(fmt.Sprintf("the same request gave the same answer on two independent connections (%d tools)", len(a.Tools)))
+}
+
+// listToolsShape is the little of tools/list this check needs.
+type listToolsShape struct {
+	Tools []struct {
+		Name string `json:"name"`
+	} `json:"tools"`
 }

@@ -20,9 +20,13 @@ import (
 // phaseHandshake runs initialize with credentials and inspects the result.
 func phaseHandshake(ctx context.Context, s *Session) []Finding {
 	var out []Finding
-	// Which generation the server speaks is decided before the handshake,
+	// Which generation the server speaks was decided in the discovery phase,
 	// because on the current revision there is no handshake to decide it.
 	out = append(out, checkEra(ctx, s))
+	if s.Stateless() {
+		out = append(out, s.setupStateless(ctx)...)
+		return out
+	}
 	c := s.check("handshake.initialize", "initialize succeeds")
 	res, err := s.Client.Initialize(telemetry.WithPhase(ctx, "handshake", "initialize"))
 	if err != nil {
@@ -216,11 +220,22 @@ func phaseProtocol(ctx context.Context, s *Session) []Finding {
 		out = append(out, c.info(fmt.Sprintf("HTTP %d", raw.Status)))
 	}
 
-	c = s.check("protocol.get_stream", "GET opens a server event stream")
-	raw, err = tr.Do(pctx("GET stream"), transport.RawOptions{HTTPMethod: http.MethodGet, Headers: map[string]string{"Accept": "text/event-stream"}})
+	// What a GET should do depends on the generation. The handshake
+	// revisions let a client open a standalone stream that way; the
+	// stateless revision removed it, and a server that still serves one is
+	// carrying a mechanism no current client will use.
+	c = s.check("protocol.get_stream", "GET on the MCP endpoint")
+	raw, err = tr.Do(pctx("GET stream"), transport.RawOptions{HTTPMethod: http.MethodGet, Headers: map[string]string{"Accept": "text/event-stream"}, SkipDialect: true})
 	switch {
 	case err != nil:
 		out = append(out, c.info("GET failed: "+truncate(err.Error(), 100)))
+	case s.Stateless() && raw.Status == http.StatusMethodNotAllowed:
+		out = append(out, c.pass("405, as this revision requires"))
+	case s.Stateless() && raw.Status/100 == 2 && raw.ContentType == "text/event-stream":
+		out = append(out, c.warn("a GET still opens an event stream, which "+scout.StatelessVersions[0]+" removed",
+			"answer 405 to GET: server-initiated streams were replaced by subscriptions/listen, and a client on this revision will never open one this way"))
+	case s.Stateless():
+		out = append(out, c.info(fmt.Sprintf("HTTP %d %s (this revision expects 405)", raw.Status, raw.ContentType)))
 	case raw.Status == http.StatusMethodNotAllowed:
 		out = append(out, c.info("405: no server-initiated stream (allowed by spec)"))
 	case raw.Status/100 == 2 && raw.ContentType == "text/event-stream":
@@ -267,6 +282,12 @@ func phaseProtocol(ctx context.Context, s *Session) []Finding {
 func phaseResilience(ctx context.Context, s *Session) []Finding {
 	var out []Finding
 	tr := s.Client.Transport()
+	if s.Stateless() {
+		// There is no session to lose. What matters instead is whether the
+		// server really is stateless, because that is what lets a plain
+		// round-robin load balancer sit in front of it.
+		return append(out, s.checkStatelessness(ctx))
+	}
 	if s.SessionID {
 		c := s.check("resilience.session_reinit", "Client recovers from a lost session")
 		orig := tr.SessionID()
