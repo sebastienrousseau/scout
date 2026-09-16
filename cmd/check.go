@@ -11,7 +11,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -19,12 +18,11 @@ import (
 	"github.com/charmbracelet/x/term"
 	"github.com/mattn/go-isatty"
 	"github.com/sebastienrousseau/scout"
-	"github.com/sebastienrousseau/scout/auth"
 	"github.com/sebastienrousseau/scout/diagnostics"
 	"github.com/sebastienrousseau/scout/internal/creds"
 	"github.com/sebastienrousseau/scout/internal/diag"
+	"github.com/sebastienrousseau/scout/internal/engine"
 	"github.com/sebastienrousseau/scout/internal/probe"
-	"github.com/sebastienrousseau/scout/internal/report"
 	"github.com/sebastienrousseau/scout/internal/telemetry"
 	"github.com/sebastienrousseau/scout/internal/tui"
 	"github.com/spf13/cobra"
@@ -66,49 +64,40 @@ func init() {
 }
 
 // runCheck is shared by check, connect and tools; only restricts phases.
+//
+// Everything this function does after building the spec is presentation:
+// the live view, the interactive selector, where the bytes go. The run
+// itself belongs to the engine, which is what lets the TUI and the web UI
+// start exactly the same run without reimplementing any of it.
 func runCheck(ctx context.Context, args []string, only []string) error {
-	endpoint, err := resolveEndpoint(args)
+	spec, err := buildSpec(args, only)
 	if err != nil {
 		return err
 	}
-	if !validOutput(output) {
-		return errors.New("--output must be text, json, md or ndjson")
-	}
-	cr, err := buildCreds()
-	if err != nil {
+	if err := spec.Validate(); err != nil {
 		return err
 	}
-	args2, err := parseToolArgs(toolArgs)
+	cr, err := spec.Credentials()
 	if err != nil {
 		return err
-	}
-	rec := telemetry.New()
-	rec.CaptureBodies = captureBodies
-	var ndjson *json.Encoder
-	if output == "ndjson" {
-		ndjson = json.NewEncoder(os.Stdout)
-		rec.Sink = func(e telemetry.Event) { _ = ndjson.Encode(map[string]any{"type": "request", "event": e}) }
-	}
-	if len(only) > 0 {
-		phasesOnly = only
 	}
 
-	diag.Debugf("scout %s → %s", Version, rec.Redactor.URL(endpoint))
+	diag.Debugf("scout %s → %s", Version, spec.Target.Endpoint)
 	diag.Debugf("credentials: %s", cr.Describe())
 	for f, src := range cr.Sources {
 		diag.Debugf("credential %s from %s", f, src)
 	}
 
-	isTTY := output == "text" && stdoutIsTTY()
-	policy := buildPolicy()
+	isTTY := spec.Output.Format == engine.FormatText && stdoutIsTTY()
 
-	// -i: pick the tools to exercise in the selector before anything runs.
-	// A tool chosen here is an explicit opt-in, so the policy is widened to
-	// what was selected.
-	if interactive && isTTY {
+	// -i: pick the tools to exercise before anything runs. Drawing the
+	// selector is this surface's job; what it produces is the engine's,
+	// so the widening a deliberate choice implies happens in one place.
+	if spec.Output.Interactive && isTTY {
 		tui.Version = Version
+		rec := telemetry.New()
 		items, ok, err := runSelector(ctx, func() ([]tui.Item, error) {
-			return listSelectorItems(ctx, endpoint, cr, rec, policy)
+			return listSelectorItems(ctx, spec.Target.Endpoint, cr, rec, spec.ToolPolicy())
 		})
 		if err != nil {
 			return err
@@ -120,22 +109,25 @@ func runCheck(ctx context.Context, args []string, only []string) error {
 			fmt.Println("No tools selected.")
 			return nil
 		}
-		policy.Only = nil
+		names := make([]string, 0, len(items))
+		kinds := make(map[string]string, len(items))
 		for _, it := range items {
-			policy.Only = append(policy.Only, it.Name)
-			switch it.Kind {
-			case "mutating":
-				policy.AllowMutations = true
-			case "destructive":
-				policy.AllowDestructive = true
-			}
+			names = append(names, it.Name)
+			kinds[it.Name] = it.Kind
 		}
+		spec.SelectTools(names, kinds)
+	}
+
+	// NDJSON streams events as they land, so it is wired to the sink
+	// rather than printed at the end.
+	var ndjson *json.Encoder
+	if spec.Output.Format == engine.FormatNDJSON {
+		ndjson = json.NewEncoder(os.Stdout)
 	}
 
 	// The live view: a calm checklist that updates in place while the run
 	// proceeds, printed inline so the finished list stays above the report.
-	// Quitting mid-run cancels the run. The report is printed afterwards to
-	// the terminal's own scrollback, so scrolling is the terminal's own.
+	// Quitting mid-run cancels the run.
 	var program *tea.Program
 	var runView *tui.RunModel
 	runCtx, cancelRun := context.WithCancel(ctx)
@@ -143,97 +135,45 @@ func runCheck(ctx context.Context, args []string, only []string) error {
 	if isTTY {
 		tui.Version = Version
 		var phases []tui.Phase
-		for _, p := range probe.Phases {
-			if (len(phasesOnly) == 0 || containsString(phasesOnly, p.Name)) && !containsString(phasesSkip, p.Name) {
-				phases = append(phases, tui.Phase{Name: p.Name, Title: p.Title})
-			}
+		for _, name := range spec.PhaseNames() {
+			phases = append(phases, tui.Phase{Name: name, Title: probe.PhaseTitle(name)})
 		}
-		runView = tui.NewRunModel(rec.Redactor.URL(endpoint), runSubtitle(cr), phases)
+		runView = tui.NewRunModel(spec.Target.Endpoint, runSubtitle(cr), phases)
 		runView.Cancel = cancelRun
 		program = newProgram(runView)
 	}
 
-	opts := probe.Options{
-		Endpoint: endpoint, Creds: cr, Store: &creds.Store{}, Recorder: rec, Version: Version,
-		HTTPClient: &http.Client{Timeout: callTimeout + 30*time.Second},
-		Policy:     policy,
-		URLPolicy: auth.URLPolicy{AllowHTTP: allowPlaintextAuth, AllowPrivate: allowPrivateHosts},
-		AllowResourceMismatch: allowResourceMismatch,
-		SkipEraCheck:          skipEraCheck,
-		Samples:    samples, Concurrency: concurrency, RPS: rps, CallTimeout: callTimeout, Seed: seed,
-		FillOptional: fillOpt, AllowLoad: allowLoad, MaxResources: maxRes, MaxPrompts: maxPrompts,
-		ToolArgs: args2, Only: phasesOnly, Skip: phasesSkip,
-		PhaseDone: func(pr probe.PhaseResult) {
-			var ok, warn, fail int
-			for _, f := range pr.Findings {
-				switch f.Status {
-				case probe.Fail:
-					fail++
-				case probe.Warn:
-					warn++
-				case probe.Pass, probe.Info:
-					ok++
-				}
+	sink := engine.SinkFunc(func(e engine.Event) {
+		switch e.Kind {
+		case engine.EventPhaseStart:
+			diag.Debugf("phase %s starting", e.Phase)
+			if program != nil {
+				program.Send(tui.PhaseStartMsg{Name: e.Phase})
 			}
-			counts := fmt.Sprintf("%d ok", ok)
-			if warn > 0 {
-				counts += fmt.Sprintf(", %d warn", warn)
+			if ndjson != nil {
+				_ = ndjson.Encode(map[string]any{"type": "phase", "phase": e.Phase})
 			}
-			if fail > 0 {
-				counts += fmt.Sprintf(", %d fail", fail)
-			}
-			action := strings.ToUpper(string(pr.Status))
-			if pr.Skipped != "" {
-				counts = "skipped: " + pr.Skipped
-			} else if pr.Status == probe.Skip {
-				for _, f := range pr.Findings {
-					if f.Status == probe.Skip && f.Detail != "" {
-						counts = f.Detail
-						break
-					}
-				}
-			}
-			switch {
-			case program != nil:
-				program.Send(tui.PhaseDoneMsg{Name: pr.Name, Action: action, Duration: pr.Duration.Duration(), Message: phaseSummary(pr, warn, fail)})
-			case output == "text":
-				log.Printf("%s [%s] %s: %s", tui.ResultIcon(action), action, pr.Name, counts)
-			default:
-				diag.Infof("%-12s %-4s %7s  %s", pr.Name, action, pr.Duration.Duration().Round(time.Millisecond), counts)
-			}
-		},
-		Progress: func(phase string, f *probe.Finding) {
-			if f == nil {
-				diag.Debugf("phase %s starting", phase)
-				if program != nil {
-					program.Send(tui.PhaseStartMsg{Name: phase})
-				}
-				if ndjson != nil {
-					_ = ndjson.Encode(map[string]any{"type": "phase", "phase": phase})
-				}
-				return
-			}
+		case engine.EventFinding:
+			f := e.Finding
 			diag.Debugf("%s %s: %s — %s", f.Status, f.ID, f.Title, f.Detail)
 			if ndjson != nil {
 				_ = ndjson.Encode(map[string]any{"type": "finding", "finding": f})
 			}
-		},
-	}
-
-	var sess *probe.Session
-	var runErr error
-	var rep *report.Report
-	build := func() {
-		if sess != nil {
-			rep = report.Build(sess, Version, withEvents || reportDir != "")
+		case engine.EventPhaseDone:
+			reportPhase(*e.Result, program, spec.Output.Format)
+		case engine.EventRequest:
+			if ndjson != nil {
+				_ = ndjson.Encode(map[string]any{"type": "request", "event": e.Request})
+			}
 		}
-	}
+	})
+
+	var res *engine.Result
 	if program != nil {
 		done := make(chan struct{})
 		go func() {
 			defer close(done)
-			sess, runErr = probe.Run(runCtx, opts)
-			build()
+			res = engine.Run(runCtx, spec, sink)
 			program.Send(tui.DoneMsg{})
 		}()
 		if _, err := program.Run(); err != nil {
@@ -242,48 +182,91 @@ func runCheck(ctx context.Context, args []string, only []string) error {
 		program.Kill()
 		<-done
 		if runView != nil && runView.Aborted() {
-			return runErr
+			if res != nil {
+				return res.Err
+			}
+			return nil
 		}
 	} else {
-		sess, runErr = probe.Run(runCtx, opts)
-		build()
+		res = engine.Run(runCtx, spec, sink)
 	}
-	if sess == nil || rep == nil {
-		return runErr
+	if res == nil || res.Report == nil {
+		if res != nil {
+			return res.Err
+		}
+		return nil
 	}
 
-	if reportDir != "" {
-		files, err := writeReportDir(reportDir, rep, rec)
-		if err != nil {
+	if spec.Output.ReportDir != "" {
+		if _, err := res.WriteDir(spec.Output.ReportDir, Version); err != nil {
 			return err
 		}
-		rep.Files = files
+		diag.Infof("saved the full report and telemetry to %s", spec.Output.ReportDir)
 	}
-	switch output {
-	case "json":
-		if !withEvents && reportDir == "" {
-			rep.Events = nil
-		}
-		enc := json.NewEncoder(os.Stdout)
-		enc.SetIndent("", "  ")
-		if err := enc.Encode(rep); err != nil {
-			return err
-		}
-	case "md":
-		report.Markdown(os.Stdout, rep)
-	case "ndjson":
+	if spec.Output.Format == engine.FormatNDJSON {
+		rep := *res.Report
 		rep.Events = nil
 		_ = ndjson.Encode(map[string]any{"type": "report", "report": rep})
-	default:
-		report.Text(os.Stdout, rep, report.TextOptions{Color: !noColor && stdoutIsTTY(), Verbose: verbose, Width: termWidth()})
+	} else {
+		width := 0
+		if spec.Output.Format == engine.FormatText {
+			width = termWidth()
+		}
+		out := spec
+		out.Output.NoColor = spec.Output.NoColor || !stdoutIsTTY()
+		if err := res.Render(os.Stdout, out, width); err != nil {
+			return err
+		}
 	}
-	if runErr != nil {
-		return runErr
+	if res.Err != nil {
+		return res.Err
 	}
-	if rep.Counts.Fail > 0 {
+	if res.Failed() {
 		osExit(2)
 	}
 	return nil
+}
+
+// reportPhase draws one finished phase, in whichever way this surface is
+// currently speaking.
+func reportPhase(pr probe.PhaseResult, program *tea.Program, format engine.Format) {
+	var ok, warn, fail int
+	for _, f := range pr.Findings {
+		switch f.Status {
+		case probe.Fail:
+			fail++
+		case probe.Warn:
+			warn++
+		case probe.Pass, probe.Info:
+			ok++
+		}
+	}
+	counts := fmt.Sprintf("%d ok", ok)
+	if warn > 0 {
+		counts += fmt.Sprintf(", %d warn", warn)
+	}
+	if fail > 0 {
+		counts += fmt.Sprintf(", %d fail", fail)
+	}
+	action := strings.ToUpper(string(pr.Status))
+	if pr.Skipped != "" {
+		counts = "skipped: " + pr.Skipped
+	} else if pr.Status == probe.Skip {
+		for _, f := range pr.Findings {
+			if f.Status == probe.Skip && f.Detail != "" {
+				counts = f.Detail
+				break
+			}
+		}
+	}
+	switch {
+	case program != nil:
+		program.Send(tui.PhaseDoneMsg{Name: pr.Name, Action: action, Duration: pr.Duration.Duration(), Message: phaseSummary(pr, warn, fail)})
+	case format == engine.FormatText:
+		log.Printf("%s [%s] %s: %s", tui.ResultIcon(action), action, pr.Name, counts)
+	default:
+		diag.Infof("%-12s %-4s %7s  %s", pr.Name, action, pr.Duration.Duration().Round(time.Millisecond), counts)
+	}
 }
 
 // runSubtitle is the one-line, secret-free description of the credentials,
@@ -344,14 +327,6 @@ func termWidth() int {
 	return 84
 }
 
-func containsString(ss []string, s string) bool {
-	for _, v := range ss {
-		if v == s {
-			return true
-		}
-	}
-	return false
-}
 
 // listSelectorItems connects with the supplied credentials and lists the
 // tools with their policy class, for the interactive selector.
@@ -402,52 +377,6 @@ func listSelectorItems(ctx context.Context, endpoint string, cr *creds.Credentia
 		items = append(items, tui.Item{Name: t.Name, Kind: kind, Policy: pol, Description: t.Description})
 	}
 	return items, nil
-}
-
-func writeReportDir(dir string, rep *report.Report, rec *telemetry.Recorder) ([]string, error) {
-	if err := os.MkdirAll(dir, 0o750); err != nil {
-		return nil, err
-	}
-	var files []string
-	write := func(name string, fn func(*os.File) error) error {
-		p := filepath.Join(dir, name)
-		f, err := os.Create(p) // #nosec G304 -- p is built from the operator's own --report-dir
-		if err != nil {
-			return err
-		}
-		if err := fn(f); err != nil {
-			_ = f.Close()
-			return err
-		}
-		files = append(files, p)
-		return f.Close()
-	}
-	full := *rep
-	full.Events = rec.Events()
-	if err := write("report.json", func(f *os.File) error {
-		enc := json.NewEncoder(f)
-		enc.SetIndent("", "  ")
-		return enc.Encode(full)
-	}); err != nil {
-		return nil, err
-	}
-	if err := write("report.md", func(f *os.File) error { report.Markdown(f, rep); return nil }); err != nil {
-		return nil, err
-	}
-	if err := write("report.txt", func(f *os.File) error {
-		report.Text(f, rep, report.TextOptions{Verbose: true})
-		return nil
-	}); err != nil {
-		return nil, err
-	}
-	if err := write("telemetry.ndjson", func(f *os.File) error { return rec.WriteNDJSON(f) }); err != nil {
-		return nil, err
-	}
-	if err := write("telemetry.har", func(f *os.File) error { return rec.WriteHAR(f, Version) }); err != nil {
-		return nil, err
-	}
-	diag.Infof("saved the full report and telemetry to %s", dir)
-	return files, nil
 }
 
 // newProgram builds the live-view program; tests swap in a headless one.

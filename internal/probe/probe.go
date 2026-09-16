@@ -189,6 +189,17 @@ var Phases = []Phase{
 	{"resilience", "Resilience", "Recovery from a lost session or an expired token", phaseResilience},
 }
 
+// PhaseTitle returns the human title of a phase, or the name itself when
+// it is not one scout knows.
+func PhaseTitle(name string) string {
+	for _, p := range Phases {
+		if p.Name == name {
+			return p.Title
+		}
+	}
+	return name
+}
+
 // PhaseNames lists the phase names in order.
 func PhaseNames() []string {
 	out := make([]string, len(Phases))
