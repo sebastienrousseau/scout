@@ -336,27 +336,27 @@
 @layer theme.tokens {
 :root,
 :root[data-theme="light"] {
-  --bg: #f4f7f6;
-  --bg-soft: #e8efee;
+  --bg: #faf7f3;
+  --bg-soft: #f2ebe3;
   --surface: #ffffff;
-  --surface-soft: #eef3f2;
-  --ink: #0b1417;
-  --ink-soft: #27383c;
-  --ink-muted: #3a4c50;
-  --accent: #08545c;
-  --accent-hover: #043b41;
+  --surface-soft: #f8f3ed;
+  --ink: #1c1d2c;
+  --ink-soft: #33344a;
+  --ink-muted: #594d51;
+  --accent: #7b3d22;
+  --accent-hover: #5e2e1a;
   --accent-ink: #ffffff;
-  --accent-soft: #d6ecec;
-  --on-accent-soft: #063f45;
-  --focus: #8a4400;
-  --line: #63767a;
-  --line-soft: #c4d2d0;
-  --scene: #07272b;
+  --accent-soft: #fdeeda;
+  --on-accent-soft: #7b3d22;
+  --focus: #db3922;
+  --line: #9b8c84;
+  --line-soft: #e3dad1;
+  --scene: #1c1d2c;
   --scene-ink: #ffffff;
-  --scene-muted: #cfe4e3;
-  --scene-accent: #3fb3ac;
-  --glow: #bfe3e0;
-  --shadow: 0 1.5rem 4rem rgb(7 26 30 / 14%);
+  --scene-muted: #cfc6c0;
+  --scene-accent: #f9a12c;
+  --glow: #f9d9a8;
+  --shadow: 0 1.5rem 4rem rgb(28 29 44 / 14%);
   --background-color: var(--bg);
   --foreground-color: var(--ink);
   --focus-ring-color: var(--focus);
@@ -364,27 +364,27 @@
 }
 
 :root[data-theme="dark"] {
-  --bg: #070f11;
-  --bg-soft: #0c1719;
-  --surface: #101d20;
-  --surface-soft: #16262a;
-  --ink: #f0f6f5;
-  --ink-soft: #cfe0df;
-  --ink-muted: #aec4c4;
-  --accent: #6fdfd6;
-  --accent-hover: #96ece5;
-  --accent-ink: #04282c;
-  --accent-soft: #124249;
-  --on-accent-soft: #eafbfa;
-  --focus: #ffbf73;
-  --line: #7b9295;
-  --line-soft: #2c4146;
-  --scene: #04191c;
+--bg: #14151f;
+  --bg-soft: #1c1d2c;
+  --surface: #1f2130;
+  --surface-soft: #272939;
+  --ink: #f6f2ed;
+  --ink-soft: #ded5cd;
+  --ink-muted: #c2b7b1;
+  --accent: #f9a12c;
+  --accent-hover: #fdb757;
+  --accent-ink: #1c1d2c;
+  --accent-soft: #3a2a17;
+  --on-accent-soft: #f9d9a8;
+  --focus: #f9a12c;
+  --line: #7d7069;
+  --line-soft: #34313f;
+  --scene: #0f1018;
   --scene-ink: #ffffff;
-  --scene-muted: #cfe4e3;
-  --scene-accent: #6fdfd6;
-  --glow: #1d4a50;
-  --shadow: 0 1.5rem 4rem rgb(0 0 0 / 44%);
+  --scene-muted: #cfc6c0;
+  --scene-accent: #f9a12c;
+  --glow: #3a2a17;
+  --shadow: 0 1.5rem 4rem rgb(0 0 0 / 50%);
   --background-color: var(--bg);
   --foreground-color: var(--ink);
   --focus-ring-color: var(--focus);
@@ -393,26 +393,27 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #070f11;
-    --bg-soft: #0c1719;
-    --surface: #101d20;
-    --surface-soft: #16262a;
-    --ink: #f0f6f5;
-    --ink-soft: #cfe0df;
-    --ink-muted: #aec4c4;
-    --accent: #6fdfd6;
-    --accent-hover: #96ece5;
-    --accent-ink: #04282c;
-    --accent-soft: #124249;
-    --on-accent-soft: #eafbfa;
-    --focus: #ffbf73;
-    --line: #7b9295;
-    --line-soft: #2c4146;
-    --scene: #04191c;
+    --bg: #14151f;
+    --bg-soft: #1c1d2c;
+    --surface: #1f2130;
+    --surface-soft: #272939;
+    --ink: #f6f2ed;
+    --ink-soft: #ded5cd;
+    --ink-muted: #c2b7b1;
+    --accent: #f9a12c;
+    --accent-hover: #fdb757;
+    --accent-ink: #1c1d2c;
+    --accent-soft: #3a2a17;
+    --on-accent-soft: #f9d9a8;
+    --focus: #f9a12c;
+    --line: #7d7069;
+    --line-soft: #34313f;
+    --scene: #0f1018;
     --scene-ink: #ffffff;
-    --scene-muted: #cfe4e3;
-    --scene-accent: #6fdfd6;
-    --glow: #1d4a50;
+    --scene-muted: #cfc6c0;
+    --scene-accent: #f9a12c;
+    --glow: #3a2a17;
+    --shadow: 0 1.5rem 4rem rgb(0 0 0 / 50%);
     --background-color: var(--bg);
     --foreground-color: var(--ink);
     --focus-ring-color: var(--focus);
@@ -538,6 +539,10 @@ figcaption { margin-block-start: 1.5rem; color: var(--ink-muted); }
 .brand { display: inline-flex; align-items: center; gap: 0.65rem; min-height: 2.75rem; color: var(--ink); font-size: 1.12rem; font-weight: 850; letter-spacing: -0.025em; text-decoration: none; }
 .brand:hover { color: var(--ink); }
 .brand-mark { display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-size: 0.85rem; }
+/* The flame is the mark. It carries its own two tones, so it sits on
+ * either theme without a plate behind it. */
+.brand-logo { display: block; width: auto; height: 1.65rem; flex: none; }
+.brand-logo path { transition: none; }
 .site-nav { display: flex; align-items: center; gap: 0.2rem; margin-inline-start: auto; }
 .site-nav a, .mode-toggle, .nav-toggle { display: inline-flex; align-items: center; justify-content: center; min-width: 2.75rem; min-height: 2.75rem; padding-inline: 0.75rem; border: 0; background: transparent; color: var(--ink-soft); font-size: var(--step--1); font-weight: 740; text-decoration: none; cursor: pointer; }
 .site-nav a:hover, .mode-toggle:hover, .nav-toggle:hover { color: var(--ink); background: var(--surface-soft); }
@@ -739,13 +744,16 @@ h1, h2, h3, p, a { color: #000000; }
 a[href]::after { content: " (" attr(href) ")"; overflow-wrap: anywhere; }
 }
 
+/* Wide gamut. These must track the sRGB accents above: a display-p3 value
+ * left behind from an older palette silently wins on every P3 screen, which
+ * is most of them, and the site ships a colour nobody chose. */
 @media (color-gamut: p3) {
 :root,
 :root[data-theme="light"] {
-  --accent: color(display-p3 0.03 0.33 0.36);
+  --accent: color(display-p3 0.463 0.247 0.145);
 }
 :root[data-theme="dark"] {
-  --accent: color(display-p3 0.75 0.64 1.00);
+  --accent: color(display-p3 0.956 0.639 0.212);
 }
 }
 
@@ -765,11 +773,16 @@ a[href]::after { content: " (" attr(href) ")"; overflow-wrap: anywhere; }
 
 @layer theme.tokens {
 /* Severity is its own scale, deliberately outside the accent. A reader must
- * never have to ask whether a colour means "brand" or "broken". */
-:root, :root[data-theme="light"] { --st-pass: #1a5f3c; --st-warn: #7f4a06; --st-fail: #8f1a2e; }
-:root[data-theme="dark"] { --st-pass: #62d396; --st-warn: #e5ae5c; --st-fail: #ff8294; }
+ * never have to ask whether a colour means "brand" or "broken".
+ *
+ * The brand palette took orange, so warn moved toward yellow to keep that
+ * true: on the dark theme the accent is #f9a12c, and the previous warn of
+ * #e5ae5c sat within a few degrees of it. Two colours a reader has to
+ * compare side by side to tell apart are one colour. */
+:root, :root[data-theme="light"] { --st-pass: #1a5f3c; --st-warn: #6f5300; --st-fail: #8f1a2e; }
+:root[data-theme="dark"] { --st-pass: #62d396; --st-warn: #ecd46b; --st-fail: #ff8294; }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) { --st-pass: #62d396; --st-warn: #e5ae5c; --st-fail: #ff8294; }
+  :root:not([data-theme="light"]) { --st-pass: #62d396; --st-warn: #ecd46b; --st-fail: #ff8294; }
 }
 }
 
@@ -791,8 +804,26 @@ a[href]::after { content: " (" attr(href) ")"; overflow-wrap: anywhere; }
 .scout-hero-grid { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: clamp(2rem, 5vw, 4rem); align-items: center; }
 .scout-copy { display: flex; flex-direction: column; gap: 1rem; }
 .scout-copy h1 { max-width: 16ch; font-size: clamp(2.3rem, 5vw, 3.9rem); line-height: 1.04; letter-spacing: -0.03em; }
-.scout-photo { margin: 0; }
+/* The hero photograph is cyan, and the brand is not. Rather than ship an
+ * image that argues with every other colour on the page, its luminance is
+ * kept and its hue replaced: mix-blend-mode: color takes hue and saturation
+ * from the overlay and lightness from what is underneath, which is a
+ * duotone rather than a tint. Wrapped in @supports so a browser without
+ * blend modes shows the photograph rather than a flat orange rectangle. */
+.scout-photo { margin: 0; position: relative; isolation: isolate; }
 .scout-photo img { width: 100%; height: auto; aspect-ratio: 1200 / 774; object-fit: cover; border-radius: 0.9rem; border: 1px solid var(--line-soft); }
+
+@supports (mix-blend-mode: color) {
+  .scout-photo::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 0.9rem;
+    background: linear-gradient(145deg, #db3922 0%, #984e2d 45%, #f9a12c 100%);
+    mix-blend-mode: color;
+    pointer-events: none;
+  }
+}
 .actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 0.4rem; }
 .button { display: inline-flex; align-items: center; justify-content: center; min-height: 2.75rem; padding: 0.6rem 1.15rem; border-radius: 0.45rem; font-weight: 700; text-decoration: none; }
 .button.primary { background: var(--accent); color: var(--accent-ink); border: 2px solid var(--accent); }
