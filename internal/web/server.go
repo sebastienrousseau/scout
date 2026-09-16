@@ -52,6 +52,23 @@ type Options struct {
 	MaxRuns int
 	// Open, when set, is called with the URL once the listener is up.
 	Open func(string)
+
+	// Public turns on the posture described in public.go: no credentials
+	// are accepted, only Allowed targets may be scanned, requests are rate
+	// limited, and no token is required because the whole point is that
+	// anyone may use it.
+	Public bool
+	// Allowed is the set of servers a public deployment may scan. Public
+	// mode refuses to start without one.
+	Allowed *Allowlist
+	// RatePerMinute and RateBurst bound one caller's share of a public
+	// deployment.
+	RatePerMinute int
+	RateBurst     int
+	// TrustProxyHeader honours X-Forwarded-For for rate limiting. Only set
+	// it when a proxy you control is in front, because otherwise a caller
+	// can mint a fresh identity per request.
+	TrustProxyHeader bool
 }
 
 // DefaultMaxRuns is how many finished runs are kept.
@@ -62,6 +79,8 @@ type Server struct {
 	opts  Options
 	token string
 	mux   *http.ServeMux
+
+	limit *limiter
 
 	mu    sync.Mutex
 	runs  map[string]*run
@@ -100,11 +119,24 @@ func New(opts Options) (*Server, error) {
 			"reach it can do both. Pass --allow-remote if that is genuinely what you want", opts.Addr)
 	}
 
+	if opts.Public {
+		// A public server with no allowlist is an open relay: anyone could
+		// aim it at anything the host can route to. Refusing at startup is
+		// the only place this can be caught before it matters.
+		if opts.Allowed == nil || len(opts.Allowed.Endpoints()) == 0 {
+			return nil, fmt.Errorf("web: --public needs an allowlist of servers it may scan; " +
+				"without one this listener would send requests anywhere it was asked to")
+		}
+	}
+
 	tok, err := newToken()
 	if err != nil {
 		return nil, err
 	}
 	s := &Server{opts: opts, token: tok, mux: http.NewServeMux(), runs: map[string]*run{}}
+	if opts.Public {
+		s.limit = newLimiter(opts.RatePerMinute, opts.RateBurst)
+	}
 	s.routes()
 	return s, nil
 }
@@ -152,7 +184,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "cross-origin request refused", http.StatusForbidden)
 		return
 	}
-	if !s.authorized(r) {
+	// A public deployment has no token to check: it exists to be used by
+	// people who were never handed one. Origin validation above still
+	// applies, and everything a caller could do with it is bounded by the
+	// allowlist and the limiter rather than by knowing a secret.
+	if !s.opts.Public && !s.authorized(r) {
 		http.Error(w, "missing or invalid token", http.StatusUnauthorized)
 		return
 	}
@@ -224,12 +260,44 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 }
 
 func (s *Server) startRun(w http.ResponseWriter, r *http.Request) {
+	if s.limit != nil && !s.limit.allow(clientKey(r, s.opts.TrustProxyHeader)) {
+		w.Header().Set("Retry-After", "30")
+		writeJSON(w, http.StatusTooManyRequests, map[string]string{
+			"error": "too many runs from this address; wait a moment and try again",
+		})
+		return
+	}
 	var spec engine.RunSpec
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
 	if err := dec.Decode(&spec); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "the request body is not a run specification: " + err.Error()})
 		return
 	}
+	if s.opts.Public {
+		// Refuse before running, rather than quietly dropping what was
+		// sent. A caller who believes their credential was used and is
+		// told nothing would reasonably read the result as a test of an
+		// authenticated server.
+		if used := credentialFieldsSet(spec.Creds); len(used) > 0 {
+			writeJSON(w, http.StatusBadRequest, map[string]string{
+				"error": "this server accepts no credentials: remove " + strings.Join(used, ", ") +
+					". Run scout locally to test a server that needs one — it is the same binary.",
+			})
+			return
+		}
+		name, ok := s.opts.Allowed.Permits(spec.Target.Endpoint)
+		if !ok {
+			writeJSON(w, http.StatusForbidden, map[string]string{
+				"error": "this server only scans the endpoints it was started with. " +
+					"Run scout locally to test your own server — it is the same binary.",
+			})
+			return
+		}
+		_ = name
+		// Constructed, not sanitised: whatever arrived is discarded.
+		spec = publicSpec(spec)
+	}
+
 	spec.Version = s.opts.Version
 	spec = spec.WithDefaults()
 	// One validator for every surface, so a browser gets the CLI's error.
