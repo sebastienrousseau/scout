@@ -27,12 +27,14 @@ func phaseDiscovery(ctx context.Context, s *Session) []Finding {
 	// First contact must be unauthenticated even when credentials were
 	// supplied, so we can see whether the server enforces auth at all. The
 	// bare transport carries no token, no API-key headers, no basic auth.
-	c := s.check("discovery.first_contact", "Unauthenticated initialize")
-	id := tr.NextID()
-	raw, err := tr.Do(telemetry.WithPhase(ctx, "discovery", "unauthenticated initialize"), transport.RawOptions{
-		Request:     &transport.Request{JSONRPC: "2.0", ID: &id, Method: "initialize", Params: initParams(s)},
-		OmitSession: true,
-	})
+	//
+	// Which request that is depends on the generation the server speaks: the
+	// stateless revision removed initialize, so sending one there proves
+	// nothing about authorization. The era is settled first, on the same
+	// credential-free transport.
+	c := s.check("discovery.first_contact", "Unauthenticated first contact")
+	s.settleEra(ctx)
+	raw, err := s.firstContact(ctx)
 	if err != nil {
 		out = append(out, c.fail(Critical, "request failed: "+err.Error(), "the endpoint must accept a JSON-RPC POST"))
 		s.blocked = "endpoint does not answer HTTP"

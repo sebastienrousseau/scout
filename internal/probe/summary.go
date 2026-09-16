@@ -174,6 +174,17 @@ func summarize(name string, s *Session, pr PhaseResult) string {
 		if pr.Status == Skip {
 			return "Stateless server, nothing to recover"
 		}
+		if s.Stateless() {
+			// There is no session to recover; what was checked is whether
+			// the server really is independent of the connection.
+			switch {
+			case fails > 0:
+				return "Requests depend on the connection they arrive on"
+			case warns > 0:
+				return "Stateless, with a caveat"
+			}
+			return "Genuinely stateless: any request can land on any instance"
+		}
 		if fails > 0 {
 			return "Does not recover cleanly"
 		}
