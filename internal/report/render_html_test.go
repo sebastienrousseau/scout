@@ -64,10 +64,16 @@ func TestHTMLEscapesHostileCatalog(t *testing.T) {
 	// What matters is that no tag from the data survived as a tag. The
 	// escaped text may still read "onerror=alert(1)" — as characters in a
 	// text node, which is inert and is what a reader needs to see.
-	for _, tag := range []string{"<script", "<img", "<iframe", "<svg", "<object", "<embed"} {
+	for _, tag := range []string{"<script", "<img", "<iframe", "<object", "<embed"} {
 		if strings.Contains(out, tag) {
 			t.Errorf("a %q from server data survived as markup", tag)
 		}
+	}
+	// The template inlines the scout mark in several places, so <svg is
+	// counted rather than banned — against a baseline rendered from benign
+	// data, so the assertion survives the mark being added somewhere else.
+	if got, want := strings.Count(out, "<svg"), baselineSVGCount(t); got != want {
+		t.Errorf("got %d <svg elements, want the template's own %d", got, want)
 	}
 	if strings.Contains(out, `href="javascript:`) || strings.Contains(out, `src="javascript:`) {
 		t.Error("a javascript: URL survived")
