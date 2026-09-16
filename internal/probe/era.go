@@ -215,12 +215,12 @@ func (s *Session) setupStateless(ctx context.Context) []Finding {
 		}
 		out = append(out, c.pass(fmt.Sprintf("%s %s via server/discover", d.ServerInfo.Name, d.ServerInfo.Version)))
 	} else {
-		// server/discover is optional, so its absence is not a failure —
-		// but nothing else on this revision tells a client who it is
-		// talking to, and a report with no server name is harder to act on.
+		// The specification is explicit that every server MUST implement
+		// server/discover: it is the only way a client on this revision
+		// learns a server's identity, capabilities and supported versions.
 		s.Init = &scout.InitializeResult{ProtocolVersion: scout.StatelessVersions[0]}
-		out = append(out, c.warn("the server does not implement server/discover, so it never names itself",
-			"implement server/discover: it is the only way a client on this revision learns your name, version, capabilities and instructions in one call"))
+		out = append(out, c.fail(Major, "the server does not implement server/discover",
+			"implement server/discover. "+scout.StatelessVersions[0]+" requires it: with initialize gone it is the only way a client learns your identity, capabilities and which protocol versions you support"))
 	}
 
 	out = append(out, s.checkRoutingHeaders(ctx))
@@ -327,4 +327,25 @@ type listToolsShape struct {
 	Tools []struct {
 		Name string `json:"name"`
 	} `json:"tools"`
+}
+
+// liveness is the cheapest request that proves a server is answering.
+//
+// It differs by revision because 2026-07-28 removed ping outright: a
+// stateless server answering -32601 to a ping is behaving correctly, and
+// scout reporting that as a failure would be the worst kind of diagnostic
+// bug — one that tells a conformant author to break their server. On that
+// revision the equivalent is server/discover, which the specification
+// requires every server to implement.
+func (s *Session) liveness() (method string, params any) {
+	if s.Stateless() {
+		return "server/discover", map[string]any{}
+	}
+	return "ping", nil
+}
+
+// livenessName is what the report calls the liveness probe.
+func (s *Session) livenessName() string {
+	m, _ := s.liveness()
+	return m
 }

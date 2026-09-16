@@ -387,10 +387,10 @@ func TestWriteDir(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(files) != 5 {
-		t.Errorf("wrote %d files, want 5: %v", len(files), files)
+	if len(files) != 6 {
+		t.Errorf("wrote %d files, want 6: %v", len(files), files)
 	}
-	for _, name := range []string{"report.json", "report.md", "report.txt", "telemetry.ndjson", "telemetry.har"} {
+	for _, name := range []string{"report.json", "report.md", "report.html", "report.txt", "telemetry.ndjson", "telemetry.har"} {
 		info, err := os.Stat(filepath.Join(dir, name))
 		if err != nil {
 			t.Errorf("%s: %v", name, err)
@@ -400,7 +400,7 @@ func TestWriteDir(t *testing.T) {
 			t.Errorf("%s is empty", name)
 		}
 	}
-	if len(res.Report.Files) != 5 {
+	if len(res.Report.Files) != 6 {
 		t.Error("the report should record what was written")
 	}
 	// The HAR must be openable by a browser's devtools, so it has to parse.

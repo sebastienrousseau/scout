@@ -141,7 +141,7 @@ func outputFlags() *pflag.FlagSet {
 	outOnce.Do(func() {
 		fs := pflag.NewFlagSet("output", pflag.ContinueOnError)
 		fs.BoolVarP(&interactive, "interactive", "i", false, "pick the tools to exercise in an interactive selector before the run")
-		fs.StringVar(&output, "output", "text", "output format: text, json, md, ndjson")
+		fs.StringVar(&output, "output", "text", "output format: text, json, md, ndjson, html")
 		fs.StringVar(&reportDir, "report-dir", "", "write report.{txt,md,json}, telemetry.ndjson and telemetry.har here")
 		fs.BoolVar(&captureBodies, "capture-bodies", false, "record request/response bodies in telemetry (redacted, capped)")
 		fs.BoolVar(&withEvents, "events", false, "embed every telemetry event in JSON output")
@@ -298,10 +298,4 @@ func parseToolArgs(items []string) (map[string]map[string]any, error) {
 	return out, nil
 }
 
-func validOutput(o string) bool {
-	switch o {
-	case "text", "json", "md", "ndjson":
-		return true
-	}
-	return false
-}
+func validOutput(o string) bool { return engine.Format(o).Valid() }

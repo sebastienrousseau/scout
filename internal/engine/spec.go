@@ -129,10 +129,14 @@ const (
 	FormatJSON   Format = "json"
 	FormatMD     Format = "md"
 	FormatNDJSON Format = "ndjson"
+	// FormatHTML is one self-contained document: the file somebody opens
+	// offline, the page scout serve shows, and — through its print
+	// stylesheet — the PDF a board reads.
+	FormatHTML Format = "html"
 )
 
 // Formats lists every valid output format.
-var Formats = []Format{FormatText, FormatJSON, FormatMD, FormatNDJSON}
+var Formats = []Format{FormatText, FormatJSON, FormatMD, FormatNDJSON, FormatHTML}
 
 // Valid reports whether f is a format scout can render.
 func (f Format) Valid() bool {

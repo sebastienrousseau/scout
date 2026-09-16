@@ -212,8 +212,10 @@ func TestStatelessServerCompletesEveryPhase(t *testing.T) {
 	}
 }
 
-// server/discover is optional. Without it the server never names itself,
-// which is worth saying but is not a failure.
+// The specification requires every 2026-07-28 server to implement
+// server/discover: with initialize gone it is the only way a client learns
+// a server's identity, capabilities and supported versions. Its absence is
+// a failure, not a remark.
 func TestStatelessWithoutDiscover(t *testing.T) {
 	s := runStateless(t, statelessFake(t, statelessOpts{noDiscover: true}), nil)
 	if s.Blocked() != "" {
@@ -223,8 +225,13 @@ func TestStatelessWithoutDiscover(t *testing.T) {
 		t.Fatalf("a 404 with -32601 is still a stateless server: %+v", s.Era)
 	}
 	f, ok := findingByID(s, "handshake.server_info")
-	if !ok || f.Status != Warn {
+	if !ok || f.Status != Fail {
 		t.Errorf("handshake.server_info = %+v", f)
+	}
+	// And the run still completes: a missing optional-looking RPC must not
+	// stop scout from diagnosing everything else.
+	if s.Blocked() != "" {
+		t.Errorf("the run should continue: %s", s.Blocked())
 	}
 }
 

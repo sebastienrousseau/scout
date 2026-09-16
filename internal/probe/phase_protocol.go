@@ -118,8 +118,9 @@ func phaseProtocol(ctx context.Context, s *Session) []Finding {
 	tr := s.Client.Transport()
 	pctx := func(label string) context.Context { return telemetry.WithPhase(ctx, "protocol", label) }
 
-	c := s.check("protocol.ping", "ping")
-	if err := s.Client.Ping(pctx("ping")); err != nil {
+	live, liveParams := s.liveness()
+	c := s.check("protocol.ping", live)
+	if err := s.Client.Call(pctx(live), live, liveParams, nil); err != nil {
 		out = append(out, c.fail(Major, err.Error(), "implement ping; clients use it for liveness"))
 	} else {
 		out = append(out, c.pass("ok"))
@@ -143,7 +144,7 @@ func phaseProtocol(ctx context.Context, s *Session) []Finding {
 
 	c = s.check("protocol.id_echo", "Response id matches request id")
 	id = tr.NextID()
-	raw, err = tr.Do(pctx("id echo"), transport.RawOptions{Request: &transport.Request{JSONRPC: "2.0", ID: &id, Method: "ping"}})
+	raw, err = tr.Do(pctx("id echo"), transport.RawOptions{Request: &transport.Request{JSONRPC: "2.0", ID: &id, Method: live, Params: liveJSON(liveParams)}})
 	switch {
 	case err != nil:
 		out = append(out, c.warn("request failed: "+err.Error(), ""))
@@ -208,7 +209,7 @@ func phaseProtocol(ctx context.Context, s *Session) []Finding {
 
 	c = s.check("protocol.accept_header", "Request without Accept header")
 	id = tr.NextID()
-	raw, err = tr.Do(pctx("no accept"), transport.RawOptions{Request: &transport.Request{JSONRPC: "2.0", ID: &id, Method: "ping"}, Headers: map[string]string{"Accept": ""}})
+	raw, err = tr.Do(pctx("no accept"), transport.RawOptions{Request: &transport.Request{JSONRPC: "2.0", ID: &id, Method: live, Params: liveJSON(liveParams)}, Headers: map[string]string{"Accept": ""}})
 	switch {
 	case err != nil:
 		out = append(out, c.info("request failed: "+err.Error()))
@@ -247,7 +248,7 @@ func phaseProtocol(ctx context.Context, s *Session) []Finding {
 	if s.SessionID {
 		c = s.check("protocol.bogus_session", "Unknown session id is rejected")
 		id = tr.NextID()
-		raw, err = tr.Do(pctx("bogus session"), transport.RawOptions{Request: &transport.Request{JSONRPC: "2.0", ID: &id, Method: "ping"}, Headers: map[string]string{transport.HeaderSessionID: "scout-bogus-" + s.TraceID[:8]}})
+		raw, err = tr.Do(pctx("bogus session"), transport.RawOptions{Request: &transport.Request{JSONRPC: "2.0", ID: &id, Method: live, Params: liveJSON(liveParams)}, Headers: map[string]string{transport.HeaderSessionID: "scout-bogus-" + s.TraceID[:8]}})
 		switch {
 		case err != nil:
 			out = append(out, c.info("request failed: "+err.Error()))
@@ -264,7 +265,7 @@ func phaseProtocol(ctx context.Context, s *Session) []Finding {
 
 	c = s.check("protocol.version_header", "Bad MCP-Protocol-Version is rejected")
 	id = tr.NextID()
-	raw, err = tr.Do(pctx("bad version"), transport.RawOptions{Request: &transport.Request{JSONRPC: "2.0", ID: &id, Method: "ping"}, Headers: map[string]string{transport.HeaderProtocolVersion: "1999-01-01"}})
+	raw, err = tr.Do(pctx("bad version"), transport.RawOptions{Request: &transport.Request{JSONRPC: "2.0", ID: &id, Method: live, Params: liveJSON(liveParams)}, Headers: map[string]string{transport.HeaderProtocolVersion: "1999-01-01"}})
 	switch {
 	case err != nil:
 		out = append(out, c.info("request failed: "+err.Error()))
@@ -279,6 +280,19 @@ func phaseProtocol(ctx context.Context, s *Session) []Finding {
 }
 
 // phaseResilience checks recovery paths: session expiry and token refresh.
+// liveJSON marshals liveness params, which are either nil or an empty
+// object depending on the revision.
+func liveJSON(v any) json.RawMessage {
+	if v == nil {
+		return nil
+	}
+	b, err := json.Marshal(v)
+	if err != nil {
+		return nil
+	}
+	return b
+}
+
 func phaseResilience(ctx context.Context, s *Session) []Finding {
 	var out []Finding
 	tr := s.Client.Transport()
