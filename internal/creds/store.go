@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -40,8 +41,111 @@ type StoredToken struct {
 // worth as much as a password.
 type Store struct {
 	Path string
+	// Keyring, when non-nil, holds the secret fields; the JSON file then
+	// keeps only the non-secret record and a marker. When nil, the store
+	// selects one automatically, and falls back to the file when the
+	// machine offers none.
+	Keyring Keyring
 
-	mu sync.Mutex
+	mu       sync.Mutex
+	krOnce   sync.Once
+	resolved Keyring
+}
+
+// keyringMarker replaces a secret in the JSON file when the real value
+// lives in the OS keychain.
+const keyringMarker = "keyring:"
+
+// keyring resolves the backend once per store.
+func (s *Store) keyring() Keyring {
+	s.krOnce.Do(func() {
+		if s.Keyring != nil {
+			s.resolved = s.Keyring
+			return
+		}
+		s.resolved = SelectKeyring()
+	})
+	return s.resolved
+}
+
+// Backend names where secrets are kept, for the operator and the report.
+func (s *Store) Backend() string {
+	if k := s.keyring(); k != nil && k.Available() {
+		return k.Name()
+	}
+	return "file"
+}
+
+// secretKey is the keychain account name for one endpoint and field.
+func secretKey(endpoint, field string) string { return endpoint + "#" + field }
+
+// split moves the secret fields of t into the keyring, leaving markers
+// behind. It returns t unchanged when there is no keyring to use.
+func (s *Store) split(t StoredToken) (StoredToken, error) {
+	k := s.keyring()
+	if k == nil || !k.Available() {
+		return t, nil
+	}
+	fields := []struct {
+		name string
+		val  *string
+	}{
+		{"access_token", &t.AccessToken},
+		{"refresh_token", &t.RefreshToken},
+		{"client_secret", &t.ClientSecret},
+	}
+	for _, f := range fields {
+		if *f.val == "" || strings.HasPrefix(*f.val, keyringMarker) {
+			continue
+		}
+		if err := k.Set(secretKey(t.Endpoint, f.name), *f.val); err != nil {
+			return t, fmt.Errorf("creds: storing %s in the %s keyring: %w", f.name, k.Name(), err)
+		}
+		*f.val = keyringMarker + k.Name()
+	}
+	return t, nil
+}
+
+// join puts the secrets back, reading each from the keyring when the file
+// holds a marker rather than a value.
+func (s *Store) join(t *StoredToken) error {
+	k := s.keyring()
+	fields := []struct {
+		name string
+		val  *string
+	}{
+		{"access_token", &t.AccessToken},
+		{"refresh_token", &t.RefreshToken},
+		{"client_secret", &t.ClientSecret},
+	}
+	for _, f := range fields {
+		if !strings.HasPrefix(*f.val, keyringMarker) {
+			continue
+		}
+		if k == nil || !k.Available() {
+			return fmt.Errorf("creds: %s for %s is held in the %s keyring, which is not available here; run `scout login %s` again", f.name, t.Endpoint, strings.TrimPrefix(*f.val, keyringMarker), t.Endpoint)
+		}
+		secret, err := k.Get(secretKey(t.Endpoint, f.name))
+		if errors.Is(err, ErrNotFound) {
+			return fmt.Errorf("creds: %s for %s is missing from the %s keyring; run `scout login %s` again", f.name, t.Endpoint, k.Name(), t.Endpoint)
+		}
+		if err != nil {
+			return fmt.Errorf("creds: reading %s from the %s keyring: %w", f.name, k.Name(), err)
+		}
+		*f.val = secret
+	}
+	return nil
+}
+
+// purge removes an endpoint's secrets from the keyring.
+func (s *Store) purge(endpoint string) {
+	k := s.keyring()
+	if k == nil || !k.Available() {
+		return
+	}
+	for _, f := range []string{"access_token", "refresh_token", "client_secret"} {
+		_ = k.Delete(secretKey(endpoint, f))
+	}
 }
 
 // ErrInsecurePermissions reports a token store other users can read.
@@ -108,6 +212,9 @@ func (s *Store) Get(endpoint string) (*StoredToken, error) {
 	if !ok {
 		return nil, nil
 	}
+	if err := s.join(&t); err != nil {
+		return nil, err
+	}
 	return &t, nil
 }
 
@@ -120,7 +227,11 @@ func (s *Store) Put(t StoredToken) error {
 		return err
 	}
 	t.SavedAt = time.Now()
-	all[t.Endpoint] = t
+	split, err := s.split(t)
+	if err != nil {
+		return err
+	}
+	all[t.Endpoint] = split
 	return s.save(all)
 }
 
@@ -133,6 +244,7 @@ func (s *Store) Delete(endpoint string) error {
 		return err
 	}
 	delete(all, endpoint)
+	s.purge(endpoint)
 	return s.save(all)
 }
 
