@@ -78,6 +78,7 @@ is the cross-platform matrix.
 | Licence headers (SPDX) | `make spdx-check` |
 | SBOM drift | `make sbom` |
 | Example compilation | `make example-check` |
+| API compatibility | `make api-check` |
 | Fuzz targets | `make fuzz` |
 | Install contract | `make install-smoke` |
 | Manpage rendering | `make docs && groff -man -Tutf8 -ww build/man/scout.1 >/dev/null` |
