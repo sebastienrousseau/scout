@@ -15,7 +15,7 @@ changefreq: "weekly"
 copyright_year: "2026"
 form_origin: "'self'"
 theme_style: "style-scout"
-theme_colour: "#08545c"
+theme_colour: "#F9A12C"
 brand_mark: "S"
 footer_note: "A verdict is worth what its evidence is worth."
 
