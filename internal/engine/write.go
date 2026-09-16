@@ -34,6 +34,8 @@ func (r *Result) Render(w io.Writer, spec RunSpec, termWidth int) error {
 	case FormatMD:
 		report.Markdown(w, r.Report)
 		return nil
+	case FormatHTML:
+		return report.HTML(w, r.Report, report.HTMLOptions{Verbose: spec.Output.Verbose})
 	case FormatNDJSON:
 		// The events already streamed; this is the closing record.
 		rep := *r.Report
@@ -89,6 +91,9 @@ func (r *Result) WriteDir(dir, version string) ([]string, error) {
 			return enc.Encode(full)
 		}},
 		{"report.md", func(w io.Writer) error { report.Markdown(w, r.Report); return nil }},
+		{"report.html", func(w io.Writer) error {
+			return report.HTML(w, r.Report, report.HTMLOptions{Verbose: true})
+		}},
 		{"report.txt", func(w io.Writer) error {
 			report.Text(w, r.Report, report.TextOptions{Verbose: true})
 			return nil

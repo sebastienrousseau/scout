@@ -119,7 +119,7 @@ func TestCheckJSONMdNdjsonAndReportDir(t *testing.T) {
 	if rep["events"] == nil || len(rep["events"].([]any)) == 0 {
 		t.Error("--events should embed telemetry")
 	}
-	for _, name := range []string{"report.json", "report.md", "report.txt", "telemetry.ndjson", "telemetry.har"} {
+	for _, name := range []string{"report.json", "report.md", "report.html", "report.txt", "telemetry.ndjson", "telemetry.har"} {
 		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
 			t.Errorf("missing %s", name)
 		}
@@ -136,7 +136,7 @@ func TestCheckJSONMdNdjsonAndReportDir(t *testing.T) {
 	if err := json.Unmarshal(har, &doc); err != nil || len(doc.Log.Entries) == 0 {
 		t.Errorf("har invalid: %v", err)
 	}
-	if files, _ := rep["files"].([]any); len(files) != 5 {
+	if files, _ := rep["files"].([]any); len(files) != 6 {
 		t.Errorf("files = %v", rep["files"])
 	}
 
