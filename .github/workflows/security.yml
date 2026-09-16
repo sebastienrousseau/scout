@@ -52,7 +52,7 @@ jobs:
             --lockfile=go.mod
             --no-call-analysis
             --format=sarif
-            --output=osv.sarif
+            --output-file=osv.sarif
         # A findings-only failure must not break the build: they surface as
         # code-scanning alerts, and an advisory against an unreachable
         # dependency should not block unrelated work. The step below is what

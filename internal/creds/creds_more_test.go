@@ -166,16 +166,20 @@ func TestStorePathsAndErrors(t *testing.T) {
 	// and the write still succeeds, so a file standing where the directory
 	// needs to be is used instead. Either way Put must report the failure
 	// rather than silently dropping the token.
-	blocked := &Store{Path: filepath.Join(dir, "sub", "x", "tokens.json")}
 	if runtime.GOOS == "windows" {
-		if err := os.WriteFile(filepath.Join(dir, "sub"), []byte("x"), 0o600); err != nil {
+		// dir/sub is already a directory above, so the file goes somewhere
+		// of its own.
+		blocker := filepath.Join(dir, "blocker")
+		if err := os.WriteFile(blocker, []byte("x"), 0o600); err != nil {
 			t.Fatal(err)
 		}
+		blocked := &Store{Path: filepath.Join(blocker, "x", "tokens.json")}
 		if err := blocked.Put(StoredToken{Endpoint: "b"}); err == nil {
 			t.Error("mkdir failure must propagate")
 		}
 		return
 	}
+	blocked := &Store{Path: filepath.Join(dir, "sub", "x", "tokens.json")}
 	_ = os.Chmod(filepath.Join(dir, "sub"), 0o500)
 	defer func() { _ = os.Chmod(filepath.Join(dir, "sub"), 0o700) }()
 	if err := blocked.Put(StoredToken{Endpoint: "b"}); err == nil && os.Getuid() != 0 {

@@ -81,8 +81,13 @@ func TestDeleteIsAtomicAndKeepsOthers(t *testing.T) {
 	if got, _ := s.Get("https://b/mcp"); got != nil {
 		t.Error("the deleted entry is still present")
 	}
-	if info, err := os.Stat(s.Path); err != nil || info.Mode().Perm() != 0o600 {
-		t.Errorf("Delete must preserve 0600: %v", err)
+	info, err := os.Stat(s.Path)
+	if err != nil {
+		t.Fatalf("Delete lost the store: %v", err)
+	}
+	// Windows synthesises this mode; there is nothing to preserve there.
+	if runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
+		t.Errorf("Delete must preserve 0600, got %#o", info.Mode().Perm())
 	}
 	// No temporary file may be left behind holding secrets.
 	entries, err := os.ReadDir(filepath.Dir(s.Path))
