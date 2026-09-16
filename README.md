@@ -16,9 +16,10 @@
   <a href="https://golangci-lint.run/"><img src="https://img.shields.io/badge/lint-golangci--lint-00ADD8?style=for-the-badge&logo=go&logoColor=white" alt="golangci-lint" /></a>
   <a href="https://codecov.io/gh/sebastienrousseau/scout"><img src="https://img.shields.io/codecov/c/github/sebastienrousseau/scout?style=for-the-badge&logo=codecov" alt="Code Coverage" /></a>
   <a href="https://scorecard.dev/viewer/?uri=github.com/sebastienrousseau/scout"><img src="https://img.shields.io/ossf-scorecard/github.com/sebastienrousseau/scout?style=for-the-badge&label=OpenSSF%20Scorecard&logo=openssf" alt="OpenSSF Scorecard" /></a>
-  <a href="https://sebastienrousseau.github.io/scout"><img src="https://img.shields.io/badge/docs-manual-brightgreen?style=for-the-badge&logo=github" alt="Documentation" /></a>
+  <a href="https://scoutmcp.io/manual/"><img src="https://img.shields.io/badge/docs-manual-brightgreen?style=for-the-badge&logo=github" alt="Documentation" /></a>
   <a href="https://github.com/sebastienrousseau/scout/releases/latest"><img src="https://img.shields.io/github/v/release/sebastienrousseau/scout?style=for-the-badge" alt="Release Version" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-blue?style=for-the-badge" alt="License" /></a>
+  <a href="#requirements--toolchain-policy"><img src="https://img.shields.io/github/go-mod/go-version/sebastienrousseau/scout?style=for-the-badge&logo=go&logoColor=white&label=Go" alt="Minimum Go version" /></a>
 </p>
 
 ---
@@ -53,7 +54,7 @@
 
 **Project**
 
-- [Documentation](#documentation) — manual, API reference, developer docs
+- [Documentation](#documentation) — manual, API reference, developer docs, ecosystem map
 - [When not to use scout](#when-not-to-use-scout) — honest limits
 - [Requirements & toolchain policy](#requirements--toolchain-policy) — the Go floor and when it moves
 - [Stability guarantees](#stability-guarantees) — what a breaking change means here
@@ -809,16 +810,24 @@ see the self-contained, copy-pasteable Go code examples in the
 
 ## Documentation
 
-| Resource | Where |
+The four entry points, identical across every repo in the family:
+
+- **[User Manual](https://scoutmcp.io/manual/)** — the rendered manual: getting started, credentials, the nine phases, reports, configuration
+- **[API reference](https://pkg.go.dev/github.com/sebastienrousseau/scout)** — the Go packages the CLI is built on
+- **[Developer docs](DEVELOPMENT.md)** — toolchain, task map, reproducing every CI gate locally
+- **[Ecosystem map](docs/ECOSYSTEM.md)** — the surfaces, the published artefacts, the lockstep version rule
+
+| Document | Covers |
 |---|---|
-| **User manual** | <https://sebastienrousseau.github.io/scout> |
-| **API reference** | <https://pkg.go.dev/github.com/sebastienrousseau/scout> |
-| **Developer docs** | [DEVELOPMENT.md](DEVELOPMENT.md) — toolchain and every CI gate reproduced locally |
-| **Architecture** | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
-| **Decision records** | [docs/adr/](docs/adr/) |
-| **Security model** | [docs/security-model.md](docs/security-model.md) |
-| **Packaging** | [docs/packaging.md](docs/packaging.md) — for distribution maintainers |
-| **Support** | [SUPPORT.md](SUPPORT.md) |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | How a run is put together: the engine, the phases, the transports |
+| [`docs/adr/`](docs/adr/) | Decision records for the choices that get questioned later |
+| [`docs/security-model.md`](docs/security-model.md) | Threat model, the credential boundary, what scout will and will not send |
+| [`docs/packaging.md`](docs/packaging.md) | Addressed to distribution maintainers: licence grant, toolchain policy, offline tests |
+| [`pkg/VERIFY.md`](pkg/VERIFY.md) | Verifying a release: checksums, keyless cosign identity, SBOM |
+| [`SECURITY.md`](SECURITY.md) | Disclosure policy, supported versions, response SLA |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Signed-commit and DCO policy, PR guidelines, the local test recipe |
+| [`CHANGELOG.md`](CHANGELOG.md) | Per-release notes following Keep a Changelog 1.1.0 |
+| [`SUPPORT.md`](SUPPORT.md) | Where to ask, and what to expect |
 
 Once installed, `man scout` works offline, and every subcommand has its own
 page (`man scout-check`).

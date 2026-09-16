@@ -211,6 +211,38 @@ jobs:
           "${GOBIN}/govulncheck" -version
           "${GOBIN}/govulncheck" ./...
 
+  # scout exports importable packages, and the README tells people to use
+  # them. A signature that moves without the version saying so breaks a
+  # stranger's build at `go get -u`, and the first report of it arrives by
+  # email. gorelease compares the module against the last release and fails
+  # when the version on the tin does not cover the change.
+  api-compat:
+    name: API Compatibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # gorelease needs the tags to find a baseline.
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Compare the public API against the last release
+        env:
+          GOTOOLCHAIN: auto
+        run: |
+          set -euo pipefail
+          make api-check
+
   # The Unix install contract is what packagers rely on and what nothing
   # else exercises: `make install` can rot into a broken tree while every
   # other job stays green.
