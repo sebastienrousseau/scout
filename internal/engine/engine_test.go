@@ -111,7 +111,7 @@ func TestSecretsNeverSerialise(t *testing.T) {
 			Token:        "super-secret-token",
 			ClientSecret: "super-secret-client-secret",
 			Basic:        "user:super-secret-password",
-			Headers:      map[string]string{"X-Api-Key": "sk-live-secret"},
+			Headers:      map[string]string{"X-Api-Key": "api-key-that-must-not-travel"},
 			TokenEnv:     "SCOUT_TOKEN",
 		},
 	}
@@ -119,7 +119,7 @@ func TestSecretsNeverSerialise(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, secret := range []string{"super-secret-token", "super-secret-client-secret", "super-secret-password", "sk-live-secret"} {
+	for _, secret := range []string{"super-secret-token", "super-secret-client-secret", "super-secret-password", "api-key-that-must-not-travel"} {
 		if strings.Contains(string(b), secret) {
 			t.Errorf("a serialised spec leaked %q:\n%s", secret, b)
 		}
