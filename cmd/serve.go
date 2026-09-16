@@ -19,6 +19,11 @@ var (
 	serveAddr        string
 	serveAllowRemote bool
 	serveNoOpen      bool
+	servePublic      bool
+	serveAllowFile   string
+	serveRate        int
+	serveBurst       int
+	serveTrustProxy  bool
 )
 
 var serveCmd = &cobra.Command{
@@ -42,11 +47,50 @@ Examples:
   scout serve --no-open`,
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		var allowed *web.Allowlist
+		if servePublic {
+			if serveAllowFile == "" {
+				return fmt.Errorf("--public needs --allow-file naming the servers this deployment may scan.\n" +
+					"  Without one it would send requests wherever it was asked to, which is the\n" +
+					"  thing scout reports other servers for")
+			}
+			// The overrides that make local debugging pleasant are the ones
+			// that make a public deployment dangerous, so they are refused
+			// here rather than ignored: a flag that appears to work and does
+			// nothing is worse than one that fails.
+			for _, f := range []string{"insecure-allow-private-hosts", "insecure-allow-http-auth", "allow-resource-mismatch"} {
+				if cmd.Flags().Changed(f) || cmd.Root().PersistentFlags().Changed(f) {
+					return fmt.Errorf("--%s cannot be combined with --public", f)
+				}
+			}
+			var err error
+			if allowed, err = web.LoadAllowlist(serveAllowFile); err != nil {
+				return err
+			}
+			// A public deployment is reached from somewhere else by
+			// definition, so a loopback bind would serve nobody.
+			serveAllowRemote = true
+		}
+
 		srv, err := web.New(web.Options{
-			Addr:        serveAddr,
-			AllowRemote: serveAllowRemote,
-			Version:     Version,
+			Addr:             serveAddr,
+			AllowRemote:      serveAllowRemote,
+			Version:          Version,
+			Public:           servePublic,
+			Allowed:          allowed,
+			RatePerMinute:    serveRate,
+			RateBurst:        serveBurst,
+			TrustProxyHeader: serveTrustProxy,
 			Open: func(url string) {
+				if servePublic {
+					fmt.Fprintf(os.Stderr, "\n  scout is serving a public diagnostic at\n\n    %s\n\n", url)
+					fmt.Fprintf(os.Stderr, "  No credentials are accepted. %d server(s) may be scanned:\n", len(allowed.Endpoints()))
+					for _, e := range allowed.Endpoints() {
+						fmt.Fprintf(os.Stderr, "    %s\n", e)
+					}
+					fmt.Fprintf(os.Stderr, "\n  Press Ctrl-C to stop.\n\n")
+					return
+				}
 				fmt.Fprintf(os.Stderr, "\n  scout is running at\n\n    %s\n\n", url)
 				fmt.Fprintf(os.Stderr, "  The token in that URL is what authorises the page. Anyone with it\n")
 				fmt.Fprintf(os.Stderr, "  can start runs from this machine, so treat it like a password.\n")
@@ -67,6 +111,11 @@ func init() {
 	serveCmd.Flags().StringVar(&serveAddr, "addr", "127.0.0.1:0", "listen address; a port of 0 picks a free one")
 	serveCmd.Flags().BoolVar(&serveAllowRemote, "allow-remote", false, "allow a non-loopback bind (this listener can start authenticated runs)")
 	serveCmd.Flags().BoolVar(&serveNoOpen, "no-open", false, "do not open a browser")
+	serveCmd.Flags().BoolVar(&servePublic, "public", false, "serve a credential-free diagnostic to anyone who can reach it (requires --allow-file)")
+	serveCmd.Flags().StringVar(&serveAllowFile, "allow-file", "", "JSON file naming the servers a --public deployment may scan")
+	serveCmd.Flags().IntVar(&serveRate, "rate", 6, "runs per minute per caller in --public mode")
+	serveCmd.Flags().IntVar(&serveBurst, "burst", 3, "runs a caller may start at once in --public mode")
+	serveCmd.Flags().BoolVar(&serveTrustProxy, "trust-proxy-header", false, "honour X-Forwarded-For for rate limiting (only behind a proxy you control)")
 }
 
 // openBrowser is best-effort: failing to open one is not a reason to fail

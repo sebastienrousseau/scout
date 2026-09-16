@@ -22,3 +22,4 @@ made on a weaker basis than it appeared.
 | [0002](0002-findings-cite-requests.md) | Every finding cites the requests that produced it; the score is derived from findings | Accepted |
 | [0003](0003-structural-redaction-at-the-recorder.md) | Secrets are redacted structurally at the recorder, and content types are not trusted | Accepted |
 | [0004](0004-read-only-by-default.md) | Only tools declaring `readOnlyHint` are invoked by default | Accepted |
+| [0005](0005-public-mode-is-the-same-binary.md) | The hosted diagnostic is the same binary, and it accepts no credentials | Accepted |
