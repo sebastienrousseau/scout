@@ -7,22 +7,22 @@
    bottom are not an afterthought — print is the PDF pipeline. */
 
 :root {
-  --ground: #f4f7f6;
+  --ground: #faf7f3;
   --surface: #ffffff;
-  --sunk: #eef3f2;
-  --ink: #0b1417;
-  --ink-soft: #27383c;
-  --ink-mute: #3a4c50;
-  --rule: #c4d2d0;
-  --rule-soft: #dde5e3;
+  --sunk: #f5efe8;
+  --ink: #1c1d2c;
+  --ink-soft: #33344a;
+  --ink-mute: #594d51;
+  --rule: #d9cec5;
+  --rule-soft: #ebe3da;
 
-  --probe: #08545c;
-  --probe-wash: #d6ecec;
+  --probe: #7b3d22;
+  --probe-wash: #fdeeda;
 
   --pass: #1a5f3c;
   --pass-wash: #e2f1e8;
-  --warn: #7f4a06;
-  --warn-wash: #f8eddb;
+  --warn: #6f5300;
+  --warn-wash: #f8f0d8;
   --fail: #8f1a2e;
   --fail-wash: #fbe6e9;
   --info: #4a5c8a;
@@ -37,20 +37,20 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --ground: #070f11;
-    --surface: #101d20;
-    --sunk: #16262a;
-    --ink: #f0f6f5;
-    --ink-soft: #cfe0df;
-    --ink-mute: #aec4c4;
-    --rule: #2c4146;
-    --rule-soft: #16262a;
-    --probe: #6fdfd6;
-    --probe-wash: #124249;
+    --ground: #14151f;
+    --surface: #1f2130;
+    --sunk: #272939;
+    --ink: #f6f2ed;
+    --ink-soft: #ded5cd;
+    --ink-mute: #c2b7b1;
+    --rule: #3b3949;
+    --rule-soft: #2a2937;
+    --probe: #f9a12c;
+    --probe-wash: #3a2a17;
     --pass: #62d396;
     --pass-wash: #11291d;
-    --warn: #e5ae5c;
-    --warn-wash: #2b2114;
+    --warn: #ecd46b;
+    --warn-wash: #2b2514;
     --fail: #ff8294;
     --fail-wash: #2e161b;
     --info: #9aaede;
@@ -61,20 +61,20 @@
 }
 
 :root[data-theme="dark"] {
-  --ground: #070f11;
-  --surface: #101d20;
-  --sunk: #16262a;
-  --ink: #f0f6f5;
-  --ink-soft: #cfe0df;
-  --ink-mute: #aec4c4;
-  --rule: #2c4146;
-  --rule-soft: #16262a;
-  --probe: #6fdfd6;
-  --probe-wash: #124249;
+  --ground: #14151f;
+  --surface: #1f2130;
+  --sunk: #272939;
+  --ink: #f6f2ed;
+  --ink-soft: #ded5cd;
+  --ink-mute: #c2b7b1;
+  --rule: #3b3949;
+  --rule-soft: #2a2937;
+  --probe: #f9a12c;
+  --probe-wash: #3a2a17;
   --pass: #62d396;
   --pass-wash: #11291d;
-  --warn: #e5ae5c;
-  --warn-wash: #2b2114;
+  --warn: #ecd46b;
+  --warn-wash: #2b2514;
   --fail: #ff8294;
   --fail-wash: #2e161b;
   --info: #9aaede;
@@ -113,6 +113,27 @@ code, .mono { font-family: var(--f-mono); font-size: .88em; }
 }
 
 /* ── Masthead ─────────────────────────────────────────────────────── */
+/* ── Cover and contents ───────────────────────────────────────────────
+ * Both are print-first. On a screen the verdict should be the first thing
+ * a reader meets, so these are hidden there; on paper a document that
+ * opens on its subject, and tells you what is inside, is the difference
+ * between a report and a long screenshot somebody sent you. */
+.cover, .toc { display: none; }
+
+/* ── Identity ─────────────────────────────────────────────────────────
+ * A report that does not say what produced it is a screenshot. This one
+ * gets read by people who were not in the room when it was run, and
+ * forwarded to people who have never heard of the tool, so the mark and
+ * the document type come before the verdict. The logo is inlined rather
+ * than linked because the file has to open with no network. */
+.brand { display: inline-flex; align-items: center; gap: 9px; }
+.brand .mark { width: auto; height: 22px; flex: none; }
+.brand .wordmark { font-weight: 600; font-size: 17px; letter-spacing: -0.01em; color: var(--ink); }
+
+.brandbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  padding-bottom: 18px; border-bottom: 1px solid var(--rule-soft); }
+.doctype { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-mute); font-weight: 500; }
+
 .mast { background: var(--surface); border-bottom: 1px solid var(--rule); }
 .mast-in { padding-block: 34px 28px; display: flex; flex-direction: column; gap: 20px; }
 .target { display: flex; flex-direction: column; gap: 5px; }
@@ -259,10 +280,25 @@ td.name { font-family: var(--f-mono); font-size: 12.5px; }
 .meta dt { font-family: var(--f-mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-mute); }
 .meta dd { margin: 3px 0 0; font-size: 13.5px; word-break: break-word; }
 
-footer { padding-block: 26px 40px; color: var(--ink-mute); font-size: 12.5px; }
-footer .wrap { display: flex; flex-direction: column; gap: 6px; }
+footer { padding-block: 30px 44px; color: var(--ink-mute); font-size: 12.5px;
+  background: var(--surface); border-top: 1px solid var(--rule); }
+.colophon { display: grid; gap: 26px; align-items: start; }
+@media (min-width: 46rem) { .colophon { grid-template-columns: minmax(14rem, 22rem) 1fr; gap: 48px; } }
+.colo-brand .brand { margin-bottom: 12px; }
+.colo-brand .tagline { margin: 0 0 8px; line-height: 1.5; }
+.colo-brand .link { margin: 0; color: var(--probe); font-weight: 600; }
+.colo-notes p { margin: 0 0 10px; line-height: 1.55; max-width: 62ch; }
+.colo-notes strong { color: var(--ink-soft); }
+.colo-notes .fine { font-family: var(--f-mono); font-size: 11px; line-height: 1.6; color: var(--ink-mute); margin-bottom: 0; }
+
+/* Repeated on every printed page. Chrome repeats a fixed element per page,
+   which is the only running footer available to us: @page margin boxes
+   take no content there, so promising page numbers would be a promise the
+   PDF does not keep. */
+.print-rail { display: none; }
 
 .print-only { display: none; }
+
 
 /* ── Print: this is the PDF pipeline ──────────────────────────────── */
 @page {
@@ -277,24 +313,24 @@ footer .wrap { display: flex; flex-direction: column; gap: 6px; }
   :root, :root[data-theme="dark"], :root:not([data-theme="light"]) {
     --ground: #ffffff;
     --surface: #ffffff;
-    --sunk: #f2f5f4;
-    --ink: #0b1417;
-    --ink-soft: #33454a;
-    --ink-mute: #5c6e73;
-    --rule: #c8d4d1;
-    --rule-soft: #dde5e3;
-    --probe: #0a5f68;
-    --probe-wash: #e4f1f1;
+    --sunk: #f7f3ee;
+    --ink: #1c1d2c;
+    --ink-soft: #33344a;
+    --ink-mute: #56606b;
+    --rule: #ccc3ba;
+    --rule-soft: #e4ddd4;
+    --probe: #7b3d22;
+    --probe-wash: #fbf0e2;
     --pass: #1a5f3c;
     --pass-wash: #e8f2ec;
-    --warn: #7f4a06;
-    --warn-wash: #faf0de;
+    --warn: #6f5300;
+    --warn-wash: #f7f0d9;
     --fail: #8f1a2e;
     --fail-wash: #fce9ec;
     --info: #3e4e78;
     --info-wash: #ebeef7;
-    --skip: #5c6e73;
-    --skip-wash: #f2f5f4;
+    --skip: #56606b;
+    --skip-wash: #f4f1ec;
   }
 
   body { font-size: 10.5pt; line-height: 1.45; background: #fff; }
@@ -306,6 +342,58 @@ footer .wrap { display: flex; flex-direction: column; gap: 6px; }
      Everything else starts on a fresh page, which is what makes the
      document handable to two audiences at once. */
   .mast { border-bottom: 1.5pt solid var(--probe); }
+  .brandbar { padding-bottom: 10pt; }
+
+  .cover { display: block; break-after: page; }
+  .cover-in { padding-block: 44pt 0; display: flex; flex-direction: column; min-height: 88vh; }
+  .cover-brand .mark { height: 26pt; }
+  .cover-brand .wordmark { font-size: 19pt; }
+  .cover-title { font-size: 34pt; line-height: 1.08; letter-spacing: -0.02em; margin: 54pt 0 0; }
+  .cover-sub { font-family: var(--f-mono); font-size: 11pt; color: var(--probe); margin: 10pt 0 0; word-break: break-all; }
+  .cover-meta { margin: auto 0 0; display: grid; grid-template-columns: 1fr 1fr; gap: 9pt 24pt;
+    border-top: 0.5pt solid var(--rule); padding-top: 14pt; }
+  .cover-meta div { display: flex; flex-direction: column; gap: 2pt; }
+  .cover-meta dt { font-size: 7.5pt; letter-spacing: 0.09em; text-transform: uppercase; color: var(--ink-mute); }
+  .cover-meta dd { margin: 0; font-size: 10.5pt; color: var(--ink); }
+  .cover-foot { font-size: 8.5pt; color: var(--ink-mute); margin: 14pt 0 0; padding-bottom: 20pt; }
+
+  .toc { display: block; break-after: page; }
+  .toc h2 { font-size: 20pt; margin: 0 0 18pt; }
+  .toc ol { list-style: none; margin: 0; padding: 0; counter-reset: toc; }
+  .toc li { counter-increment: toc; display: grid; grid-template-columns: 1.6em 1fr; gap: 6pt;
+    padding-block: 7pt; border-bottom: 0.5pt solid var(--rule-soft); break-inside: avoid; }
+  .toc li::before { content: counter(toc, decimal-leading-zero); font-family: var(--f-mono);
+    font-size: 9pt; color: var(--probe); padding-top: 1pt; }
+  .toc a { font-size: 11.5pt; font-weight: 600; color: var(--ink); text-decoration: none; }
+  .toc span { grid-column: 2; font-size: 9pt; color: var(--ink-mute); }
+  .brand .mark { height: 16pt; }
+  .brand .wordmark { font-size: 13pt; }
+
+  /* The running footer. Fixed elements repeat on every page in Chrome,
+     which is what turns a long scroll into a document somebody can hand
+     across a table with the third page still identifying itself. */
+  .print-rail {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12pt;
+    padding-top: 4pt;
+    border-top: 0.5pt solid var(--rule);
+    font-size: 8pt;
+    color: var(--ink-mute);
+  }
+  .print-rail .mark { height: 9pt; }
+  .print-rail .wordmark { font-size: 9pt; }
+  .print-rail .brand { gap: 5pt; }
+
+  /* The colophon closes the document rather than starting a new page for
+     two paragraphs. */
+  footer { break-before: avoid; border-top: 0.5pt solid var(--rule); padding-block: 10pt 0; }
+  .colophon { grid-template-columns: 1fr 2fr; gap: 18pt; }
   section.detail { break-before: page; }
   section { border-bottom: 0; padding-block: 14pt; }
 

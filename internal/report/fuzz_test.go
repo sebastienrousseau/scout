@@ -62,13 +62,20 @@ func FuzzHTMLEscaping(f *testing.F) {
 		// exactly one <html>, one <head>, one <body>, one <style>.
 		// Counted with their closing bracket so <head> does not match the
 		// template's own <header>.
-		for tag, want := range map[string]int{"<html ": 1, "<head>": 1, "<body>": 1, "<style>": 1} {
+		//
+		// <svg is counted rather than forbidden: the template inlines the
+		// scout mark several times — masthead, cover, colophon, and the
+		// running footer that repeats on every printed page — because a
+		// report has to identify itself with no network available. The
+		// baseline comes from rendering benign data rather than a literal,
+		// so adding the mark somewhere else does not read as an injection.
+		for tag, want := range map[string]int{"<html ": 1, "<head>": 1, "<body>": 1, "<style>": 1, "<svg": baselineSVGCount(t)} {
 			if got := strings.Count(out, tag); got != want {
 				t.Errorf("input produced %d %q, want %d", got, tag, want)
 			}
 		}
 		// And no tag the template never writes may appear at all.
-		for _, tag := range []string{"<script", "<img", "<iframe", "<svg", "<object", "<embed", "<link", "<base", "<form"} {
+		for _, tag := range []string{"<script", "<img", "<iframe", "<object", "<embed", "<link", "<base", "<form"} {
 			if strings.Contains(out, tag) {
 				t.Errorf("input produced a %q element", tag)
 			}
@@ -121,4 +128,16 @@ func FuzzFixFirst(f *testing.F) {
 			}
 		}
 	})
+}
+
+// baselineSVGCount renders a report with nothing hostile in it and counts
+// the marks the template writes on its own. Anything above this came from
+// the data.
+func baselineSVGCount(t *testing.T) int {
+	t.Helper()
+	var b strings.Builder
+	if err := HTML(&b, htmlFixture(), HTMLOptions{Verbose: true}); err != nil {
+		t.Fatalf("rendering the baseline must not fail: %v", err)
+	}
+	return strings.Count(b.String(), "<svg")
 }
