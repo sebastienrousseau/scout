@@ -42,6 +42,12 @@ bench:
 # API-breakage check against the last release tag. gorelease reports
 # removed or changed exported identifiers; a pre-1.0 module may accept them,
 # but they must be seen and named in the CHANGELOG.
+docs-lock:
+	@command -v pip-compile >/dev/null 2>&1 || { \
+	  echo "pip-compile is missing. Install it with: python3 -m pip install pip-tools"; exit 1; }
+	pip-compile --generate-hashes --strip-extras --allow-unsafe \
+	  --output-file=docs/requirements.txt docs/requirements.in
+
 api-check:
 	@tag=$$(git describe --tags --abbrev=0 2>/dev/null || true); \
 	if [ -z "$$tag" ]; then echo "api-check: no release tag yet, nothing to compare"; exit 0; fi; \

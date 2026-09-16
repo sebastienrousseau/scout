@@ -58,6 +58,7 @@ make            # format, vet, lint, tests, build
 | `make test-race` | Race detector with randomised test order |
 | `make fuzz` | Run every fuzz target for a short, fixed budget |
 | `make docs` | Generate manpages and completions into `build/` |
+| `make docs-lock` | Regenerate `docs/requirements.txt` after editing `docs/requirements.in` |
 | `make install` | Install under `PREFIX` (default `/usr/local`) |
 | `make uninstall` | Remove everything `install` placed |
 | `make clean` | Remove build output |
