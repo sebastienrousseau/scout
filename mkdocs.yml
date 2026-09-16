@@ -37,7 +37,7 @@ markdown_extensions:
   - pymdownx.highlight
 
 nav:
-  - Home: manual/index.md
+  - Home: index.md
   - Getting started: manual/getting-started.md
   - Credentials: manual/credentials.md
   - The nine phases: manual/phases.md

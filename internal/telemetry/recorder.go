@@ -355,8 +355,15 @@ func (t *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 		mu.Lock()
 		ev.Error = red.String(err.Error())
 		ev.Timings.Total = time.Since(t0)
+		// Copy under the lock. httptrace callbacks are not finished when
+		// RoundTrip returns — net/http dials in a background goroutine and
+		// fires ConnectStart/ConnectDone against this same trace even after
+		// the request it was started for has failed. Passing ev to add by
+		// value reads every field, so doing it unlocked races that write.
+		// This is what bodyRecorder.finish already does on the success path.
+		failed := ev
 		mu.Unlock()
-		rec.add(ev)
+		rec.add(failed)
 		return nil, err
 	}
 	mu.Lock()
@@ -366,10 +373,13 @@ func (t *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	if ev.TLS == nil && resp.TLS != nil {
 		ev.TLS = tlsInfo(*resp.TLS)
 	}
+	contentType := ev.ContentType
 	mu.Unlock()
 	// Finalize when the body is fully read or closed so byte counts and
-	// total time include the body.
-	resp.Body = &bodyRecorder{rc: resp.Body, rec: rec, ev: &ev, mu: &mu, t0: t0, ct: ev.ContentType}
+	// total time include the body. The content type is read above rather
+	// than here, for
+	// the same reason: a late callback may still be writing to ev.
+	resp.Body = &bodyRecorder{rc: resp.Body, rec: rec, ev: &ev, mu: &mu, t0: t0, ct: contentType}
 	return resp, nil
 }
 
