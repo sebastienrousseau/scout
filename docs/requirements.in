@@ -8,4 +8,12 @@
 # The lock carries a hash for every package, including the transitive ones,
 # because pip only enforces hashes when every requirement has one.
 mkdocs==1.6.1
-mkdocs-material==9.6.14
+# 9.7.0 is the first release that drops the `~=10.2` cap on
+# pymdown-extensions, which is what lets the line below be satisfied.
+mkdocs-material==9.7.7
+# Not a direct dependency of the manual — mkdocs-material pulls it in — but
+# pinned here because everything at 11.0.0 and below carries GHSA-gm37-52c6-37mw
+# (exponential backtracking in four inline processors that are on by default)
+# and GHSA-9xwg-3r6f-jcx2 (path traversal in the b64 extension). 11.0.1 is the
+# first release with both fixed.
+pymdown-extensions>=11.0.1
