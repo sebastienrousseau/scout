@@ -1,4 +1,6 @@
 ---
+# SPDX-FileCopyrightText: 2026 Sebastien Rousseau <sebastian.rousseau@gmail.com>
+# SPDX-License-Identifier: GPL-3.0-only
 name: "scout"
 short_name: "SC"
 title: "scout — test any MCP server, from your own machine"
