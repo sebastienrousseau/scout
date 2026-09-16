@@ -33,18 +33,58 @@ jobs:
         with:
           persist-credentials: false
 
+      # --no-call-analysis is not a relaxation: govulncheck runs below as its
+      # own job and does reachability properly, against the toolchain go.mod
+      # names. osv-scanner's version of it shells out to a govulncheck bundled
+      # in the action's container, pinned by that image's own Go — which is
+      # older than this module's floor, so it refused to analyse the module at
+      # all and exited non-zero. continue-on-error then swallowed that, and a
+      # SARIF from a scan that never ran was uploaded over the real results.
+      #
+      # Dropping call analysis leaves osv-scanner doing the lockfile scan it
+      # is here for, and removes a dependency on someone else's Go version
+      # that a future bump would break again.
       - name: Scan go.mod against OSV
-        uses: google/osv-scanner-action/osv-scanner-action@e69cc6c86b31f1e7e23935bbe7031b50e51082de # v2.0.2
+        id: osv
+        uses: google/osv-scanner-action/osv-scanner-action@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
         with:
           scan-args: |
             --lockfile=go.mod
+            --no-call-analysis
             --format=sarif
             --output=osv.sarif
+        # A findings-only failure must not break the build: they surface as
+        # code-scanning alerts, and an advisory against an unreachable
+        # dependency should not block unrelated work. The step below is what
+        # separates "found something" from "did not run".
         continue-on-error: true
+
+      # The failure mode this guards against is silence. An osv.sarif that is
+      # missing, unparsable, or carries no rules is indistinguishable from a
+      # clean scan once uploaded — and uploading it would close every open
+      # alert. Better to fail the job than to report all-clear on no evidence.
+      - name: The scan actually produced results
+        run: |
+          set -euo pipefail
+          if [ ! -s osv.sarif ]; then
+            echo "::error::osv-scanner produced no SARIF; the scan did not run"
+            exit 1
+          fi
+          python3 - <<'PY'
+          import json, sys
+          with open("osv.sarif") as fh:
+              doc = json.load(fh)
+          runs = doc.get("runs") or []
+          if not runs:
+              print("::error::osv.sarif has no runs; the scan did not complete")
+              sys.exit(1)
+          results = sum(len(r.get("results") or []) for r in runs)
+          print(f"osv-scanner reported {results} result(s)")
+          PY
 
       - name: Upload SARIF
         if: always()
-        uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
+        uses: github/codeql-action/upload-sarif@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4.38.0
         with:
           sarif_file: osv.sarif
           category: osv-scanner
@@ -88,7 +128,7 @@ jobs:
           persist-credentials: false
 
       - name: Review dependency changes
-        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
         with:
           fail-on-severity: moderate
           comment-summary-in-pr: on-failure
