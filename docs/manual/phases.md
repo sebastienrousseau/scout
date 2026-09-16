@@ -1,0 +1,126 @@
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+
+# The nine phases
+
+Phases run in order. Each returns findings with a status (`pass`, `warn`,
+`fail`, `skip`, `info`), a severity on failures (`critical`, `major`,
+`minor`), what was observed, advice, and evidence: the range of recorded
+requests that produced it (`req#12-14`). A phase that finds the server
+unreachable, or credentials missing for a protected server, blocks every
+later phase; they are recorded as skipped with the reason.
+
+Run a subset with `--phases net,discovery,auth` or leave one out with
+`--skip-phases performance`.
+
+## net: Network and TLS
+
+No MCP traffic yet.
+
+| Finding | Checks |
+|---|---|
+| `net.scheme` | https; plain http to a non-loopback host is critical |
+| `net.dns` | the hostname resolves |
+| `net.tcp` | a TCP connection opens |
+| `net.tls` | the handshake completes and the certificate verifies; scout never skips verification |
+| `net.tls.version` | TLS 1.3, warning on 1.2 |
+| `net.tls.cert` | not expired; warning inside 14 days |
+
+## discovery: Authorization discovery
+
+First contact is made with a bare transport carrying no credentials of
+any kind, even when you supplied some, so the server's own enforcement is
+what is observed.
+
+| Finding | Checks |
+|---|---|
+| `discovery.first_contact` | 200 means open; 401 means protected; 403 or anything else is a deviation |
+| `discovery.creds_unused` | warns when credentials were supplied to an open server |
+| `discovery.challenge` | a `WWW-Authenticate: Bearer` challenge with `resource_metadata` |
+| `discovery.prm` | RFC 9728 protected-resource metadata: the hint, then the path-aware and root well-known locations |
+| `discovery.prm.resource` | the PRM's `resource` matches the endpoint |
+| `discovery.as` | RFC 8414 or OpenID discovery for each listed authorization server |
+| `discovery.as.https`, `discovery.as.pkce`, `discovery.as.grants` | TLS on the authorization server, S256 advertised, grant types |
+| `discovery.registration` | Client ID Metadata Documents or dynamic registration offered |
+| `discovery.override` | discovery bypassed because `--token-url` was given |
+
+## auth: Credentials and token
+
+| Finding | Checks |
+|---|---|
+| `auth.mode`, `auth.source.*` | which mode is in use and where each credential came from |
+| `auth.registration` | how the client identity was obtained: cimd, static or dcr |
+| `auth.token` | the token was obtained (or loaded from the store); a failed exchange names the OAuth error |
+| `auth.token.type`, `auth.token.expiry`, `auth.token.scope` | `token_type` is Bearer, `expires_in` is present and not tiny, granted scope covers what was requested |
+| `auth.rejects_garbage` | a made-up bearer token is answered with 401 and a challenge; a 2xx here is critical |
+
+## handshake: MCP initialize handshake
+
+| Finding | Checks |
+|---|---|
+| `handshake.initialize` | initialize succeeds with the credentials |
+| `handshake.protocol_version` | the negotiated version |
+| `handshake.server_info` | name and version populated |
+| `handshake.capabilities` | tools, resources, prompts, logging declared |
+| `handshake.instructions` | server instructions present |
+| `handshake.session` | an `Mcp-Session-Id` was issued (stateless servers are noted, not penalised) |
+
+## protocol: Protocol conformance
+
+Deliberately unusual requests, checked against what JSON-RPC 2.0 and the
+MCP specification require.
+
+| Finding | Checks |
+|---|---|
+| `protocol.ping` | ping answers |
+| `protocol.unknown_method` | an unknown method returns JSON-RPC -32601, not an HTTP error |
+| `protocol.id_echo` | the response id matches the request id and `jsonrpc` is "2.0" |
+| `protocol.malformed_json` | a truncated body is refused with 400 or -32700 |
+| `protocol.invalid_params` | `tools/call` without a name is refused |
+| `protocol.unknown_tool` | calling a tool that does not exist is reported, not answered with success |
+| `protocol.accept_header`, `protocol.get_stream` | informational: strictness about `Accept`, and whether GET opens a server event stream |
+| `protocol.bogus_session` | a session id the server never issued is rejected |
+| `protocol.version_header` | a bad `MCP-Protocol-Version` is rejected |
+
+## catalog: Tool, resource and prompt catalog
+
+Lists everything; invokes nothing.
+
+| Finding | Checks |
+|---|---|
+| `catalog.tools.list`, `catalog.resources.list`, `catalog.prompts.list` | each list succeeds when its capability is declared, and nothing lists without one |
+| `catalog.tools.unique` | tool names are unique |
+| `catalog.tools.descriptions` | every tool has a description of at least 20 characters |
+| `catalog.tools.input_schema` | `inputSchema` describes an object |
+| `catalog.tools.annotations` | tools declare `readOnlyHint`/`destructiveHint`; unannotated tools are treated as destructive |
+| `catalog.tools.output_schema` | tools declare `outputSchema` |
+| `catalog.resources.uris`, `catalog.resources.mime`, `catalog.resources.templates` | absolute URIs, mime types, template listing |
+| `catalog.prompts.descriptions` | prompts and their arguments are described |
+| `catalog.empty` | critical when there are no tools, resources or prompts at all |
+
+## execution: Safe execution and content validation
+
+| Finding | Checks |
+|---|---|
+| `execution.policy` | the policy in force |
+| `execution.tools` | each permitted tool invoked with generated arguments (or yours, via `--arg tool.field=value`); protocol errors and timeouts fail, `isError` results are reported honestly |
+| `execution.content` | `structuredContent` validates against `outputSchema`; a declared schema with no structured content is a violation |
+| `execution.validation` | each tool with required arguments is called once more with one omitted, and must reject the call |
+| `execution.resources` | up to `--max-resources` resources read; failures and empty reads reported |
+| `execution.prompts` | up to `--max-prompts` prompts rendered with placeholder arguments |
+
+## performance: Latency and concurrency
+
+| Finding | Checks |
+|---|---|
+| `performance.ping` | `--samples` pings: p50, p95, max |
+| `performance.tools` | every tool that succeeded, repeated `--samples` times; p95 above 2 s warns |
+| `performance.warmup` | a first call far slower than the median |
+| `performance.concurrency` | `--concurrency` workers × `--samples` calls on the fastest tool; errors fail, 429 without `Retry-After` warns |
+| `performance.throttle`, `performance.rate_limit` | whether the burst was throttled by scout, and with `--allow-load`, whether the server rate-limited it |
+
+## resilience: Session and token recovery
+
+| Finding | Checks |
+|---|---|
+| `resilience.session_reinit` | with the session id replaced by garbage, the client sees a 404, re-initializes, and the next call succeeds |
+| `resilience.token_refresh` | with the cached token invalidated, the next call obtains a fresh one and succeeds |

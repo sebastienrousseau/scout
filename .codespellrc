@@ -1,0 +1,8 @@
+# SPDX-FileCopyrightText: 2026 Sebastien Rousseau <sebastian.rousseau@gmail.com>
+# SPDX-License-Identifier: GPL-3.0-only
+
+[codespell]
+skip = ./build,./.git,./go.sum,*.svg,*.png,*.har,./site
+# te: TokenError receiver; nd: NDJSON buffer; hashi: hasHi bound flag; ded: deduct helper; intoto: in-toto attestation format.
+ignore-words-list = te,nd,hashi,ded,intoto,passs
+quiet-level = 3

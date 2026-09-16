@@ -1,0 +1,331 @@
+# SPDX-FileCopyrightText: 2026 Sebastien Rousseau <sebastian.rousseau@gmail.com>
+# SPDX-License-Identifier: GPL-3.0-only
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions: {}
+
+env:
+  CGO_ENABLED: '0'
+
+jobs:
+  # The test matrix: every OS the release ships for, on the toolchain floor
+  # go.mod states and on the latest stable. The floor is read from go.mod
+  # rather than restated here, so it cannot disagree with itself.
+  test:
+    name: Test (${{ matrix.os }}, go ${{ matrix.go }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        go: [go.mod, stable]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          show-progress: false
+
+      - name: Set up Go (the go.mod floor)
+        if: matrix.go == 'go.mod'
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Set up Go (latest stable)
+        if: matrix.go == 'stable'
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: stable
+
+      - name: Build
+        env:
+          GOTOOLCHAIN: auto
+        run: go build ./...
+
+      - name: Test
+        env:
+          GOTOOLCHAIN: auto
+        run: go test -count=1 ./...
+
+  # The race detector and randomised order are gates on their own: a suite
+  # that is order-dependent passes on every ordinary run and fails on the
+  # day something unrelated reorders it.
+  hardened-tests:
+    name: Race & Shuffled Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # No actions/setup-go: the runner ships a toolchain, and GOTOOLCHAIN=auto
+      # honours the `go` directive in go.mod, so the version is pinned by go.mod
+      # rather than by a workflow input that can drift from it.
+      - name: Test with race detector and randomised order
+        env:
+          GOTOOLCHAIN: auto
+        run: |
+          set -euo pipefail
+          go version
+          go test -race -shuffle=on -count=1 ./...
+
+      - name: Test with fixed shuffle seeds
+        env:
+          GOTOOLCHAIN: auto
+        run: |
+          set -euo pipefail
+          for seed in 1 2 3; do
+            echo "::group::shuffle seed ${seed}"
+            go test -count=1 -shuffle="${seed}" ./...
+            echo "::endgroup::"
+          done
+
+  # Coverage is gated per package, not in aggregate: an aggregate can be
+  # carried by one large well-tested package while a small one goes
+  # untested. 85% is the threshold; the rationale is in DEVELOPMENT.md.
+  coverage:
+    name: Coverage Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Every package at or above 85% statement coverage
+        env:
+          GOTOOLCHAIN: auto
+          THRESHOLD: '85'
+        run: |
+          set -euo pipefail
+          go test -count=1 -coverprofile=coverage.out ./... 2>&1 | tee coverage.log
+          failed=0
+          # "ok  <pkg>  <time>  coverage: NN.N% of statements"
+          while read -r line; do
+            pkg="$(echo "${line}" | awk '{print $2}')"
+            pct="$(echo "${line}" | grep -oE 'coverage: [0-9.]+%' | grep -oE '[0-9.]+')"
+            [ -z "${pct}" ] && continue
+            # The entry point is a two-line main() that hands off to cmd;
+            # it has no behaviour of its own to cover.
+            case "${pkg}" in */cmd/scout) continue ;; esac
+            if awk -v p="${pct}" -v t="${THRESHOLD}" 'BEGIN { exit !(p < t) }'; then
+              echo "::error::${pkg} is at ${pct}%, below the ${THRESHOLD}% gate"
+              failed=1
+            else
+              echo "${pkg}: ${pct}%"
+            fi
+          done < <(grep -E '^ok .*coverage:' coverage.log)
+          exit "${failed}"
+
+      - name: Upload coverage profile
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage
+          path: coverage.out
+          retention-days: 7
+
+  # golangci-lint at the version pinned here, not a floating one: a linter
+  # that gains a check overnight turns an unrelated pull request red.
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Formatting is canonical
+        env:
+          GOTOOLCHAIN: auto
+        run: |
+          set -euo pipefail
+          unformatted="$(gofmt -l .)"
+          if [ -n "${unformatted}" ]; then
+            echo "::error::gofmt would change:"; echo "${unformatted}"; exit 1
+          fi
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        env:
+          GOTOOLCHAIN: auto
+        with:
+          version: v2.13.2
+          args: ./...
+
+  vulncheck:
+    name: Vulnerability Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # govulncheck reports only vulnerabilities reachable from this module's
+      # call graph, including ones in the standard library. It must be built
+      # with a toolchain at least as new as the module it analyses, so the
+      # toolchain is derived from go.mod rather than hardcoded.
+      - name: Run govulncheck
+        env:
+          GOTOOLCHAIN: auto
+          GOBIN: ${{ github.workspace }}/.gobin
+        run: |
+          set -euo pipefail
+          goversion="$(go list -m -f '{{.GoVersion}}')"
+          echo "building govulncheck with go${goversion}"
+          # Pinned, not @latest: whatever @latest resolves to at run time
+          # would execute in CI, and everything else here is pinned.
+          GOTOOLCHAIN="go${goversion}" go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
+          "${GOBIN}/govulncheck" -version
+          "${GOBIN}/govulncheck" ./...
+
+  # The Unix install contract is what packagers rely on and what nothing
+  # else exercises: `make install` can rot into a broken tree while every
+  # other job stays green.
+  install-contract:
+    name: Install Contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Stage an install and assert the tree
+        env:
+          GOTOOLCHAIN: auto
+        run: make install-smoke
+
+      # Manpages are generated from the cobra command tree, so a page that
+      # fails to render means the tree changed in a way the generator cannot
+      # express. groff -ww surfaces that; without it the break only shows up
+      # in a released tarball.
+      - name: Manpages render without warnings
+        env:
+          GOTOOLCHAIN: auto
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq && sudo apt-get install -y -qq groff
+          make docs
+          for page in build/man/*.1; do
+            echo "checking ${page}"
+            groff -man -Tutf8 -ww "${page}" >/dev/null 2>groff.err
+            if [ -s groff.err ]; then
+              echo "::error::${page} produced groff warnings"; cat groff.err; exit 1
+            fi
+          done
+          echo "all manpages render cleanly"
+
+  # The release config is validated with the same goreleaser the release
+  # runs, at the same pinned version, on every push rather than the first
+  # tag push.
+  release-config:
+    name: Release Config
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Validate .goreleaser.yaml
+        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        with:
+          distribution: goreleaser
+          version: '~> v2'
+          args: check
+
+      # The container base is pinned by digest, which Scorecard checks and
+      # which is meaningless while the digest is a placeholder. A release
+      # must not be cut against an unpinned base.
+      - name: Container base image is digest-pinned
+        run: |
+          set -euo pipefail
+          if grep -qE '^FROM .*@sha256:0{64}' Dockerfile; then
+            echo "::error::Dockerfile still carries the placeholder digest; pin the real one (see pkg/docker/README.md)"
+            exit 1
+          fi
+          grep -qE '^FROM .*@sha256:[0-9a-f]{64}' Dockerfile
+
+  checks:
+    name: Repository Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # api-check compares against the last tag
+          persist-credentials: false
+
+      # REUSE-style licence coverage over the whole tree, not just the files
+      # someone remembered.
+      - name: Every source file carries an SPDX header
+        env:
+          GOTOOLCHAIN: auto
+        run: make spdx-check
+
+      # The examples carry `//go:build ignore`, so `go build ./...` skips
+      # them and nothing else compiles them either.
+      - name: Benchmarks still compile (smoke run, nothing asserted)
+        run: make bench
+
+      - name: API breakage against the last release
+        run: make api-check
+
+      - name: Compile the examples
+        env:
+          GOTOOLCHAIN: auto
+        run: make example-check
+
+  # A short fuzz pass on every push, so a target cannot rot into something
+  # that no longer builds. The scheduled run in fuzz.yml is the long one.
+  fuzz-smoke:
+    name: Fuzz Smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Fuzz every target for 30s
+        env:
+          GOTOOLCHAIN: auto
+          FUZZTIME: 30s
+        run: make fuzz

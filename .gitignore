@@ -1,0 +1,4 @@
+/scout
+/build/
+*.test
+*.out

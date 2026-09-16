@@ -1,0 +1,270 @@
+# SPDX-FileCopyrightText: 2026 Sebastien Rousseau <sebastian.rousseau@gmail.com>
+# SPDX-License-Identifier: GPL-3.0-only
+
+version: 2
+
+project_name: scout
+
+# Replace an existing GitHub release on re-run, so a release can be retried
+# after fixing a publishing secret.
+release:
+  mode: replace
+  header: |
+    Full notes are in
+    [CHANGELOG.md](https://github.com/sebastienrousseau/scout/blob/main/CHANGELOG.md).
+
+    **Verify what you downloaded:**
+
+    ```bash
+    gh attestation verify <asset> --owner sebastienrousseau
+    ```
+
+    Every asset is covered by `checksums.txt`, which is signed
+    (`checksums.txt.sigstore.json`), and SLSA build provenance ships as
+    `checksums.txt.intoto.jsonl`. The AUR `PKGBUILD` is attached as well.
+
+# Manpages and shell completions are rendered from the cobra command tree
+# before anything is packaged. Generated, never committed: a checked-in .1
+# drifts from --help the first time a flag changes, and nothing catches it.
+before:
+  hooks:
+    - go run ./scripts/gen_docs.go build
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    # -trimpath removes the build machine's absolute paths from the binary,
+    # and the pinned timestamp makes two builds of the same commit
+    # byte-identical, which is what lets a third party check provenance
+    # rather than trust it.
+    flags:
+      - -trimpath
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+    main: ./cmd/scout
+    binary: scout
+    ldflags:
+      - -s -w -X github.com/sebastienrousseau/scout/cmd.Version={{.Version}}
+
+archives:
+  - formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - LICENSE
+      - README.md
+      - CHANGELOG.md
+      - SECURITY.md
+      - src: build/man/*.1
+        dst: man
+      - src: build/completions/*
+        dst: completions
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else }}{{ .Arch }}{{ end }}
+
+# GitHub Container Registry. One image per arch; docker_manifests below
+# fans them into a multi-arch manifest under the version and :latest tags.
+dockers:
+  - image_templates:
+      - "ghcr.io/sebastienrousseau/scout:{{ .Version }}-amd64"
+    goos: linux
+    goarch: amd64
+    dockerfile: Dockerfile
+    use: buildx
+    build_flag_templates:
+      - --platform=linux/amd64
+      - --label=org.opencontainers.image.title={{ .ProjectName }}
+      - --label=org.opencontainers.image.description=Onboard, test and diagnose remote MCP servers end to end
+      - --label=org.opencontainers.image.url=https://github.com/sebastienrousseau/scout
+      - --label=org.opencontainers.image.source=https://github.com/sebastienrousseau/scout
+      - --label=org.opencontainers.image.version={{ .Version }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+      - --label=org.opencontainers.image.created={{ .Date }}
+      - --label=org.opencontainers.image.licenses=GPL-3.0-only
+  - image_templates:
+      - "ghcr.io/sebastienrousseau/scout:{{ .Version }}-arm64"
+    goos: linux
+    goarch: arm64
+    dockerfile: Dockerfile
+    use: buildx
+    build_flag_templates:
+      - --platform=linux/arm64
+      - --label=org.opencontainers.image.title={{ .ProjectName }}
+      - --label=org.opencontainers.image.description=Onboard, test and diagnose remote MCP servers end to end
+      - --label=org.opencontainers.image.url=https://github.com/sebastienrousseau/scout
+      - --label=org.opencontainers.image.source=https://github.com/sebastienrousseau/scout
+      - --label=org.opencontainers.image.version={{ .Version }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+      - --label=org.opencontainers.image.created={{ .Date }}
+      - --label=org.opencontainers.image.licenses=GPL-3.0-only
+
+docker_manifests:
+  - name_template: "ghcr.io/sebastienrousseau/scout:{{ .Version }}"
+    image_templates:
+      - "ghcr.io/sebastienrousseau/scout:{{ .Version }}-amd64"
+      - "ghcr.io/sebastienrousseau/scout:{{ .Version }}-arm64"
+  - name_template: "ghcr.io/sebastienrousseau/scout:latest"
+    image_templates:
+      - "ghcr.io/sebastienrousseau/scout:{{ .Version }}-amd64"
+      - "ghcr.io/sebastienrousseau/scout:{{ .Version }}-arm64"
+
+# Keyless cosign signing of each per-arch image and both manifest tags,
+# with the sigstore OIDC identity of the GitHub Actions runner. Verify:
+#   cosign verify \
+#     --certificate-identity-regexp='https://github.com/sebastienrousseau/scout/.github/workflows/release.yml@refs/tags/.*' \
+#     --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
+#     ghcr.io/sebastienrousseau/scout:<version>
+docker_signs:
+  - id: cosign-oidc
+    cmd: cosign
+    args:
+      - sign
+      - --yes
+      - '${artifact}'
+    artifacts: all
+    output: true
+
+# Native Linux packages (Debian, Ubuntu, WSL, Fedora, RHEL, openSUSE).
+nfpms:
+  - id: scout-packages
+    file_name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+    homepage: "https://github.com/sebastienrousseau/scout"
+    maintainer: "Sebastien Rousseau <sebastian.rousseau@gmail.com>"
+    description: "Onboard, test and diagnose remote Model Context Protocol servers end to end, with the credentials you were given, and write a scored step-by-step report with every request's telemetry attached."
+    license: "GPL-3.0-only"
+    formats:
+      - deb
+      - rpm
+    bindir: /usr/bin
+    contents:
+      - src: build/man/*.1
+        dst: /usr/share/man/man1
+        file_info: {mode: 0644}
+      - src: build/completions/scout.bash
+        dst: /usr/share/bash-completion/completions/scout
+        file_info: {mode: 0644}
+      - src: build/completions/scout.zsh
+        dst: /usr/share/zsh/site-functions/_scout
+        file_info: {mode: 0644}
+      - src: build/completions/scout.fish
+        dst: /usr/share/fish/vendor_completions.d/scout.fish
+        file_info: {mode: 0644}
+      - src: LICENSE
+        dst: /usr/share/doc/scout/LICENSE
+        file_info: {mode: 0644}
+      - src: README.md
+        dst: /usr/share/doc/scout/README.md
+        file_info: {mode: 0644}
+      - src: CHANGELOG.md
+        dst: /usr/share/doc/scout/CHANGELOG.md
+        file_info: {mode: 0644}
+
+# Homebrew formula, generated from the release's own checksums and
+# published afterwards by the `brew` job in release.yml, which cannot fail
+# the release: an unreachable package host must not cost a release its
+# provenance.
+brews:
+  - name: scout
+    repository:
+      owner: sebastienrousseau
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    skip_upload: true
+    directory: Formula
+    homepage: "https://github.com/sebastienrousseau/scout"
+    description: "Onboard, test and diagnose remote MCP servers end to end"
+    license: "GPL-3.0-only"
+    install: |
+      bin.install "scout"
+      man1.install Dir["man/*.1"]
+      bash_completion.install "completions/scout.bash" => "scout"
+      zsh_completion.install "completions/scout.zsh" => "_scout"
+      fish_completion.install "completions/scout.fish"
+    test: |
+      system "#{bin}/scout", "version"
+
+# Arch Linux (AUR). Generated only: publishing needs an SSH key this
+# repository does not hold, so the PKGBUILD is attached to the release for
+# a maintainer to push, and pkg/aur/README.md says so.
+aurs:
+  - name: scout-bin
+    homepage: "https://github.com/sebastienrousseau/scout"
+    description: "Onboard, test and diagnose remote MCP servers end to end"
+    maintainers:
+      - "Sebastien Rousseau <sebastian.rousseau@gmail.com>"
+    license: "GPL-3.0-only"
+    git_url: 'ssh://aur@aur.archlinux.org/scout-bin.git'
+    skip_upload: true
+    package: |-
+      install -Dm755 "./scout" "${pkgdir}/usr/bin/scout"
+      install -Dm644 "./LICENSE" "${pkgdir}/usr/share/licenses/scout/LICENSE"
+      install -Dm644 "./man/scout.1" "${pkgdir}/usr/share/man/man1/scout.1"
+      install -Dm644 "./completions/scout.bash" "${pkgdir}/usr/share/bash-completion/completions/scout"
+      install -Dm644 "./completions/scout.zsh" "${pkgdir}/usr/share/zsh/site-functions/_scout"
+      install -Dm644 "./completions/scout.fish" "${pkgdir}/usr/share/fish/vendor_completions.d/scout.fish"
+
+checksum:
+  name_template: 'checksums.txt'
+
+# A machine-readable CycloneDX SBOM per archive. Generated beats curated.
+sboms:
+  - id: archive
+    artifacts: archive
+    cmd: syft
+    args: ["$artifact", "--output", "cyclonedx-json=$document"]
+    documents:
+      - '{{ .ArtifactName }}.cdx.sbom.json'
+
+# Keyless cosign signature over checksums.txt as a Sigstore bundle. Verify:
+#   cosign verify-blob --bundle checksums.txt.sigstore.json \
+#     --certificate-identity-regexp 'https://github.com/sebastienrousseau/scout/.*' \
+#     --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+#     checksums.txt
+signs:
+  - cmd: cosign
+    signature: '${artifact}.sigstore.json'
+    args:
+      - sign-blob
+      - '--bundle=${signature}'
+      - '${artifact}'
+      - '--yes'
+    artifacts: checksum
+    output: true
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  groups:
+    - title: Features
+      regexp: '^feat(\([^)]*\))?!?:'
+      order: 0
+    - title: Fixes
+      regexp: '^fix(\([^)]*\))?!?:'
+      order: 1
+    - title: Security and dependencies
+      regexp: '^(sec|deps|chore\(deps\)|chore\(docker\)|chore\(actions\))'
+      order: 2
+    - title: Other
+      order: 99
+  filters:
+    exclude:
+      - '^Merge pull request'
+      - '^Merge branch'
+      - '^docs:'
+      - '^test:'
+      - '^chore: '
