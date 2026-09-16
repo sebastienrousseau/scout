@@ -67,8 +67,11 @@ jobs:
           GOBIN: ${{ github.workspace }}/.gobin
         run: |
           set -euo pipefail
-          goversion="$(go list -m -f '{{.GoVersion}}')"
-          GOTOOLCHAIN="go${goversion}" go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
+          # govulncheck v1.7.0 needs Go 1.25 to build, newer than this
+          # module's floor. The toolchain that builds the scanner has no
+          # bearing on the module it analyses, so the install fetches what
+          # it needs and the analysis still runs against go.mod as declared.
+          GOTOOLCHAIN=auto go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
           "${GOBIN}/govulncheck" ./...
 
   dependency-review:
