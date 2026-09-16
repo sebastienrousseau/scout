@@ -1,19 +1,27 @@
 # SPDX-FileCopyrightText: 2026 Sebastien Rousseau <sebastian.rousseau@gmail.com>
 # SPDX-License-Identifier: GPL-3.0-only
 
-name: Deploy Docs
+name: Manual
 
-# The user manual is built with MkDocs from docs/ and published to
-# GitHub Pages on every release tag, so the live manual always describes a
-# released version. Pull requests build it without deploying, so a change
-# that breaks the build is caught before it merges.
+# Builds the user manual so a change that breaks it is caught before it
+# merges. This workflow does not deploy.
 #
-# Requires repository Settings → Pages → Source = "GitHub Actions".
+# Publishing moved to `pages.yml` when the site at scoutmcp.io was added. A
+# repository has exactly one GitHub Pages site, so two workflows that each
+# upload their own artifact do not coexist: whichever ran last replaces the
+# whole site. Deploying from here on a release tag would have left
+# scoutmcp.io showing only the manual until the next push to main.
+#
+# `pages.yml` builds this same manual into /manual and publishes it with
+# everything else, from one artifact.
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - '.github/workflows/docs.yml'
   pull_request:
     branches: [main]
     paths:
@@ -23,10 +31,6 @@ on:
   workflow_dispatch:
 
 permissions: {}
-
-concurrency:
-  group: pages
-  cancel-in-progress: true
 
 jobs:
   build:
@@ -49,34 +53,11 @@ jobs:
 
       # Pinned versions, and --strict so a broken nav entry or a dangling
       # link inside the manual fails the build rather than the reader.
+      # These pins must match the ones in pages.yml, which builds the copy
+      # that is actually published.
       - name: Build with MkDocs
         run: |
           set -euo pipefail
           python3 -m pip install --quiet --disable-pip-version-check \
             'mkdocs==1.6.1' 'mkdocs-material==9.6.14'
           mkdocs build --strict --site-dir public
-
-      - name: Upload Pages artifact
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
-        with:
-          path: ./public
-
-  deploy:
-    name: Deploy to GitHub Pages
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Configure Pages
-        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
-      - name: Deploy
-        id: deployment
-        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
