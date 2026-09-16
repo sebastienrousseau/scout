@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -51,8 +52,16 @@ func TestCaptureTruncationAndSSEError(t *testing.T) {
 		t.Error("Count")
 	}
 	s := rec.Summary()
-	if s.ByHost[strings.TrimPrefix(srv.URL, "http://")] != 2 || s.Wall <= 0 {
+	if s.ByHost[strings.TrimPrefix(srv.URL, "http://")] != 2 {
 		t.Errorf("summary = %+v", s)
+	}
+	// Wall is the span between the first and last event timestamp. Two
+	// loopback requests can land inside one tick of the Windows system
+	// clock, which makes a zero here a true measurement rather than a lost
+	// one. Elsewhere the clock resolves it, and a zero would mean the
+	// timestamps were never recorded.
+	if runtime.GOOS != "windows" && s.Wall <= 0 {
+		t.Errorf("wall time not measured: %+v", s)
 	}
 	// Sink receives events.
 	n := 0

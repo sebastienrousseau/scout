@@ -33,24 +33,29 @@ jobs:
         with:
           persist-credentials: false
 
-      # --no-call-analysis is not a relaxation: govulncheck runs below as its
-      # own job and does reachability properly, against the toolchain go.mod
-      # names. osv-scanner's version of it shells out to a govulncheck bundled
-      # in the action's container, pinned by that image's own Go — which is
-      # older than this module's floor, so it refused to analyse the module at
-      # all and exited non-zero. continue-on-error then swallowed that, and a
-      # SARIF from a scan that never ran was uploaded over the real results.
+      # Turning call analysis off is not a relaxation: govulncheck runs below
+      # as its own job and does reachability properly, against the toolchain
+      # go.mod names. osv-scanner's version shells out to a govulncheck
+      # bundled in the action's container, pinned to that image's own Go, and
+      # it has already broken once when this module's floor moved past it.
       #
-      # Dropping call analysis leaves osv-scanner doing the lockfile scan it
-      # is here for, and removes a dependency on someone else's Go version
-      # that a future bump would break again.
+      # --no-call-analysis takes a LANGUAGE LIST, not a boolean. Written bare
+      # it consumes the next argument as its value, which silently ate
+      # --format=sarif: the scan then wrote a plain table into osv.sarif and
+      # left call analysis on. The flags below were run against osv-scanner
+      # 2.6.0 directly before being written here.
+      #
+      # The subcommand is explicit for the same reason. The action prepends
+      # none, so a bare invocation relies on legacy argument handling.
       - name: Scan go.mod against OSV
         id: osv
         uses: google/osv-scanner-action/osv-scanner-action@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
         with:
           scan-args: |
+            scan
+            source
             --lockfile=go.mod
-            --no-call-analysis
+            --no-call-analysis=go
             --format=sarif
             --output-file=osv.sarif
         # A findings-only failure must not break the build: they surface as
