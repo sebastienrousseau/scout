@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -160,7 +161,21 @@ func TestStorePathsAndErrors(t *testing.T) {
 	if err := nested.Delete("n"); err != nil {
 		t.Error(err)
 	}
+	// A directory scout cannot create the store in. Chmod is the Unix way
+	// to arrange that; on Windows it only toggles the read-only attribute
+	// and the write still succeeds, so a file standing where the directory
+	// needs to be is used instead. Either way Put must report the failure
+	// rather than silently dropping the token.
 	blocked := &Store{Path: filepath.Join(dir, "sub", "x", "tokens.json")}
+	if runtime.GOOS == "windows" {
+		if err := os.WriteFile(filepath.Join(dir, "sub"), []byte("x"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := blocked.Put(StoredToken{Endpoint: "b"}); err == nil {
+			t.Error("mkdir failure must propagate")
+		}
+		return
+	}
 	_ = os.Chmod(filepath.Join(dir, "sub"), 0o500)
 	defer func() { _ = os.Chmod(filepath.Join(dir, "sub"), 0o700) }()
 	if err := blocked.Put(StoredToken{Endpoint: "b"}); err == nil && os.Getuid() != 0 {

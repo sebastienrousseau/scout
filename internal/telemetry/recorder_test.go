@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -44,8 +45,16 @@ func TestRecorderCapturesTimingsHeadersAndRedacts(t *testing.T) {
 	if e.Phase != "protocol" || e.Label != "unknown method" || e.TraceID != "t1" || e.Status != 200 {
 		t.Errorf("event = %+v", e)
 	}
-	if e.Timings.Total == 0 || e.Timings.TTFB == 0 || e.Timings.TLS == 0 || e.Timings.Connect == 0 {
+	if e.Timings.Total == 0 || e.Timings.TTFB == 0 || e.Timings.TLS == 0 {
 		t.Errorf("timings not captured: %+v", e.Timings)
+	}
+	// Connect is measured separately. A loopback connection completes in
+	// microseconds, and Windows' default timer granularity is coarse enough
+	// to round that to zero — which says nothing about whether the hook
+	// fired. Elsewhere a zero here would mean the ConnectStart/ConnectDone
+	// pair was lost, which is worth catching.
+	if runtime.GOOS != "windows" && e.Timings.Connect == 0 {
+		t.Errorf("connect timing not captured: %+v", e.Timings)
 	}
 	if e.TLS == nil || e.TLS.Version == "" {
 		t.Errorf("tls info missing: %+v", e.TLS)

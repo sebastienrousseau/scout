@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -248,8 +249,15 @@ func TestCheckErrorPaths(t *testing.T) {
 	if _, code := run(t, "check", f.srv.URL+"/mcp", "--config", filepath.Join(dir, "missing.json")); code != 1 {
 		t.Error("explicit missing config must fail")
 	}
-	// report dir that cannot be created
-	if _, code := run(t, append([]string{"check", f.srv.URL + "/mcp", "--phases", "net", "--report-dir", "/dev/null/impossible"}, fastFlags()...)...); code != 1 {
+	// A report directory that cannot be created. The path is a child of a
+	// regular file, which no platform will turn into a directory — /dev/null
+	// used to stand in for this, and on Windows that is just a relative name
+	// the runner happily creates.
+	blocker := filepath.Join(dir, "not-a-dir")
+	if err := os.WriteFile(blocker, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, code := run(t, append([]string{"check", f.srv.URL + "/mcp", "--phases", "net", "--report-dir", filepath.Join(blocker, "impossible")}, fastFlags()...)...); code != 1 {
 		t.Error("unwritable report dir")
 	}
 }
@@ -425,7 +433,9 @@ func TestLoginHappyPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("token store not written: %v", err)
 	}
-	if st.Mode().Perm() != 0o600 {
+	// Windows reports a mode Go synthesises from the DOS attributes, so
+	// there is no 0600 to assert; see internal/creds/perm_windows.go.
+	if runtime.GOOS != "windows" && st.Mode().Perm() != 0o600 {
 		t.Errorf("store mode = %o", st.Mode().Perm())
 	}
 	b, _ := os.ReadFile(storePath)

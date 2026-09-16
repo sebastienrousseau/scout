@@ -185,7 +185,7 @@ func (s *Store) load() (map[string]StoredToken, error) {
 		return map[string]StoredToken{}, nil
 	case err != nil:
 		return nil, err
-	case info.Mode().Perm()&0o077 != 0:
+	case insecureMode(info.Mode()):
 		return nil, &ErrInsecurePermissions{Path: p, Mode: info.Mode()}
 	}
 	b, err := os.ReadFile(p) // #nosec G304 -- the path is the operator's own store

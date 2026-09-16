@@ -8,6 +8,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"testing"
 )
@@ -29,8 +30,15 @@ func TestStoreRefusesWorldReadableFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if perm := info.Mode().Perm(); perm != 0o600 {
+	if perm := info.Mode().Perm(); runtime.GOOS != "windows" && perm != 0o600 {
 		t.Errorf("new store is mode %#o, want 0600", perm)
+	}
+	if runtime.GOOS == "windows" {
+		// The rest of this test widens the mode and expects the store to
+		// refuse it. Windows has no mode to widen — chmod there only
+		// toggles the read-only attribute — so the refusal cannot be
+		// provoked, and insecureMode is a no-op by design.
+		return
 	}
 
 	if err := os.Chmod(s.Path, 0o644); err != nil {
