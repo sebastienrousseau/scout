@@ -47,6 +47,43 @@
             "inLanguage": "{{language}}",
             "isPartOf": { "@id": "{{site_url}}#website" },
             "datePublished": "{{date}}"
+          },
+          {
+            "@type": "SoftwareApplication",
+            "@id": "{{site_url}}#software",
+            "name": "scout",
+            "applicationCategory": "DeveloperApplication",
+            "applicationSubCategory": "Testing and diagnostics",
+            "operatingSystem": "macOS, Linux, Windows",
+            "url": "{{site_url}}",
+            "downloadUrl": "https://github.com/sebastienrousseau/scout/releases/latest",
+            "codeRepository": "https://github.com/sebastienrousseau/scout",
+            "programmingLanguage": "Go",
+            "license": "https://spdx.org/licenses/GPL-3.0-only.html",
+            "description": "{{description}}",
+            "isAccessibleForFree": true,
+            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+            "featureList": [
+              "76 checks across nine phases",
+              "Streamable HTTP, both protocol revisions including the stateless 2026-07-28 revision",
+              "Runs locally so credentials never leave your trust boundary",
+              "Every finding cites the request that produced it",
+              "JSON, NDJSON, Markdown, HTML and PDF reports",
+              "Exit codes and HAR archives for CI"
+            ]
+          },
+          {
+            "@type": "FAQPage",
+            "@id": "{{permalink}}#faq",
+            "isPartOf": { "@id": "{{permalink}}#webpage" },
+            "mainEntity": [
+              { "@type": "Question", "name": "{{faq_one_q}}", "acceptedAnswer": { "@type": "Answer", "text": "{{faq_one_a}}" } },
+              { "@type": "Question", "name": "{{faq_two_q}}", "acceptedAnswer": { "@type": "Answer", "text": "{{faq_two_a}}" } },
+              { "@type": "Question", "name": "{{faq_three_q}}", "acceptedAnswer": { "@type": "Answer", "text": "{{faq_three_a}}" } },
+              { "@type": "Question", "name": "{{faq_four_q}}", "acceptedAnswer": { "@type": "Answer", "text": "{{faq_four_a}}" } },
+              { "@type": "Question", "name": "{{faq_five_q}}", "acceptedAnswer": { "@type": "Answer", "text": "{{faq_five_a}}" } },
+              { "@type": "Question", "name": "{{faq_six_q}}", "acceptedAnswer": { "@type": "Answer", "text": "{{faq_six_a}}" } }
+            ]
           }
         ]
       }

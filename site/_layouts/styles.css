@@ -866,6 +866,30 @@ a[href]::after { content: " (" attr(href) ")"; overflow-wrap: anywhere; }
 .cards p { margin: 0; color: var(--ink-soft); font-size: 0.94rem; }
 
 /* Ledger */
+/* ── Comparison, FAQ and footnotes ───────────────────────────────────────
+ * A comparison table is a claim about other people's products, so it reads
+ * as a table rather than as marketing: a row label, one column each, and a
+ * verdict word in every cell. The colour is the severity scale, not the
+ * accent — "we win here" is not a brand statement. */
+.compare-table th[scope="row"] { font-weight: 500; color: var(--ink-soft); width: 34%; min-width: 12rem; }
+.compare-table td { font-variant-numeric: tabular-nums; }
+.compare-table td.yes { color: var(--st-pass); font-weight: 600; }
+.compare-table td.no { color: var(--st-fail); }
+.compare-table tbody tr:hover { background: var(--surface-soft); }
+
+.footnote { font-size: 0.82rem; color: var(--ink-muted); max-width: 60ch; margin-block-start: 1rem; }
+
+/* Answers collapsed by default: six open answers is a wall, and the
+ * questions are the part a reader scans. */
+.faq { display: grid; gap: 0.6rem; max-width: 70ch; }
+.faq details { border: 1px solid var(--line-soft); border-radius: 0.6rem; background: var(--surface); }
+.faq summary { cursor: pointer; padding: 0.95rem 1.1rem; font-weight: 600; list-style: none; display: flex; justify-content: space-between; gap: 1rem; align-items: center; }
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after { content: "+"; font-weight: 400; font-size: 1.3rem; line-height: 1; color: var(--accent); flex: none; }
+.faq details[open] summary::after { content: "\2212"; }
+.faq summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 0.6rem; }
+.faq details p { margin: 0; padding: 0 1.1rem 1.1rem; color: var(--ink-soft); }
+
 .table-scroll { overflow-x: auto; border: 1px solid var(--line-soft); border-radius: 0.6rem; background: var(--surface); }
 .table-scroll table { width: 100%; border-collapse: collapse; font-size: 0.93rem; }
 .table-scroll th, .table-scroll td { padding: 0.7rem 0.9rem; text-align: left; border-block-end: 1px solid var(--line-soft); }
