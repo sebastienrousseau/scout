@@ -87,7 +87,7 @@ func FuzzRunSpecJSON(f *testing.F) {
 // FuzzCredentialRedaction drives the credential half specifically: whatever
 // a caller puts in a spec, serialising it must not emit the value.
 func FuzzCredentialRedaction(f *testing.F) {
-	f.Add("tok", "sec", "user:pass", "X-Api-Key", "sk-live")
+	f.Add("tok", "sec", "user:pass", "X-Api-Key", "header-value")
 	f.Add("", "", "", "", "")
 	f.Add("\u0000", `"`, `\`, "\n", "</script>")
 
