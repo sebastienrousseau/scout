@@ -119,7 +119,7 @@ func init() {
 	pf.StringVar(&configPath, "config", "", "config file (default "+tildePath(config.DefaultPath())+")")
 	pf.StringVar(&profileName, "profile", "", "profile from the config file supplying the endpoint and settings")
 	pf.StringVar(&logLevel, "log-level", "info", "diagnostic verbosity on stderr: error, warn, info or debug ("+diag.EnvVar+")")
-	rootCmd.AddCommand(checkCmd, connectCmd, toolsCmd, callCmd, loginCmd, configCmd, versionCmd)
+	rootCmd.AddCommand(checkCmd, connectCmd, toolsCmd, callCmd, serveCmd, loginCmd, configCmd, versionCmd)
 }
 
 // Root returns the root command, for documentation generators.
