@@ -143,7 +143,7 @@ func runStateless(t *testing.T, srv *httptest.Server, mutate func(*Options)) *Se
 	t.Helper()
 	opts := Options{
 		Endpoint: srv.URL, HTTPClient: srv.Client(), Version: "test",
-		Creds: &creds.Credentials{Mode: creds.ModeNone},
+		Creds:   &creds.Credentials{Mode: creds.ModeNone},
 		Samples: 1, Concurrency: 2, RPS: 0, CallTimeout: 5 * time.Second,
 	}
 	if mutate != nil {

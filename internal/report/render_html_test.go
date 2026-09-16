@@ -86,13 +86,13 @@ func TestHTMLRendersTheEssentials(t *testing.T) {
 	}
 	out := b.String()
 	for _, want := range []string{
-		"Not ready for agents",   // the verdict
-		"72",                     // the score
-		"mcp.example.com",        // the target
+		"Not ready for agents",       // the verdict
+		"72",                         // the score
+		"mcp.example.com",            // the target
 		"catalog.tools.descriptions", // the finding id
-		"What to fix first",      // the executive section
-		"@media print",           // the PDF pipeline
-		"2026-07-28",             // the negotiated protocol
+		"What to fix first",          // the executive section
+		"@media print",               // the PDF pipeline
+		"2026-07-28",                 // the negotiated protocol
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("the report is missing %q", want)

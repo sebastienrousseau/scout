@@ -248,8 +248,8 @@ func (s *Session) checkRoutingHeaders(ctx context.Context) Finding {
 	raw, err := tr.Do(telemetry.WithPhase(ctx, "protocol", "header mismatch"), transport.RawOptions{
 		Request: rpc,
 		Headers: map[string]string{
-			transport.HeaderMethod:            "tools/call",
-			transport.HeaderProtocolVersion:   scout.StatelessVersions[0],
+			transport.HeaderMethod:          "tools/call",
+			transport.HeaderProtocolVersion: scout.StatelessVersions[0],
 		},
 		OmitSession:         true,
 		OmitProtocolVersion: true,

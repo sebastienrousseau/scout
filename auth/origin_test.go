@@ -13,12 +13,12 @@ import (
 
 func TestOriginNormalisation(t *testing.T) {
 	cases := map[string]string{
-		"https://Example.com/mcp":       "https://example.com",
-		"https://example.com:443/mcp":   "https://example.com",
-		"http://example.com:80/x":       "http://example.com",
-		"https://example.com:8443/mcp":  "https://example.com:8443",
-		"HTTPS://EXAMPLE.COM:8443/a/b":  "https://example.com:8443",
-		"http://[::1]:3000/mcp":         "http://[::1]:3000",
+		"https://Example.com/mcp":      "https://example.com",
+		"https://example.com:443/mcp":  "https://example.com",
+		"http://example.com:80/x":      "http://example.com",
+		"https://example.com:8443/mcp": "https://example.com:8443",
+		"HTTPS://EXAMPLE.COM:8443/a/b": "https://example.com:8443",
+		"http://[::1]:3000/mcp":        "http://[::1]:3000",
 	}
 	for in, want := range cases {
 		got, err := Origin(in)

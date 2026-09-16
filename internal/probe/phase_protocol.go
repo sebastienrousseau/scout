@@ -5,8 +5,8 @@ package probe
 
 import (
 	"context"
-	"errors"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"

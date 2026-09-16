@@ -327,7 +327,6 @@ func termWidth() int {
 	return 84
 }
 
-
 // listSelectorItems connects with the supplied credentials and lists the
 // tools with their policy class, for the interactive selector.
 func listSelectorItems(ctx context.Context, endpoint string, cr *creds.Credentials, rec *telemetry.Recorder, policy diagnostics.Policy) ([]tui.Item, error) {

@@ -31,13 +31,13 @@ type ToolPerf struct {
 
 // ConcurrencyResult is the outcome of a parallel burst.
 type ConcurrencyResult struct {
-	Tool        string        `json:"tool"`
-	Workers     int           `json:"workers"`
-	Calls       int           `json:"calls"`
-	OK          int           `json:"ok"`
-	Errors      int           `json:"errors"`
-	RateLimited int           `json:"rate_limited"`
-	RetryAfter  bool          `json:"retry_after_header"`
+	Tool        string  `json:"tool"`
+	Workers     int     `json:"workers"`
+	Calls       int     `json:"calls"`
+	OK          int     `json:"ok"`
+	Errors      int     `json:"errors"`
+	RateLimited int     `json:"rate_limited"`
+	RetryAfter  bool    `json:"retry_after_header"`
 	Wall        Millis  `json:"wall_ms"`
 	Throughput  float64 `json:"calls_per_second"`
 	P50         Millis  `json:"p50_ms"`

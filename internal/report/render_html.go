@@ -47,8 +47,8 @@ type htmlView struct {
 }
 
 var htmlTmpl = template.Must(template.New("report").Funcs(template.FuncMap{
-	"inc": func(i int) int { return i + 1 },
-	"ms":  func(m probe.Millis) string { return fmtMS(m) },
+	"inc":  func(i int) int { return i + 1 },
+	"ms":   func(m probe.Millis) string { return fmtMS(m) },
 	"join": func(ss []string, sep string) string { return strings.Join(ss, sep) },
 	// visible decides which findings a reader sees. The short document
 	// carries what needs acting on; the verbose one carries everything,
@@ -79,7 +79,7 @@ var htmlTmpl = template.Must(template.New("report").Funcs(template.FuncMap{
 func HTML(w io.Writer, r *Report, opts HTMLOptions) error {
 	phrase, class := htmlVerdict(r)
 	view := htmlView{
-		Report:       r,
+		Report: r,
 		// #nosec G203 -- htmlCSS is this repository's own stylesheet, embedded
 		// at compile time. It is the one string in the document that is not
 		// server data, and template.CSS is the correct type for it.

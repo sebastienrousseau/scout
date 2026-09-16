@@ -155,11 +155,11 @@ func TestValidate(t *testing.T) {
 		t.Fatalf("a minimal spec should be valid: %v", err)
 	}
 	cases := map[string]RunSpec{
-		"no endpoint":      {},
+		"no endpoint":       {},
 		"relative endpoint": {Target: TargetSpec{Endpoint: "/mcp"}},
-		"bad format":       {Target: TargetSpec{Endpoint: "https://x/mcp"}, Output: OutputSpec{Format: "pdf"}},
-		"unknown phase":    {Target: TargetSpec{Endpoint: "https://x/mcp"}, Phases: PhaseSpec{Only: []string{"nonsense"}}},
-		"unknown skip":     {Target: TargetSpec{Endpoint: "https://x/mcp"}, Phases: PhaseSpec{Skip: []string{"nonsense"}}},
+		"bad format":        {Target: TargetSpec{Endpoint: "https://x/mcp"}, Output: OutputSpec{Format: "pdf"}},
+		"unknown phase":     {Target: TargetSpec{Endpoint: "https://x/mcp"}, Phases: PhaseSpec{Only: []string{"nonsense"}}},
+		"unknown skip":      {Target: TargetSpec{Endpoint: "https://x/mcp"}, Phases: PhaseSpec{Skip: []string{"nonsense"}}},
 	}
 	for name, spec := range cases {
 		s := spec

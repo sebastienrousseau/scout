@@ -59,8 +59,8 @@ var (
 	allowPlaintextAuth    bool
 	allowResourceMismatch bool
 	skipEraCheck          bool
-	maxRes      int
-	maxPrompts  int
+	maxRes                int
+	maxPrompts            int
 
 	// output
 	interactive   bool

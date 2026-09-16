@@ -54,24 +54,24 @@ const (
 
 // Finding is one observed fact about the server.
 type Finding struct {
-	ID       string        `json:"id"`
-	Phase    string        `json:"phase"`
-	Title    string        `json:"title"`
-	Status   Status        `json:"status"`
-	Severity Severity      `json:"severity,omitempty"`
-	Detail   string        `json:"detail,omitempty"`
-	Evidence []string      `json:"evidence,omitempty"`
-	Advice   string        `json:"advice,omitempty"`
-	Duration Millis       `json:"duration_ms,omitempty"`
+	ID       string   `json:"id"`
+	Phase    string   `json:"phase"`
+	Title    string   `json:"title"`
+	Status   Status   `json:"status"`
+	Severity Severity `json:"severity,omitempty"`
+	Detail   string   `json:"detail,omitempty"`
+	Evidence []string `json:"evidence,omitempty"`
+	Advice   string   `json:"advice,omitempty"`
+	Duration Millis   `json:"duration_ms,omitempty"`
 }
 
 // PhaseResult groups the findings of one phase.
 type PhaseResult struct {
-	Name     string        `json:"name"`
-	Title    string        `json:"title"`
-	Status   Status        `json:"status"`
-	Duration Millis       `json:"duration_ms"`
-	Skipped  string        `json:"skipped,omitempty"`
+	Name     string `json:"name"`
+	Title    string `json:"title"`
+	Status   Status `json:"status"`
+	Duration Millis `json:"duration_ms"`
+	Skipped  string `json:"skipped,omitempty"`
 	// Summary is the one-line, plain-language outcome of the phase.
 	Summary  string    `json:"summary,omitempty"`
 	Findings []Finding `json:"findings"`
@@ -86,7 +86,7 @@ type Options struct {
 	HTTPClient *http.Client // base client; its Transport is wrapped by the recorder
 	Version    string
 
-	Policy       diagnostics.Policy
+	Policy diagnostics.Policy
 	// URLPolicy governs which discovered OAuth endpoints may be fetched or
 	// sent credentials. The zero value is strict.
 	URLPolicy auth.URLPolicy
@@ -148,10 +148,10 @@ type Session struct {
 	Challenge    auth.Challenge
 	Discovery    *scout.Discovery
 	// Era is which generation of the protocol the server speaks.
-	Era          *scout.Negotiation
-	Token        *TokenInfo
-	Init         *scout.InitializeResult
-	SessionID    bool
+	Era       *scout.Negotiation
+	Token     *TokenInfo
+	Init      *scout.InitializeResult
+	SessionID bool
 
 	Tools     []scout.Tool
 	Resources []scout.Resource

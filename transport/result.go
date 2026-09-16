@@ -44,15 +44,15 @@ type InputRequest struct {
 	ID string `json:"id"`
 	// Method is the client-side method the server is invoking, such as
 	// elicitation/create.
-	Method string `json:"method"`
+	Method string          `json:"method"`
 	Params json.RawMessage `json:"params,omitempty"`
 }
 
 // InputRequiredResult is the body of a result whose resultType is
 // input_required.
 type InputRequiredResult struct {
-	ResultType    string         `json:"resultType"`
-	InputRequests []InputRequest `json:"inputRequests"`
+	ResultType    string          `json:"resultType"`
+	InputRequests []InputRequest  `json:"inputRequests"`
 	Meta          json.RawMessage `json:"_meta,omitempty"`
 }
 

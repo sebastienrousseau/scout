@@ -22,7 +22,7 @@ const MaxSchemaDepth = 64
 // for those schemas, which is worse than reporting that it could not check
 // them.
 type resolver struct {
-	root    map[string]any
+	root     map[string]any
 	inFlight map[string]bool
 	// External records $refs that point outside this document; they cannot
 	// be resolved and are reported rather than ignored.
