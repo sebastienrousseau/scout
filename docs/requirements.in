@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: 2026 Sebastien Rousseau <sebastian.rousseau@gmail.com>
+# SPDX-License-Identifier: GPL-3.0-only
+#
+# The manual's build inputs. Edit this file, then regenerate the lock:
+#
+#   make docs-lock
+#
+# The lock carries a hash for every package, including the transitive ones,
+# because pip only enforces hashes when every requirement has one.
+mkdocs==1.6.1
+mkdocs-material==9.6.14

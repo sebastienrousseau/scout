@@ -51,13 +51,17 @@ jobs:
         with:
           python-version: '3.12'
 
-      # Pinned versions, and --strict so a broken nav entry or a dangling
-      # link inside the manual fails the build rather than the reader.
-      # These pins must match the ones in pages.yml, which builds the copy
-      # that is actually published.
+      # --require-hashes, not just a version pin. A version can be yanked and
+      # republished, and a compromised index can serve a different artefact
+      # under the same number; a hash cannot be satisfied by anything but the
+      # bytes that were reviewed. Scorecard flags the unpinned form, and it
+      # is right to.
+      #
+      # --strict so a broken nav entry or a dangling link inside the manual
+      # fails the build rather than the reader.
       - name: Build with MkDocs
         run: |
           set -euo pipefail
           python3 -m pip install --quiet --disable-pip-version-check \
-            'mkdocs==1.6.1' 'mkdocs-material==9.6.14'
+            --require-hashes -r docs/requirements.txt
           mkdocs build --strict --site-dir public

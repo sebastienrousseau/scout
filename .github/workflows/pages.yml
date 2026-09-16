@@ -96,11 +96,14 @@ jobs:
       - name: Write the CNAME
         run: echo scoutmcp.io > site/dist/CNAME
 
+      # Hash-pinned, for the reason given in docs.yml: a version pin trusts
+      # the index to keep serving the same bytes, and a hash does not have
+      # to.
       - name: Build the manual
         run: |
           set -euo pipefail
           python3 -m pip install --quiet --disable-pip-version-check \
-            'mkdocs==1.6.1' 'mkdocs-material==9.6.14'
+            --require-hashes -r docs/requirements.txt
           mkdocs build --strict --site-dir site/dist/manual
 
       # The sample report is generated, not committed: a page that claims
