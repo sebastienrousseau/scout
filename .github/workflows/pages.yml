@@ -79,6 +79,17 @@ jobs:
       - name: Build the site
         run: ssg build -f site/ssg.toml
 
+      # SSG renders content and templates; it does not copy a static asset
+      # directory, so site/images never reached the output and every <img>
+      # on the deployed page resolved to a 404. The hero has been a broken
+      # image icon since the first deploy.
+      - name: Copy static assets
+        run: |
+          set -euo pipefail
+          mkdir -p site/dist/images
+          cp -R site/images/. site/dist/images/
+          ls site/dist/images
+
       # GitHub Pages reads the custom domain from this file. It is written
       # after the build because SSG treats everything under content/ as a
       # page and a bare hostname has no front matter.

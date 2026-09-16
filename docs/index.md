@@ -21,12 +21,12 @@ as passing without one.
 
 | Page | What it covers |
 |---|---|
-| [Getting started](getting-started.md) | install, first run, exit codes |
-| [Credentials](credentials.md) | every way to hand scout what the server gave you |
-| [The nine phases](phases.md) | each check, what pass and fail mean, the finding ids |
-| [Reports and telemetry](reports.md) | output formats, the report directory, HAR and NDJSON, scoring |
-| [Configuration](configuration.md) | the config file, profiles, precedence, the token store |
-| [Library use](library.md) | the Go packages the CLI is built on |
+| [Getting started](manual/getting-started.md) | install, first run, exit codes |
+| [Credentials](manual/credentials.md) | every way to hand scout what the server gave you |
+| [The nine phases](manual/phases.md) | each check, what pass and fail mean, the finding ids |
+| [Reports and telemetry](manual/reports.md) | output formats, the report directory, HAR and NDJSON, scoring |
+| [Configuration](manual/configuration.md) | the config file, profiles, precedence, the token store |
+| [Library use](manual/library.md) | the Go packages the CLI is built on |
 
 ## Safety, in one paragraph
 
