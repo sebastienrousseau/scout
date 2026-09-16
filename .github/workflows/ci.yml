@@ -195,11 +195,9 @@ jobs:
           GOBIN: ${{ github.workspace }}/.gobin
         run: |
           set -euo pipefail
-          # govulncheck v1.7.0 needs Go 1.25 to build, which is newer than
-          # this module's floor. The toolchain that *builds* the scanner has
-          # no bearing on the module it analyses, so the install is allowed
-          # to fetch what it needs while the analysis still runs against
-          # this module as declared in go.mod.
+          # GOTOOLCHAIN=auto so the install resolves whatever toolchain
+          # the scanner itself needs; the analysis runs against this
+          # module as declared in go.mod either way.
           #
           # Pinned, not @latest: whatever @latest resolved to at run time
           # would execute in CI, and everything else here is pinned.

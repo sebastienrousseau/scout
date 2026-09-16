@@ -115,7 +115,7 @@ not apply. Use a release artefact if you need `version` to be meaningful.
 
 ### Build from source
 
-Requires Go 1.24+:
+Requires Go 1.26.8+:
 
 ```bash
 git clone https://github.com/sebastienrousseau/scout.git
@@ -859,7 +859,7 @@ scout is opinionated, and the opinions do not suit everyone.
 
 | | |
 |---|---|
-| **Go** | The `go` directive in [`go.mod`](go.mod) — currently **1.24** |
+| **Go** | The `go` directive in [`go.mod`](go.mod) — currently **1.26.8** |
 | **Network** | Outbound HTTPS to the server under test and its authorization server |
 
 The Go floor is stated in exactly one place, `go.mod`, and CI sets
