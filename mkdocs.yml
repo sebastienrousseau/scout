@@ -59,15 +59,15 @@ markdown_extensions:
 
 nav:
   - Home: index.md
-  - Getting started: manual/getting-started.md
-  - Credentials: manual/credentials.md
-  - The nine phases: manual/phases.md
+  - Getting started: getting-started.md
+  - Credentials: credentials.md
+  - The nine phases: phases.md
   - Every check: CHECKS.md
-  - The stateless revision: manual/stateless.md
-  - Reports and telemetry: manual/reports.md
-  - Reading the evidence: manual/evidence.md
-  - Configuration: manual/configuration.md
-  - Library use: manual/library.md
+  - The stateless revision: stateless.md
+  - Reports and telemetry: reports.md
+  - Reading the evidence: evidence.md
+  - Configuration: configuration.md
+  - Library use: library.md
   - Coming from another tool:
       - Overview: migrating/README.md
       - From MCP Inspector: migrating/from-mcp-inspector.md

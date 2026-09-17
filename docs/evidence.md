@@ -142,7 +142,7 @@ This is why the files are safe to attach to a ticket. It is also why a
 finding about a credential shows `Bearer ***` rather than nothing at all:
 the shape is preserved so you can see a credential was sent.
 
-See [the security model](../security-model.md) for the threat model behind
+See [the security model](security-model.md) for the threat model behind
 that choice.
 
 ## Bounded, and honest about it
