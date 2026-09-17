@@ -1,4 +1,8 @@
-<!-- SPDX-License-Identifier: GPL-3.0-only -->
+---
+# SPDX-License-Identifier: GPL-3.0-only
+description: >-
+  Hosted MCP playgrounds connect from someone else's infrastructure. scout runs the same checks from yours, against the same server.
+---
 
 # From an online playground
 

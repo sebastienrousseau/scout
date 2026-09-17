@@ -1,4 +1,8 @@
-<!-- SPDX-License-Identifier: GPL-3.0-only -->
+---
+# SPDX-License-Identifier: GPL-3.0-only
+description: >-
+  scout's security model and assurance case: the trust boundary, the threat model, structural redaction, and what each release guarantees.
+---
 
 # scout — Security Model & Assurance Case
 

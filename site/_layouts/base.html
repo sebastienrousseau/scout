@@ -6,8 +6,20 @@
     <title>{{title}}</title>
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; manifest-src 'self'; form-action 'self' {{form_origin}}" />
     {{!primary}}
-    {{!opengraph}}
-    {{!twitter}}
+    <!-- Written out rather than left to ssg's {{!opengraph}} and {{!twitter}}
+         blocks, which emit nothing here and let the post-processor derive the
+         card text from the first 160 characters of the body — a sentence cut
+         mid-word. These are the same words as the meta description, and
+         og:type is website because this is the site root, not a post. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="{{name}}" />
+    <meta property="og:title" content="{{title}}" />
+    <meta property="og:description" content="{{description}}" />
+    <meta property="og:url" content="{{permalink}}" />
+    <meta property="og:locale" content="en_GB" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="{{title}}" />
+    <meta name="twitter:description" content="{{description}}" />
     {{!apple}}
     {{!microsoft}}
     <meta property="og:image" content="{{site_url}}images/screenshot.png" />

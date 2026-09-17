@@ -1,4 +1,8 @@
-<!-- SPDX-License-Identifier: GPL-3.0-only -->
+---
+# SPDX-License-Identifier: GPL-3.0-only
+description: >-
+  Why every scout finding cites the requests that produced it, and why the score is derived from findings rather than asserted.
+---
 
 # 0002 — Every finding cites the requests that produced it; the score is derived from findings
 

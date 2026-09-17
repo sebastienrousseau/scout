@@ -1,4 +1,8 @@
-<!-- SPDX-License-Identifier: GPL-3.0-only -->
+---
+# SPDX-License-Identifier: GPL-3.0-only
+description: >-
+  scout's config file, profiles and environment variables. Every flag is a setting, so there is no second schema to learn.
+---
 
 # Configuration
 
