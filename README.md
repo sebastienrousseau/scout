@@ -820,6 +820,7 @@ The four entry points, identical across every repo in the family:
 | Document | Covers |
 |---|---|
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | How a run is put together: the engine, the phases, the transports |
+| [`docs/CHECKS.md`](docs/CHECKS.md) | Every check scout runs, generated from the source and gated in CI |
 | [`docs/adr/`](docs/adr/) | Decision records for the choices that get questioned later |
 | [`docs/security-model.md`](docs/security-model.md) | Threat model, the credential boundary, what scout will and will not send |
 | [`docs/packaging.md`](docs/packaging.md) | Addressed to distribution maintainers: licence grant, toolchain policy, offline tests |
