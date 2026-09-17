@@ -13,20 +13,41 @@ strict: true
 
 theme:
   name: material
+  logo: assets/logo.svg
+  favicon: assets/logo.svg
   features:
     - navigation.sections
     - navigation.top
+    - navigation.instant
     - content.code.copy
+    - content.action.edit
     - search.suggest
+    - search.highlight
+    - toc.follow
   palette:
-    - scheme: default
+    # Three states rather than two: a reader whose system is dark should
+    # not have to click to get the dark manual.
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Follow the system
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
       toggle:
         icon: material/brightness-7
-        name: Switch to dark mode
-    - scheme: slate
+        name: Switch to dark
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
       toggle:
         icon: material/brightness-4
-        name: Switch to light mode
+        name: Switch to light
+
+extra_css:
+  - assets/brand.css
+
+repo_url: https://github.com/sebastienrousseau/scout
+repo_name: sebastienrousseau/scout
+edit_uri: edit/main/docs/
 
 markdown_extensions:
   - admonition
