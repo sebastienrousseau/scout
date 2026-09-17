@@ -106,11 +106,16 @@ var DocFamilies = []string{"auth.source."}
 
 // PhaseResult groups the findings of one phase.
 type PhaseResult struct {
-	Name     string `json:"name"`
-	Title    string `json:"title"`
-	Status   Status `json:"status"`
-	Duration Millis `json:"duration_ms"`
-	Skipped  string `json:"skipped,omitempty"`
+	Name   string `json:"name"`
+	Title  string `json:"title"`
+	Status Status `json:"status"`
+	// Started is when the phase began. The loop already measured it to
+	// compute Duration and threw it away; a trace exporter needs the
+	// absolute instant, and laying phases end to end from the run's start
+	// would be a guess dressed as a measurement.
+	Started  time.Time `json:"started"`
+	Duration Millis    `json:"duration_ms"`
+	Skipped  string    `json:"skipped,omitempty"`
 	// Summary is the one-line, plain-language outcome of the phase.
 	Summary  string    `json:"summary,omitempty"`
 	Findings []Finding `json:"findings"`
@@ -317,8 +322,8 @@ func Run(ctx context.Context, opts Options) (*Session, error) {
 		if !selected(p.Name, opts) {
 			continue
 		}
-		pr := PhaseResult{Name: p.Name, Title: p.Title}
 		start := time.Now()
+		pr := PhaseResult{Name: p.Name, Title: p.Title, Started: start}
 		if s.blocked != "" && p.Name != "net" {
 			pr.Status, pr.Skipped = Skip, s.blocked
 		} else {

@@ -70,6 +70,8 @@ var (
 	withEvents    bool
 	verbose       bool
 	noColor       bool
+	otlpEndpoint  string
+	otlpHeaders   []string
 	phasesOnly    []string
 	phasesSkip    []string
 )
@@ -147,6 +149,8 @@ func outputFlags() *pflag.FlagSet {
 		fs.BoolVar(&withEvents, "events", false, "embed every telemetry event in JSON output")
 		fs.BoolVarP(&verbose, "verbose", "v", false, "show evidence references and full info findings")
 		fs.BoolVar(&noColor, "no-color", false, "disable ANSI colour")
+		fs.StringVar(&otlpEndpoint, "otlp-endpoint", "", "export the finished run as OpenTelemetry traces to this OTLP/HTTP collector")
+		fs.StringArrayVar(&otlpHeaders, "otlp-header", nil, "extra header on the OTLP export, \"Name: value\" (repeatable)")
 		fs.StringSliceVar(&phasesOnly, "phases", nil, "run only these phases (comma-separated)")
 		fs.StringSliceVar(&phasesSkip, "skip-phases", nil, "skip these phases (comma-separated)")
 		outSet = fs
@@ -231,6 +235,7 @@ func buildSpec(args []string, onlyPhases []string) (engine.RunSpec, error) {
 			Format: engine.Format(output), ReportDir: reportDir,
 			CaptureBodies: captureBodies, WithEvents: withEvents,
 			Verbose: verbose, NoColor: noColor, Interactive: interactive,
+			OTLPEndpoint: otlpEndpoint, OTLPHeaders: otlpHeaders,
 		},
 	}
 	return spec.WithDefaults(), nil

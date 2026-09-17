@@ -172,6 +172,14 @@ type OutputSpec struct {
 	// chosen names land in Policy.Only, so a run is reproducible from the
 	// spec afterwards without asking again.
 	Interactive bool `json:"interactive,omitempty"`
+	// OTLPEndpoint, when set, receives the finished run as OpenTelemetry
+	// traces. Export happens after the report is rendered and never
+	// changes the exit code: a collector being down is not a finding
+	// about the server under test.
+	OTLPEndpoint string `json:"otlp_endpoint,omitempty"`
+	// OTLPHeaders are extra headers on the export request, "Name: value",
+	// for a collector that wants an API key or a tenant id.
+	OTLPHeaders []string `json:"otlp_headers,omitempty"`
 }
 
 // Defaults are the values a run takes when a spec leaves them unset. They

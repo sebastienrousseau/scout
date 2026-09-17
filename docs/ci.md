@@ -220,6 +220,33 @@ it on.
 diagnostic needs a real token, run it on `schedule` or
 `workflow_dispatch`, or on `push` to your own branches.
 
+## Shipping the run to your telemetry backend
+
+A scheduled diagnostic is worth more when it lands where the rest of your
+signals already are:
+
+```yaml
+      - name: Diagnose
+        env:
+          MCP_TOKEN: ${{ secrets.MCP_TOKEN }}
+          OTLP_KEY: ${{ secrets.OTLP_KEY }}
+        run: |
+          scout check https://mcp.example.com/mcp \
+            --token-env MCP_TOKEN \
+            --otlp-endpoint https://otlp.example.com \
+            --otlp-header "Authorization: Bearer $OTLP_KEY" \
+            --log-format json || true
+```
+
+The endpoint may be a bare host; scout appends `/v1/traces` when the URL has
+no path of its own. A collector that is down produces a warning and nothing
+else — the exit code is whatever the run earned, because a telemetry backend
+being unreachable is not a finding about the server under test.
+
+`--log-format json` makes scout's own stderr one JSON object per line, each
+carrying the run's `trace_id` — the same id on the report and on the exported
+spans, so a log line joins to the run that produced it.
+
 ## Pinning the version
 
 `@latest` is fine for a scheduled job whose failure you will read. For a

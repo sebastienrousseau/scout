@@ -25,6 +25,7 @@ import (
 	"github.com/sebastienrousseau/scout/internal/probe"
 	"github.com/sebastienrousseau/scout/internal/telemetry"
 	"github.com/sebastienrousseau/scout/internal/tui"
+	"github.com/sebastienrousseau/scout/trace"
 	"github.com/spf13/cobra"
 )
 
@@ -131,6 +132,12 @@ func runCheck(ctx context.Context, args []string, only []string) error {
 	var program *tea.Program
 	var runView *tui.RunModel
 	runCtx, cancelRun := context.WithCancel(ctx)
+	// Settle the run's trace id here rather than letting probe.Run generate
+	// one, so the structured diagnostics carry the same id as the report
+	// and the exported spans. trace.Ensure keeps an id the caller already
+	// set, so nothing downstream changes.
+	runCtx = trace.Ensure(runCtx)
+	diag.SetRunID(trace.FromContext(runCtx))
 	defer cancelRun()
 	if isTTY {
 		tui.Version = Version
@@ -218,6 +225,15 @@ func runCheck(ctx context.Context, args []string, only []string) error {
 			return err
 		}
 	}
+	// After the report, and never fatal. A collector being unreachable is
+	// not a finding about the server under test, and a run that produced a
+	// verdict must not be reported as a run that failed to.
+	if err := res.ExportTraces(runCtx, spec, Version); err != nil {
+		diag.Warnf("OTLP export failed: %v", err)
+	} else if spec.Output.OTLPEndpoint != "" {
+		diag.Infof("exported the run to %s", spec.Output.OTLPEndpoint)
+	}
+
 	if res.Err != nil {
 		return res.Err
 	}

@@ -23,6 +23,7 @@ var (
 	configPath  string
 	profileName string
 	logLevel    string
+	logFormat   string
 	osExit      = os.Exit
 )
 
@@ -107,6 +108,11 @@ func init() {
 			return err
 		}
 		diag.SetLevel(lvl)
+		fmtv, err := diag.ParseFormat(logFormat)
+		if err != nil {
+			return err
+		}
+		diag.SetFormat(fmtv)
 		// `config init` exists to create the file; loading it first would
 		// reject the very path it is about to write.
 		if cmd.Name() == "init" && cmd.Parent() != nil && cmd.Parent().Name() == "config" {
@@ -119,6 +125,7 @@ func init() {
 	pf.StringVar(&configPath, "config", "", "config file (default "+tildePath(config.DefaultPath())+")")
 	pf.StringVar(&profileName, "profile", "", "profile from the config file supplying the endpoint and settings")
 	pf.StringVar(&logLevel, "log-level", "info", "diagnostic verbosity on stderr: error, warn, info or debug ("+diag.EnvVar+")")
+	pf.StringVar(&logFormat, "log-format", "human", "diagnostic format on stderr: human or json")
 	rootCmd.AddCommand(checkCmd, connectCmd, toolsCmd, callCmd, serveCmd, loginCmd, configCmd, versionCmd)
 }
 
