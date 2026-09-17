@@ -195,12 +195,22 @@ something earlier.
   argument generator, with committed seed corpora; benchmarks smoke-run in
   CI; `make api-check` against the last release tag.
 - Release pipeline: goreleaser archives for Linux, macOS and Windows,
-  cosign signatures, SLSA provenance, CycloneDX SBOM, deb/rpm, Homebrew
-  formula, AUR PKGBUILD, distroless container image pinned by digest.
+  cosign signatures, SLSA provenance, CycloneDX SBOM, deb/rpm, a Homebrew
+  cask, AUR PKGBUILD, distroless container image pinned by digest.
 - Governance and policy set: security policy with private reporting,
   contributing guide, code of conduct, governance, support, maintainers,
   citation, AI-agent invariants, architecture decision records, migration
   guides, rendered manual (MkDocs).
+- The manual at <https://scoutmcp.io/manual/>: twenty-five pages covering
+  the nine phases, credentials, the stateless revision, reading the
+  evidence behind a finding, running scout in CI, reports and telemetry,
+  library use, the security model and packaging. `docs/CHECKS.md` is
+  generated from the `(*Session).check(id, title)` call sites with
+  `go/ast` and gated by `make checks-verify`, so the published inventory
+  cannot claim a check the binary does not run: 75 fixed checks, one
+  computed family, 76 across 9 phases.
+- The site at <https://scoutmcp.io>, including a sample report produced by
+  the binary built from the same commit rather than a screenshot.
 
 [Unreleased]: https://github.com/sebastienrousseau/scout/compare/v0.0.1...HEAD
 [0.0.1]: https://github.com/sebastienrousseau/scout/releases/tag/v0.0.1
