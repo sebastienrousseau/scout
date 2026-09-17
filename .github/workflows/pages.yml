@@ -32,12 +32,30 @@ on:
       - 'docs/**'
       - 'mkdocs.yml'
       - '.github/workflows/pages.yml'
+      # The sample report is generated here by the binary built from this
+      # commit, so anything that changes what a report looks like has to
+      # rebuild the site too. Without these the published sample silently
+      # keeps whichever version last happened to touch site/ — which is how
+      # a rebranded report stayed unbranded on scoutmcp.io.
+      - 'internal/report/**'
+      - 'internal/probe/**'
+      - 'scripts/samplereport/**'
+      - 'cmd/**'
   pull_request:
     paths:
       - 'site/**'
       - 'docs/**'
       - 'mkdocs.yml'
       - '.github/workflows/pages.yml'
+      # The sample report is generated here by the binary built from this
+      # commit, so anything that changes what a report looks like has to
+      # rebuild the site too. Without these the published sample silently
+      # keeps whichever version last happened to touch site/ — which is how
+      # a rebranded report stayed unbranded on scoutmcp.io.
+      - 'internal/report/**'
+      - 'internal/probe/**'
+      - 'scripts/samplereport/**'
+      - 'cmd/**'
   workflow_dispatch:
 
 permissions: {}
