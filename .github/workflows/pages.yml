@@ -132,6 +132,13 @@ jobs:
           go build -o /tmp/scout ./cmd/scout
           go run ./scripts/samplereport/main.go /tmp/scout site/dist/sample
 
+      # Last, because it indexes the finished tree. The generator it
+      # replaces ran first and indexed an empty directory, which is why the
+      # published sitemap listed nothing at all while the local one looked
+      # complete — locally the previous build's output was still there.
+      - name: Write the sitemap from what was actually built
+        run: go run ./scripts/sitemap/main.go site/dist
+
       - name: Upload the artifact
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
