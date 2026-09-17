@@ -236,7 +236,7 @@ something earlier.
 - The manual at <https://scoutmcp.io/manual/>: twenty-five pages covering
   the nine phases, credentials, the stateless revision, reading the
   evidence behind a finding, running scout in CI, reports and telemetry,
-  library use, the security model and packaging. `docs/CHECKS.md` is
+  library use, the security model and packaging. `docs/checks.md` is
   generated from the `(*Session).check(id, title)` call sites with
   `go/ast` and gated by `make checks-verify`, so the published inventory
   cannot claim a check the binary does not run: 75 fixed checks, one

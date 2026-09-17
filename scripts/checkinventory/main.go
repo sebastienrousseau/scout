@@ -3,7 +3,7 @@
 
 //go:build ignore
 
-// checkinventory writes docs/CHECKS.md from the source, and with -check
+// checkinventory writes docs/checks.md from the source, and with -check
 // fails when the committed file has drifted.
 //
 // scout publishes a number — "76 checks" — on its own front page. A figure
@@ -51,7 +51,7 @@ func main() {
 	}
 
 	want := render(found)
-	const path = "docs/CHECKS.md"
+	const path = "docs/checks.md"
 
 	if !verify {
 		if err := os.WriteFile(path, want, 0o644); err != nil { //nolint:gosec // documentation, not a secret
@@ -243,7 +243,11 @@ func render(es []entry) []byte {
 			if e.Family {
 				title += " — one per value encountered"
 			}
-			fmt.Fprintf(&b, "| `%s` | %s |\n", e.ID, title)
+			// The anchor is what `doc_url` on every finding points at, so
+			// a reader who gets a JSON report six months from now can follow
+			// a check id straight to what it asserts. probe.DocURL builds
+			// the same slug; checks_doc_test.go asserts the two agree.
+			fmt.Fprintf(&b, "| <span id=%q></span>`%s` | %s |\n", anchor(e.ID), e.ID, title)
 		}
 		b.WriteString("\n")
 	}
@@ -251,4 +255,19 @@ func render(es []entry) []byte {
 	// newline and no run of blanks keeps the generator's output clean
 	// rather than making the linter carry an exception for it.
 	return append(bytes.TrimRight(b.Bytes(), "\n"), '\n')
+}
+
+// anchor is the HTML id for one check's row in the generated inventory.
+//
+// Dots are legal in an HTML id but awkward in a URL fragment and in CSS
+// selectors, so they become dashes. The "check-" prefix keeps the ids out
+// of the way of the heading anchors MkDocs generates from the phase names.
+//
+// probe.DocURL must produce the same slug. That is asserted, not assumed.
+func anchor(id string) string {
+	// A computed family is written "auth.source.*". The row documents the
+	// family, so the anchor is the family's literal prefix — which is what
+	// probe.DocURL resolves a concrete "auth.source.token_env" to.
+	id = strings.TrimSuffix(strings.TrimSuffix(id, "*"), ".")
+	return "check-" + strings.ReplaceAll(id, ".", "-")
 }

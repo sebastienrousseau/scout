@@ -27,6 +27,31 @@ description: >-
 | `telemetry.ndjson` | one line per request |
 | `telemetry.har` | the same as an HTTP Archive 1.2, which any browser's devtools can open |
 
+## What a finding holds
+
+Every finding in the JSON report carries the same fields:
+
+| Field | What it is |
+|---|---|
+| `id` | the check that produced it, e.g. `protocol.malformed_json` |
+| `phase` | which of the nine phases it came from |
+| `status` | `pass`, `warn`, `fail`, `skip` or `info` |
+| `severity` | on a failure or warning: `critical`, `major` or `minor` |
+| `detail` | what was observed, in plain language |
+| `advice` | what to change, on anything that is not a pass |
+| `evidence` | the recorded requests behind it, e.g. `["req#8"]` — see [Reading the evidence](evidence.md) |
+| `doc_url` | this check's row in [the inventory](checks.md) |
+
+`doc_url` exists because a report is usually read long after the run that
+produced it, often by somebody who was not there. `protocol.malformed_json`
+is only self-explanatory to a reader who already knows what it means; the
+link is the difference between a finding you can act on and one you have to
+ask about.
+
+The fragment it points at is written into the inventory by the same
+generator that counts the checks, and a test fails the build if the two ever
+disagree — so a link that shipped inside an archived report keeps resolving.
+
 ## What a telemetry event holds
 
 Every request scout makes, to the MCP server and to the authorization

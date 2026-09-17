@@ -815,12 +815,12 @@ The four entry points, identical across every repo in the family:
 - **[User Manual](https://scoutmcp.io/manual/)** — the rendered manual: getting started, credentials, the nine phases, reports, configuration
 - **[API reference](https://pkg.go.dev/github.com/sebastienrousseau/scout)** — the Go packages the CLI is built on
 - **[Developer docs](DEVELOPMENT.md)** — toolchain, task map, reproducing every CI gate locally
-- **[Ecosystem map](docs/ECOSYSTEM.md)** — the surfaces, the published artefacts, the lockstep version rule
+- **[Ecosystem map](docs/ecosystem.md)** — the surfaces, the published artefacts, the lockstep version rule
 
 | Document | Covers |
 |---|---|
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | How a run is put together: the engine, the phases, the transports |
-| [`docs/CHECKS.md`](docs/CHECKS.md) | Every check scout runs, generated from the source and gated in CI |
+| [`docs/architecture.md`](docs/architecture.md) | How a run is put together: the engine, the phases, the transports |
+| [`docs/checks.md`](docs/checks.md) | Every check scout runs, generated from the source and gated in CI |
 | [`docs/adr/`](docs/adr/) | Decision records for the choices that get questioned later |
 | [`docs/security-model.md`](docs/security-model.md) | Threat model, the credential boundary, what scout will and will not send |
 | [`docs/packaging.md`](docs/packaging.md) | Addressed to distribution maintainers: licence grant, toolchain policy, offline tests |

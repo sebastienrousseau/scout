@@ -347,7 +347,7 @@ jobs:
 
       # scout publishes "76 checks" on its own front page. A figure a reader
       # is asked to trust, arrived at by counting by hand, is the same class
-      # of claim scout exists to disbelieve. docs/CHECKS.md is generated from
+      # of claim scout exists to disbelieve. docs/checks.md is generated from
       # the call sites; this fails when the source and the published
       # inventory disagree.
       - name: The published check inventory matches the source

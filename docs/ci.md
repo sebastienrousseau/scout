@@ -114,6 +114,10 @@ jq '[.phases[].findings[] | select(.status == "fail")]'  # every failure, with e
 jq '[.phases[].findings[]
      | select(.status == "fail" and .severity == "critical")] | length'
 jq '.score.categories[] | select(.assessed) | {name, score}'
+
+# Every failure as a line somebody can act on, with a link to what it means.
+jq -r '.phases[].findings[] | select(.status == "fail")
+       | "\(.id)\t\(.detail)\t\(.doc_url)"'
 ```
 
 Every failing finding carries `evidence`, an array like `["req#8"]`, which

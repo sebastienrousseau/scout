@@ -62,7 +62,7 @@ nav:
   - Getting started: getting-started.md
   - Credentials: credentials.md
   - The nine phases: phases.md
-  - Every check: CHECKS.md
+  - Every check: checks.md
   - The stateless revision: stateless.md
   - Reports and telemetry: reports.md
   - Reading the evidence: evidence.md
@@ -75,8 +75,8 @@ nav:
       - From a curl script: migrating/from-a-curl-script.md
       - From an online playground: migrating/from-an-online-playground.md
   - For contributors:
-      - Ecosystem: ECOSYSTEM.md
-      - Architecture: ARCHITECTURE.md
+      - Ecosystem: ecosystem.md
+      - Architecture: architecture.md
       - Security model: security-model.md
       - Packaging: packaging.md
       - Decision records:

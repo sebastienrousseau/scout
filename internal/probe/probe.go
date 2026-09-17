@@ -62,8 +62,47 @@ type Finding struct {
 	Detail   string   `json:"detail,omitempty"`
 	Evidence []string `json:"evidence,omitempty"`
 	Advice   string   `json:"advice,omitempty"`
-	Duration Millis   `json:"duration_ms,omitempty"`
+	// DocURL addresses this check in the published inventory. A report
+	// read six months after the run is the normal case, not the edge one,
+	// and "protocol.malformed_json" is only self-explanatory to somebody
+	// who already knows what it means.
+	DocURL   string `json:"doc_url,omitempty"`
+	Duration Millis `json:"duration_ms,omitempty"`
 }
+
+// DocBase is where the generated check inventory is published.
+const DocBase = "https://scoutmcp.io/manual/checks/"
+
+// DocURL addresses id in the published inventory.
+//
+// The fragment must match the anchor scripts/checkinventory writes into
+// each table row; checks_doc_test.go fails the build when they diverge, so
+// a link that ships in every report cannot quietly rot.
+//
+// A computed family id — auth.source.<field> — is addressed by its family
+// rather than by the value, because the inventory documents the family and
+// the value is whatever this particular server happened to have.
+func DocURL(id string) string {
+	if id == "" {
+		return ""
+	}
+	for _, f := range DocFamilies {
+		if strings.HasPrefix(id, f) {
+			id = strings.TrimSuffix(f, ".")
+			break
+		}
+	}
+	return DocBase + "#check-" + strings.ReplaceAll(id, ".", "-")
+}
+
+// DocFamilies lists the checks whose id is built at run time, as the
+// literal prefix everything after it is a value of.
+//
+// A family gets one row in the inventory, so every instance has to resolve
+// to that row. checks_doc_test.go fails the build when the inventory grows
+// a family this list does not know about — which is the only way a new
+// family could ship with a dead link in every report that contains it.
+var DocFamilies = []string{"auth.source."}
 
 // PhaseResult groups the findings of one phase.
 type PhaseResult struct {
@@ -377,6 +416,7 @@ func (s *Session) check(id, title string) *check {
 
 func (c *check) done(st Status, sev Severity, detail, advice string) Finding {
 	c.f.Status, c.f.Severity, c.f.Detail, c.f.Advice = st, sev, detail, advice
+	c.f.DocURL = DocURL(c.f.ID)
 	c.f.Duration = Millis(time.Since(c.start))
 	if to := c.s.Opts.Recorder.Count(); to > c.from {
 		if to-c.from == 1 {
