@@ -731,6 +731,18 @@ figcaption { margin-block-start: 1.5rem; color: var(--ink-muted); }
 .button { width: 100%; }
 }
 
+/* Side by side, the hero buttons were only ever equal by accident of their
+ * labels: "Install" takes a third the width of "See a real report". The
+ * stack rule above only came in below 28rem, and most phones are wider
+ * than that, so the common case was two mismatched buttons. An equal
+ * track from 48rem down makes them consistent, and auto-fit drops them to
+ * one column when two no longer fit rather than needing its own
+ * breakpoint. */
+@media (max-width: 48rem) {
+  .actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(11.5rem, 1fr)); align-items: stretch; }
+  .actions .button { width: 100%; }
+}
+
 @media (prefers-reduced-motion: reduce) {
 *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
@@ -848,7 +860,13 @@ a[href]::after { content: " (" attr(href) ")"; overflow-wrap: anywhere; }
 
 /* Readout: what an operator sees the moment a run ends. */
 .readout-section { padding-block: clamp(2rem, 4vw, 3rem); border-block: 1px solid var(--line-soft); background: var(--bg-soft); }
-.readout-grid { display: grid; grid-template-columns: 1fr auto; gap: 1.5rem 2.5rem; align-items: start; }
+/* The score sat at the far right of a 1200px container with the verdict
+ * marooned on the left. The cap goes on the first column, not on the
+ * element: .readout-grid is also the .container, which centres itself, so
+ * a max-width there centred the whole block and broke its alignment with
+ * the metrics underneath. Bounding the text column pulls the score in and
+ * leaves the block on the container's left edge. */
+.readout-grid { display: grid; grid-template-columns: minmax(0, 34rem) auto; justify-content: start; gap: 1.5rem 2.5rem; align-items: start; }
 .instrument { display: flex; flex-direction: column; gap: 0.45rem; }
 .instrument .target { margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.86rem; overflow-wrap: anywhere; }
 .instrument h2 { margin: 0.2rem 0 0; font-size: clamp(1.5rem, 3vw, 2.2rem); letter-spacing: -0.025em; }
