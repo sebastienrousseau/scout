@@ -1,4 +1,8 @@
-<!-- SPDX-License-Identifier: GPL-3.0-only -->
+---
+# SPDX-License-Identifier: GPL-3.0-only
+description: >-
+  Why scout redacts secrets structurally at the recorder instead of trusting content types or pattern-matching its own output.
+---
 
 # 0003 — Secrets are redacted structurally at the recorder, and content types are not trusted
 

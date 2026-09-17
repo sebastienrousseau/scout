@@ -1,4 +1,8 @@
-<!-- SPDX-License-Identifier: GPL-3.0-only -->
+---
+# SPDX-License-Identifier: GPL-3.0-only
+description: >-
+  Coming to scout from MCP Inspector, a curl script or a hosted playground — what carries over and what is genuinely different.
+---
 
 # Coming from another tool
 

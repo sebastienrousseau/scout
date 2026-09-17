@@ -1,4 +1,8 @@
-<!-- SPDX-License-Identifier: GPL-3.0-only -->
+---
+# SPDX-License-Identifier: GPL-3.0-only
+description: >-
+  Moving from MCP Inspector to scout: the same connection, run non-interactively, with findings and evidence instead of a form to fill.
+---
 
 # From MCP Inspector
 

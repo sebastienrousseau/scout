@@ -1,4 +1,8 @@
-<!-- SPDX-License-Identifier: GPL-3.0-only -->
+---
+# SPDX-License-Identifier: GPL-3.0-only
+description: >-
+  Why scout invokes only the tools that declare readOnlyHint unless you explicitly ask it to go further.
+---
 
 # 0004 — Only tools declaring `readOnlyHint` are invoked by default
 

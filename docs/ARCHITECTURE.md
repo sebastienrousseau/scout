@@ -1,4 +1,8 @@
-<!-- SPDX-License-Identifier: GPL-3.0-only -->
+---
+# SPDX-License-Identifier: GPL-3.0-only
+description: >-
+  How scout is built, for people changing it: the transport chain, the phase engine, the recorder, and where findings come from.
+---
 
 # Architecture
 

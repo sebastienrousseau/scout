@@ -1,4 +1,8 @@
-<!-- SPDX-License-Identifier: GPL-3.0-only -->
+---
+# SPDX-License-Identifier: GPL-3.0-only
+description: >-
+  The nine phases of a scout run, in order — what each one probes on an MCP server, and how its findings turn into a score.
+---
 
 # The nine phases
 

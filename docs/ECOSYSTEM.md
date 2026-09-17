@@ -1,4 +1,8 @@
-<!-- SPDX-License-Identifier: GPL-3.0-only -->
+---
+# SPDX-License-Identifier: GPL-3.0-only
+description: >-
+  What exists around scout today and what is only planned — the CLI, the library packages, the site, and the repositories that hold them.
+---
 
 # The scout ecosystem
 

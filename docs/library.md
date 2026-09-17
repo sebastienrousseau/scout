@@ -1,4 +1,8 @@
-<!-- SPDX-License-Identifier: GPL-3.0-only -->
+---
+# SPDX-License-Identifier: GPL-3.0-only
+description: >-
+  Use scout's Go packages directly: connect to an MCP server, run the phases, and read findings from your own code.
+---
 
 # Library use
 

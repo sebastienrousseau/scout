@@ -1,4 +1,8 @@
-<!-- SPDX-License-Identifier: GPL-3.0-only -->
+---
+# SPDX-License-Identifier: GPL-3.0-only
+description: >-
+  Architecture decision records for scout — what was decided, what it cost, and what would make each decision wrong.
+---
 
 # Architecture Decision Records
 
