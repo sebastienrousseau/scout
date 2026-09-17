@@ -303,7 +303,7 @@ graph TD
     K -- unannotated / destructive --> M[skipped, reported]
     L --> N[performance: p50/p95, cold vs warm,<br/>bounded burst, 429 + Retry-After]
     N --> O[resilience: lost session, invalidated token]
-    O --> P[Score + report<br/>text · md · json · ndjson · har]
+    O --> P[Score + report<br/>text · md · json · ndjson · html · sarif · junit · har]
     M --> N
 ```
 
@@ -513,6 +513,12 @@ above to your terminal's scrollback, so you scroll it the normal way.
 structured report (add `--events` to embed every request), and
 `--output ndjson` a stream you can pipe into `jq`.
 
+Two formats exist for machines that will not read anything else:
+`--output sarif` is SARIF 2.1.0 for GitHub code scanning — every rule
+carries the check's documentation link — and `--output junit` is JUnit XML,
+so a run lands beside the unit tests in your CI panel. Neither is richer
+than `json`; each is the same findings in the shape one reader insists on.
+
 `--report-dir DIR` writes all of them plus:
 
 - `telemetry.ndjson`, one line per request: phase, label, method, URL,
@@ -640,8 +646,8 @@ them off unless you know why you are turning one on; see
 | Option | Short | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `--interactive` | `-i` | off | Pick the tools to exercise in the selector before the run |
-| `--output` | — | `text` | Output format: `text`, `json`, `md`, `ndjson` |
-| `--report-dir` | — | — | Write `report.{txt,md,json}`, `telemetry.ndjson` and `telemetry.har` here |
+| `--output` | — | `text` | Output format: `text`, `json`, `md`, `ndjson`, `html`, `sarif`, `junit` |
+| `--report-dir` | — | — | Write `report.{txt,md,json,html,sarif,junit.xml}`, `telemetry.ndjson` and `telemetry.har` here |
 | `--capture-bodies` | — | off | Record request/response bodies in telemetry (redacted, capped) |
 | `--events` | — | off | Embed every telemetry event in JSON output |
 | `--verbose` | `-v` | off | Show evidence references and full info findings |

@@ -124,18 +124,56 @@ Every failing finding carries `evidence`, an array like `["req#8"]`, which
 indexes the wire log in the report directory. See
 [Reading the evidence](evidence.md) for following one back to the bytes.
 
-### Surfacing findings on the pull request
+### Surfacing findings where people already look
 
-There is no SARIF output today, so scout does not write into GitHub code
-scanning. The honest interim is the step summary:
+`--output sarif` writes SARIF 2.1.0, which GitHub code scanning reads
+directly. Each alert links to the check's entry in
+[the inventory](checks.md), because every rule carries the finding's
+`doc_url` as its `helpUri`.
+
+```yaml
+      - name: Diagnose
+        env:
+          MCP_TOKEN: ${{ secrets.MCP_TOKEN }}
+        run: |
+          scout check https://mcp.example.com/mcp \
+            --token-env MCP_TOKEN --output sarif --no-color > scout.sarif || true
+
+      - uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: scout.sarif
+          category: scout
+```
+
+That needs `security-events: write` in the job's `permissions`. The `|| true`
+is the same story as before: exit `2` would end the step before the upload.
+
+Passing checks are in the file too, as `"kind": "pass"` with
+`"level": "none"` — code scanning shows only the alerts, and a consumer that
+wants the full picture can tell "checked and fine" apart from "not checked".
+
+`--output junit` writes JUnit XML, so a run lands beside the unit tests in
+whatever panel your CI already has. A warning becomes a `<failure>` typed
+`warning`, because JUnit has no third state and a deviation reported as a
+pass stops being read; gate on the `type` attribute if you only want real
+failures.
+
+```yaml
+      - run: scout check "$ENDPOINT" --token-env MCP_TOKEN --output junit > scout.xml || true
+      - uses: mikepenz/action-junit-report@v5
+        if: always()
+        with:
+          report_paths: scout.xml
+```
+
+For a human-readable summary on the run page itself, `--output md` is the
+shareable report, failures and warnings first, and renders as-is:
 
 ```bash
 scout check "$ENDPOINT" --token-env MCP_TOKEN --output md --no-color \
   >> "$GITHUB_STEP_SUMMARY" || true
 ```
-
-`--output md` is the shareable report, failures and warnings first. It
-renders as-is on the workflow summary page.
 
 ## GitLab CI
 

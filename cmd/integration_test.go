@@ -13,6 +13,8 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -120,7 +122,16 @@ func TestCheckJSONMdNdjsonAndReportDir(t *testing.T) {
 	if rep["events"] == nil || len(rep["events"].([]any)) == 0 {
 		t.Error("--events should embed telemetry")
 	}
-	for _, name := range []string{"report.json", "report.md", "report.html", "report.txt", "telemetry.ndjson", "telemetry.har"} {
+	// A report directory is what one person hands another, so what it
+	// contains is part of the contract rather than an implementation
+	// detail. Asserting the set, not the count: a bare number went stale
+	// the moment a format was added and said nothing about which.
+	wantFiles := []string{
+		"report.json", "report.md", "report.html", "report.txt",
+		"report.sarif", "report.junit.xml",
+		"telemetry.ndjson", "telemetry.har",
+	}
+	for _, name := range wantFiles {
 		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
 			t.Errorf("missing %s", name)
 		}
@@ -137,8 +148,17 @@ func TestCheckJSONMdNdjsonAndReportDir(t *testing.T) {
 	if err := json.Unmarshal(har, &doc); err != nil || len(doc.Log.Entries) == 0 {
 		t.Errorf("har invalid: %v", err)
 	}
-	if files, _ := rep["files"].([]any); len(files) != 6 {
-		t.Errorf("files = %v", rep["files"])
+	files, _ := rep["files"].([]any)
+	got := make([]string, 0, len(files))
+	for _, f := range files {
+		s, _ := f.(string)
+		got = append(got, filepath.Base(s))
+	}
+	sort.Strings(got)
+	want := slices.Clone(wantFiles)
+	sort.Strings(want)
+	if !slices.Equal(got, want) {
+		t.Errorf("report.files = %v, want %v", got, want)
 	}
 
 	out, _ = run(t, append([]string{"check", f.srv.URL + "/mcp", "--output", "md", "--phases", "net,handshake"}, fastFlags()...)...)

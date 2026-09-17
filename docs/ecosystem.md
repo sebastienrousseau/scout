@@ -54,13 +54,13 @@ drift silently once they do, and so nobody goes looking for them.
 | Repository | Status | What it would own |
 |---|---|---|
 | `scout-mcp` | Designed, not created | scoutmcp.io — the public site and the hosted diagnostic. Deploys the published container image by digest; contains no Go source, so it cannot drift from the tool. |
-| `scout-action` | Proposed | A GitHub Action wrapping the published image, emitting SARIF into code scanning. |
+| `scout-action` | Proposed | A GitHub Action wrapping the published image. `scout check --output sarif` already writes what code scanning reads, so what is left is packaging, not capability. |
 
 `scout-lsp` and `scout-wasm` have been considered and deliberately deferred.
 A browser build is a target rather than a repository, and is blocked against
 most servers by CORS; a language server is a large permanent surface with no
-demand behind it yet. Most of that value is `scout check` emitting SARIF plus
-`scout-action`.
+demand behind it yet. Most of that value was `scout check` emitting SARIF,
+which it now does, plus `scout-action`.
 
 ## The version rule
 

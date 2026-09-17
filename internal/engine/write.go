@@ -36,6 +36,10 @@ func (r *Result) Render(w io.Writer, spec RunSpec, termWidth int) error {
 		return nil
 	case FormatHTML:
 		return report.HTML(w, r.Report, report.HTMLOptions{Verbose: spec.Output.Verbose})
+	case FormatSARIF:
+		return report.SARIF(w, r.Report, r.Report.Scout.Version)
+	case FormatJUnit:
+		return report.JUnit(w, r.Report)
 	case FormatNDJSON:
 		// The events already streamed; this is the closing record.
 		rep := *r.Report
@@ -98,6 +102,8 @@ func (r *Result) WriteDir(dir, version string) ([]string, error) {
 			report.Text(w, r.Report, report.TextOptions{Verbose: true})
 			return nil
 		}},
+		{"report.sarif", func(w io.Writer) error { return report.SARIF(w, r.Report, version) }},
+		{"report.junit.xml", func(w io.Writer) error { return report.JUnit(w, r.Report) }},
 		{"telemetry.ndjson", func(w io.Writer) error { return r.recorder().WriteNDJSON(w) }},
 		{"telemetry.har", func(w io.Writer) error { return r.recorder().WriteHAR(w, version) }},
 	}
