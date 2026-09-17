@@ -648,6 +648,9 @@ them off unless you know why you are turning one on; see
 | `--interactive` | `-i` | off | Pick the tools to exercise in the selector before the run |
 | `--output` | — | `text` | Output format: `text`, `json`, `md`, `ndjson`, `html`, `sarif`, `junit` |
 | `--report-dir` | — | — | Write `report.{txt,md,json,html,sarif,junit.xml}`, `telemetry.ndjson` and `telemetry.har` here |
+| `--otlp-endpoint` | — | — | Export the finished run as OpenTelemetry traces to an OTLP/HTTP collector |
+| `--otlp-header` | — | — | Extra header on the OTLP export, `Name: value` (repeatable) |
+| `--log-format` | — | `human` | Diagnostic format on stderr: `human` or `json` |
 | `--capture-bodies` | — | off | Record request/response bodies in telemetry (redacted, capped) |
 | `--events` | — | off | Embed every telemetry event in JSON output |
 | `--verbose` | `-v` | off | Show evidence references and full info findings |

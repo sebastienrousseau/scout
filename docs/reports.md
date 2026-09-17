@@ -60,6 +60,42 @@ becomes a `<failure>`**, typed `warning`. JUnit has no third state, and
 reporting a deviation as a pass is how a warning stops being read. Filter on
 the `type` attribute if you want to gate only on real failures.
 
+## Traces and structured logs
+
+Two flags put a run into the systems a platform team already watches.
+
+`--otlp-endpoint URL` exports the finished run as OpenTelemetry traces over
+OTLP/HTTP. The shape of the trace is the shape of the run:
+
+```text
+scout check                      root span: endpoint, score, failure counts
+├── phase net                    span events: one per finding
+│   ├── GET  https://…/mcp       DNS, connect, TLS and TTFB as attributes
+│   └── POST https://…/mcp
+├── phase handshake
+└── …
+```
+
+A request scout made outside any phase is parented to the root rather than
+dropped — an unattributed request is still a request that was made.
+`--otlp-header "Name: value"` is repeatable, for a collector that wants an
+API key or a tenant id.
+
+**The export never changes the verdict.** A collector being unreachable is
+not a finding about the server under test, so a failed export is a warning
+on stderr and the exit code is whatever the run earned.
+
+scout speaks the JSON encoding of OTLP rather than protobuf. Both are
+specified, every collector accepts JSON on the same endpoint, and JSON is
+reachable from the standard library — so emitting traces costs the binary no
+new dependency.
+
+`--log-format json` switches scout's own diagnostics on stderr from prefixed
+lines to one JSON object each, through `log/slog`. Every line carries the
+run's `trace_id`, which is the same id on the report and on the spans, so a
+log line can be joined to the run it came from. The default stays human: a
+person watching a single run wants a line they can read.
+
 ## What a finding holds
 
 Every finding in the JSON report carries the same fields:

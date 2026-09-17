@@ -73,6 +73,8 @@ var specFields = map[string]string{
 	"events":         "Output.WithEvents",
 	"verbose":        "Output.Verbose",
 	"no-color":       "Output.NoColor",
+	"otlp-endpoint":  "Output.OTLPEndpoint",
+	"otlp-header":    "Output.OTLPHeaders",
 }
 
 // notRunFlags are flags that deliberately carry no spec field, with the

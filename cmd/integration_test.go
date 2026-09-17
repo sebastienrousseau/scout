@@ -10,6 +10,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -57,6 +58,15 @@ func resetAll() {
 // to osExit (0 when it was never called).
 func run(t *testing.T, args ...string) (string, int) {
 	t.Helper()
+	out, _, code := runCapturingStderr(t, args...)
+	return out, code
+}
+
+// runCapturingStderr is run, plus the diagnostic stream. Kept separate
+// because almost every caller only wants the report, and threading a third
+// return value through all of them would obscure what they assert.
+func runCapturingStderr(t *testing.T, args ...string) (string, string, int) {
+	t.Helper()
 	resetAll()
 	origExit := osExit
 	code := 0
@@ -82,7 +92,7 @@ func run(t *testing.T, args ...string) (string, int) {
 	wg.Wait()
 	os.Stdout = origStdout
 	diag.SetOutput(nil)
-	return buf.String(), code
+	return buf.String(), stderr.String(), code
 }
 
 func fastFlags() []string {
@@ -586,5 +596,134 @@ func TestCurrentTokenNilForStatic(t *testing.T) {
 	}
 	if currentToken(c) != nil {
 		t.Error("static source has no refreshing token")
+	}
+}
+
+// TestCheckExportsTracesAndStructuredLogs covers the wiring the unit tests
+// cannot: that the flags reach the exporter, that the trace id on the
+// report is the one the spans carry, and that a collector refusing the
+// export does not change what the run reported.
+func TestCheckExportsTracesAndStructuredLogs(t *testing.T) {
+	f := newFakeServer(t)
+	f.open = true
+
+	type received struct {
+		hdr  http.Header
+		body []byte
+	}
+	got := make(chan received, 4)
+	collector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		got <- received{hdr: r.Header.Clone(), body: b}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer collector.Close()
+
+	out, _ := run(t, append([]string{
+		"check", f.srv.URL + "/mcp", "--output", "json",
+		"--otlp-endpoint", collector.URL + "/v1/traces",
+		"--otlp-header", "X-Tenant: acme",
+		"--phases", "net,handshake",
+	}, fastFlags()...)...)
+
+	var rep map[string]any
+	if err := json.Unmarshal([]byte(out), &rep); err != nil {
+		t.Fatalf("json output: %v\n%s", err, out)
+	}
+	traceID, _ := rep["trace_id"].(string)
+	if len(traceID) != 32 {
+		t.Fatalf("report trace_id = %q", traceID)
+	}
+
+	select {
+	case r := <-got:
+		if r.hdr.Get("X-Tenant") != "acme" {
+			t.Errorf("--otlp-header did not reach the collector: %q", r.hdr.Get("X-Tenant"))
+		}
+		if r.hdr.Get("Content-Type") != "application/json" {
+			t.Errorf("Content-Type = %q", r.hdr.Get("Content-Type"))
+		}
+		if !strings.Contains(string(r.body), traceID) {
+			t.Errorf("the spans do not carry the report's trace id %s", traceID)
+		}
+		if !strings.Contains(string(r.body), `"name":"scout check"`) {
+			t.Errorf("no root span in the payload:\n%s", r.body)
+		}
+		if !strings.Contains(string(r.body), `"name":"phase net"`) {
+			t.Errorf("no phase span in the payload:\n%s", r.body)
+		}
+	default:
+		t.Fatal("the collector received nothing")
+	}
+}
+
+// TestStructuredLogsCarryTheRunsTraceID is why the trace id is settled in
+// the CLI rather than generated inside probe.Run: the whole point of
+// structured diagnostics is joining a log line to the report it came from,
+// and an id invented after the fact joins nothing.
+func TestStructuredLogsCarryTheRunsTraceID(t *testing.T) {
+	f := newFakeServer(t)
+	f.open = true
+
+	out, errOut, _ := runCapturingStderr(t, "check", f.srv.URL+"/mcp",
+		"--output", "json", "--phases", "net,handshake",
+		"--log-format", "json", "--log-level", "info",
+		"--rps", "0", "--samples", "1", "--concurrency", "2")
+
+	var rep map[string]any
+	if err := json.Unmarshal([]byte(out), &rep); err != nil {
+		t.Fatalf("json output: %v\n%s", err, out)
+	}
+	traceID, _ := rep["trace_id"].(string)
+	if len(traceID) != 32 {
+		t.Fatalf("report trace_id = %q", traceID)
+	}
+
+	var lines int
+	for _, line := range strings.Split(strings.TrimSpace(errOut), "\n") {
+		if line == "" {
+			continue
+		}
+		var rec map[string]any
+		if err := json.Unmarshal([]byte(line), &rec); err != nil {
+			t.Fatalf("diagnostic line is not JSON: %v\n%s", err, line)
+		}
+		lines++
+		if rec["trace_id"] != traceID {
+			t.Errorf("log line carries trace_id %v, report says %s", rec["trace_id"], traceID)
+		}
+		if rec["msg"] == nil || rec["level"] == nil {
+			t.Errorf("line is missing msg or level: %s", line)
+		}
+	}
+	if lines == 0 {
+		t.Fatalf("no structured diagnostics were written:\n%s", errOut)
+	}
+}
+
+// TestCheckSurvivesADeadCollector is the promise the CLI makes: a
+// telemetry backend being down is not a finding about the server, and must
+// not turn a completed run into a failed one.
+func TestCheckSurvivesADeadCollector(t *testing.T) {
+	f := newFakeServer(t)
+	f.open = true
+
+	dead := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "down", http.StatusServiceUnavailable)
+	}))
+	defer dead.Close()
+
+	out, code := run(t, append([]string{
+		"check", f.srv.URL + "/mcp", "--output", "json",
+		"--otlp-endpoint", dead.URL + "/v1/traces",
+		"--phases", "net,handshake",
+	}, fastFlags()...)...)
+
+	if code != 0 {
+		t.Errorf("exit = %d; a dead collector must not change the verdict", code)
+	}
+	var rep map[string]any
+	if err := json.Unmarshal([]byte(out), &rep); err != nil {
+		t.Fatalf("the report was not produced: %v\n%s", err, out)
 	}
 }
