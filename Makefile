@@ -42,6 +42,12 @@ bench:
 # API-breakage check against the last release tag. gorelease reports
 # removed or changed exported identifiers; a pre-1.0 module may accept them,
 # but they must be seen and named in the CHANGELOG.
+checks:
+	go run ./scripts/checkinventory/main.go
+
+checks-verify:
+	go run ./scripts/checkinventory/main.go -check
+
 docs-lock:
 	@command -v pip-compile >/dev/null 2>&1 || { \
 	  echo "pip-compile is missing. Install it with: python3 -m pip install pip-tools"; exit 1; }

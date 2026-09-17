@@ -59,6 +59,7 @@ make            # format, vet, lint, tests, build
 | `make fuzz` | Run every fuzz target for a short, fixed budget |
 | `make docs` | Generate manpages and completions into `build/` |
 | `make docs-lock` | Regenerate `docs/requirements.txt` after editing `docs/requirements.in` |
+| `make checks` | Regenerate `docs/CHECKS.md` from the check call sites |
 | `make install` | Install under `PREFIX` (default `/usr/local`) |
 | `make uninstall` | Remove everything `install` placed |
 | `make clean` | Remove build output |
@@ -80,6 +81,7 @@ is the cross-platform matrix.
 | SBOM drift | `make sbom` |
 | Example compilation | `make example-check` |
 | API compatibility | `make api-check` |
+| Check inventory | `make checks-verify` (regenerate with `make checks`) |
 | Fuzz targets | `make fuzz` |
 | Install contract | `make install-smoke` |
 | Manpage rendering | `make docs && groff -man -Tutf8 -ww build/man/scout.1 >/dev/null` |

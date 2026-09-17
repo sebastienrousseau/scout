@@ -38,7 +38,7 @@ metric_two_label: "Protocol revisions"
 metric_two_value: "Both"
 metric_three_label: "Credentials uploaded"
 metric_three_value: "None"
-proof_note: "Figures from scout's own test suite and its runs against the official MCP registry. The score above is from a real server; the endpoint is redacted."
+proof_note: "The check count is generated from the source and gated in CI — every one is listed in the manual, under Every check. The score above is from a real server; the endpoint is redacted."
 
 why_eyebrow: "Why it runs here"
 why_title: "A scanner you upload to is a scanner you trust twice."
