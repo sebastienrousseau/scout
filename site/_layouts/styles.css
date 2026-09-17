@@ -906,6 +906,7 @@ a[href]::after { content: " (" attr(href) ")"; overflow-wrap: anywhere; }
  * as a table rather than as marketing: a row label, one column each, and a
  * verdict word in every cell. The colour is the severity scale, not the
  * accent — "we win here" is not a brand statement. */
+.compare-table { min-width: 46rem; }
 .compare-table th[scope="row"] { font-weight: 500; color: var(--ink-soft); width: 34%; min-width: 12rem; }
 .compare-table td { font-variant-numeric: tabular-nums; }
 .compare-table td.yes { color: var(--st-pass); font-weight: 600; }
@@ -926,13 +927,30 @@ a[href]::after { content: " (" attr(href) ")"; overflow-wrap: anywhere; }
 .faq details p { margin: 0; padding: 0 1.1rem 1.1rem; color: var(--ink-soft); }
 
 .table-scroll { overflow-x: auto; border: 1px solid var(--line-soft); border-radius: 0.6rem; background: var(--surface); }
-.table-scroll table { width: 100%; border-collapse: collapse; font-size: 0.93rem; }
+/* The scroll container had nothing to scroll. width: 100% with no floor
+ * lets the table shrink to whatever space it is given, so on a phone the
+ * columns crushed instead of overflowing: "WEIGHT" broke to "WEIGH / T",
+ * "DEDUCTION" to "DEDUCTIO / N", and the REVIEW pills to "REVIE / W". A
+ * min-width makes the overflow real, which is what the scroll region and
+ * its aria-label already promised. */
+.table-scroll table { width: 100%; min-width: 34rem; border-collapse: collapse; font-size: 0.93rem; }
+/* Column headers are labels, not prose; they do not break. Row headers
+ * are content and still wrap. */
+.table-scroll thead th { white-space: nowrap; }
+/* The skeletonic reset puts word-break: break-word on nearly every
+ * element, table cells included. In a column narrower than its content
+ * that shreds words rather than widening the table — "Your machine"
+ * became "Your machin / e", "Reachable" became "Reacha / ble". Cells wrap
+ * between words like anything else; when that is not enough the region
+ * scrolls, which is what it is for. */
+.table-scroll th, .table-scroll td { word-break: normal; overflow-wrap: normal; }
 .table-scroll th, .table-scroll td { padding: 0.7rem 0.9rem; text-align: left; border-block-end: 1px solid var(--line-soft); }
 .table-scroll thead th { font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-muted); background: var(--surface-soft); }
 .table-scroll tbody tr:last-child td, .table-scroll tbody tr:last-child th { border-block-end: 0; }
 .table-scroll td { font-variant-numeric: tabular-nums; }
 
-.status { display: inline-block; padding: 0.15rem 0.45rem; border-radius: 0.2rem; border: 1px solid currentColor; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+/* A status badge that wraps is unreadable — the word is the whole point. */
+.status { display: inline-block; white-space: nowrap; padding: 0.15rem 0.45rem; border-radius: 0.2rem; border: 1px solid currentColor; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
 .status.pass { color: var(--st-pass); }
 .status.warn { color: var(--st-warn); }
 .status.fail { color: var(--st-fail); }
