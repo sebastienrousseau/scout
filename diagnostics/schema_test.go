@@ -5,6 +5,7 @@ package diagnostics
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -137,5 +138,44 @@ func TestResolverPointerEscaping(t *testing.T) {
 	arr := `{"type":"object","properties":{"x":{"$ref":"#/list/1"}},"list":[{"type":"number"},{"type":"string"}]}`
 	if got := Validate(json.RawMessage(arr), json.RawMessage(`{"x":1}`)); len(got) == 0 {
 		t.Error("an array index pointer must resolve")
+	}
+}
+
+// TestValidateIsDeterministic pins the ordering of the violation list.
+//
+// Violations are collected by walking `properties`, which is a map, so
+// before this the same schema and value returned the same problems in a
+// different order run to run. Two things depended on that not happening:
+// a report somebody diffs against a previous run, and any test asserting
+// the output — which is how it was found, as a godoc example that passed
+// locally and failed on CI twice in six runs.
+func TestValidateIsDeterministic(t *testing.T) {
+	schema := json.RawMessage(`{
+		"type": "object",
+		"properties": {
+			"alpha":   {"type": "integer"},
+			"bravo":   {"type": "integer"},
+			"charlie": {"type": "integer"},
+			"delta":   {"type": "integer"},
+			"echo":    {"type": "integer"},
+			"foxtrot": {"type": "integer"}
+		},
+		"additionalProperties": false
+	}`)
+	value := json.RawMessage(`{"alpha":"x","bravo":"x","charlie":"x","delta":"x","echo":"x","foxtrot":"x"}`)
+
+	first := Validate(schema, value)
+	if len(first) != 6 {
+		t.Fatalf("expected six violations, got %d: %v", len(first), first)
+	}
+	// Enough iterations that map ordering would differ at least once.
+	for i := range 50 {
+		got := Validate(schema, value)
+		if !slices.Equal(got, first) {
+			t.Fatalf("run %d returned a different order:\n first: %v\n got:   %v", i, first, got)
+		}
+	}
+	if !slices.IsSorted(first) {
+		t.Errorf("violations should be sorted so a report diffs cleanly: %v", first)
 	}
 }
