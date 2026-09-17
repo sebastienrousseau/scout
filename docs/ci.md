@@ -185,7 +185,7 @@ build that gates a merge, pin it, so a new check in a new release does not
 turn into a red build nobody changed anything to cause:
 
 ```bash
-go install github.com/sebastienrousseau/scout/cmd/scout@v0.1.0   # a tag, not @latest
+go install github.com/sebastienrousseau/scout/cmd/scout@v0.0.1   # a tag, not @latest
 ```
 
 No version has been tagged yet, so `@latest` currently resolves to the tip
