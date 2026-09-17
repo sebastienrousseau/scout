@@ -1,5 +1,10 @@
 /scout
 /build/
+# goreleaser writes here. A release build leaves nine archives, four
+# packages and the unpacked binaries in the tree; without this the next
+# `git add -A` commits them. site/dist below is the SSG output, a
+# different directory with the same name.
+/dist/
 *.test
 *.out
 site/dist/

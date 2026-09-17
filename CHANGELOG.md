@@ -8,6 +8,14 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.0.1] — 2026-09-17
+
+The first release. Everything below was written before scout had ever been
+tagged, so this entry is the whole of it rather than a diff against
+something earlier.
+
 ### Security
 
 - **Credentials no longer follow a redirect off the origin they were meant
@@ -193,3 +201,6 @@ uses [Semantic Versioning](https://semver.org/).
   contributing guide, code of conduct, governance, support, maintainers,
   citation, AI-agent invariants, architecture decision records, migration
   guides, rendered manual (MkDocs).
+
+[Unreleased]: https://github.com/sebastienrousseau/scout/compare/v0.0.1...HEAD
+[0.0.1]: https://github.com/sebastienrousseau/scout/releases/tag/v0.0.1
