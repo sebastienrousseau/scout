@@ -241,5 +241,8 @@ func render(es []entry) []byte {
 		}
 		b.WriteString("\n")
 	}
-	return b.Bytes()
+	// markdownlint gates this file like any other. Ending with exactly one
+	// newline and no run of blanks keeps the generator's output clean
+	// rather than making the linter carry an exception for it.
+	return append(bytes.TrimRight(b.Bytes(), "\n"), '\n')
 }

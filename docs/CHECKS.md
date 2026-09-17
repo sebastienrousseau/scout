@@ -136,4 +136,3 @@ that is what a reader sees in a report.
 | `resilience.session_reinit` | Client recovers from a lost session |
 | `resilience.stateless` | Requests do not depend on the connection |
 | `resilience.token_refresh` | Token source can renew |
-
