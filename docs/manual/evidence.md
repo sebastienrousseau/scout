@@ -87,7 +87,7 @@ Insomnia and Postman will all open it. Drag it onto the Network panel with
 
 The structure is the standard one:
 
-```
+```text
 log
 ├── version    "1.2"
 ├── creator    { name: "scout", version: … }
