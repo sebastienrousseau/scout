@@ -16,6 +16,27 @@ from collections import defaultdict
 
 src = open(sys.argv[1]).read()
 
+# Comments have to go before anything else looks at this. A /* ... */ sitting
+# above a rule is otherwise swallowed into the selector buffer, and the rule
+# is recorded under a selector made of prose — which is silent, and makes
+# every finding near a comment wrong. Newlines are kept so reported line
+# numbers still point at the real source.
+def _strip_comments(text):
+    out, i = [], 0
+    while i < len(text):
+        if text.startswith('/*', i):
+            end = text.find('*/', i + 2)
+            if end == -1:
+                break
+            out.append('\n' * text.count('\n', i, end))
+            i = end + 2
+        else:
+            out.append(text[i])
+            i += 1
+    return ''.join(out)
+
+src = _strip_comments(src)
+
 # ── Walk the file, tracking the current @layer and @media ──────────────
 # Layers are ordered by first declaration, and a file may declare them in
 # several statements — reading only the first gets the order backwards for
@@ -93,7 +114,10 @@ for (sel, prop, media), hits in sorted(by_key.items()):
     layers = {h[0] for h in hits}
     if len(layers) < 2:
         continue
-    ranked = sorted(hits, key=lambda h: rank(h[0]))
+    # Within one layer the cascade falls back to source order for equal
+    # specificity, so ranking by layer alone reports the wrong winner for
+    # two rules in the same layer — which is most of the unlayered tail.
+    ranked = sorted(hits, key=lambda h: (rank(h[0]), h[2]))
     winner = ranked[-1]
     losers = [h for h in ranked[:-1] if h[1] != winner[1]]
     if not losers:
