@@ -96,6 +96,10 @@ faq_six_a: "It is free and GPL-3.0 licensed. It sends nothing back: no telemetry
 report_eyebrow: "The report"
 report_title: "One document, two readers."
 report_lead: "An executive summary sits above the fold — verdict, score, what to fix first. The full findings and their evidence follow. Terminal, JSON, Markdown, HTML, or printed to PDF for people who do not read terminals."
+
+install_eyebrow: "Get started"
+install_title: "One command, and no account to make."
+install_lead: "Install it, point it at a server, read the verdict. Everything below runs on your machine; the only requests scout makes are to the endpoint you name."
 ---
 
 ## Install

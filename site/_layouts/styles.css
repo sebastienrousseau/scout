@@ -667,13 +667,18 @@ figcaption { margin-block-start: 1.5rem; color: var(--ink-muted); }
 .style-intent .art-line { width: 90%; height: 3.5rem; right: 5%; top: 54%; background: var(--scene-accent); transform: rotate(3deg); }
 .style-intent .service-card { min-height: 19rem; }
 
-/* AI shopping: bold type, purple agent controls and modular product tiles. */
-.style-scout h1 { max-width: 13ch; font-size: clamp(3rem, 6.7vw, 7rem); }
-.style-scout .hero-grid { grid-template-columns: 1.05fr 0.95fr; }
-.style-scout .hero-art { background: var(--surface); box-shadow: none; }
-.style-scout .art-halo { inset: 18% 5% auto auto; background: radial-gradient(circle, var(--glow), transparent 70%); }
-.style-scout .art-object { inset: 11% 12% 27%; border-radius: 50% 50% 8% 8%; transform: none; box-shadow: none; background: linear-gradient(140deg, var(--scene-accent), var(--glow)); }
-.style-scout .art-card-a { inset: auto 5% 5%; max-width: none; width: 90%; border-radius: 1.2rem; }
+/* scout: the diagnostic. The theme this was cloned from described an AI
+ * shopping site, and most of what followed styled a hero illustration that
+ * no scout layout has — .hero-art, .art-halo, .art-object, .art-card-a are
+ * all dead here, so they are gone rather than left to be read as intent.
+ *
+ * The headline measure is the live rule, and it lives in this layer. That
+ * matters: theme.variants sits after theme.components in the layer order,
+ * so a measure set beside the hero layout further down the file never
+ * applies. At 13ch a 57-character headline broke onto six lines and left
+ * the photograph floating in the middle of a column twice its height. */
+.style-scout h1 { max-width: 19ch; font-size: clamp(2.2rem, 4.6vw, 4.1rem); }
+.style-scout .hero-grid { grid-template-columns: 1.08fr 0.92fr; }
 .style-scout .work-visual { border-radius: 2rem; }
 .style-covenant .art-card-a strong, .style-signal .art-card-a span, .style-steward .art-card-a span { display: none; }
 }
@@ -801,9 +806,19 @@ a[href]::after { content: " (" attr(href) ")"; overflow-wrap: anywhere; }
 
 /* Hero */
 .scout-hero { padding-block: clamp(2.5rem, 6vw, 5rem) clamp(2rem, 4vw, 3.5rem); }
-.scout-hero-grid { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: clamp(2rem, 5vw, 4rem); align-items: center; }
-.scout-copy { display: flex; flex-direction: column; gap: 1rem; }
-.scout-copy h1 { max-width: 16ch; font-size: clamp(2.3rem, 5vw, 3.9rem); line-height: 1.04; letter-spacing: -0.03em; }
+/* The measure here is doing more work than the font size. At 16ch the
+ * headline broke onto six lines, which made the text column twice the
+ * height of the photograph beside it — and with align-items: center the
+ * photograph then floated in the middle of that column with space above
+ * and below it. A wider measure lands the same sentence on three lines,
+ * and start-alignment puts the two columns on the same top edge. */
+.scout-hero-grid { display: grid; grid-template-columns: 1.08fr 0.92fr; gap: clamp(2rem, 4vw, 3.5rem); align-items: start; }
+.scout-copy { display: flex; flex-direction: column; gap: 1.1rem; }
+/* Measure and size are set in theme.variants, which wins the layer order. */
+.scout-copy h1 { line-height: 1.06; letter-spacing: -0.03em; }
+.scout-copy .lead { max-width: 46ch; }
+/* The photograph sits with the headline rather than under the eyebrow. */
+.scout-photo { margin-block-start: clamp(0.5rem, 3vw, 2.6rem); }
 /* The hero photograph is cyan, and the brand is not. Rather than ship an
  * image that argues with every other colour on the page, its luminance is
  * kept and its hue replaced: mix-blend-mode: color takes hue and saturation
@@ -843,7 +858,9 @@ a[href]::after { content: " (" attr(href) ")"; overflow-wrap: anywhere; }
 .score span { color: var(--ink-muted); font-size: 0.82rem; }
 .score b { margin-inline-start: 0.5rem; padding: 0.2rem 0.5rem; border-radius: 0.25rem; background: var(--accent-soft); color: var(--on-accent-soft); font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; }
 
-.metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 1.5rem; margin: 2rem 0 0.7rem; }
+/* Three figures across a 1200px container left them marooned. Capping the
+ * track width keeps them reading as one group. */
+.metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 1.5rem 2.5rem; margin: 1.8rem 0 0.7rem; max-width: 52rem; }
 .metrics dt { color: var(--ink-muted); font-size: 0.74rem; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; }
 .metrics dd { margin: 0.3rem 0 0; font-size: 2rem; font-weight: 800; letter-spacing: -0.03em; }
 .proof-note { margin: 0; color: var(--ink-muted); font-size: 0.82rem; }
@@ -854,7 +871,7 @@ a[href]::after { content: " (" attr(href) ")"; overflow-wrap: anywhere; }
 .section-dark { background: var(--scene); color: var(--scene-ink); }
 .section-dark .eyebrow, .section-dark .lead { color: var(--scene-muted); }
 .section-dark h2 { color: var(--scene-ink); }
-.split-heading { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 1.2rem 3rem; align-items: start; margin-block-end: 2rem; }
+.split-heading { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 1.2rem clamp(2rem, 4vw, 3.5rem); align-items: start; margin-block-end: 2.2rem; }
 .split-heading h2 { margin: 0.4rem 0 0; max-width: 20ch; font-size: clamp(1.7rem, 3.4vw, 2.6rem); letter-spacing: -0.025em; }
 
 /* The cards are numbered because the content is a sequence of reasons, not
@@ -917,6 +934,16 @@ a[href]::after { content: " (" attr(href) ")"; overflow-wrap: anywhere; }
 .phases li::before { content: counter(phase, decimal-leading-zero); position: absolute; left: 0.9rem; font-variant-numeric: tabular-nums; font-size: 0.8rem; font-weight: 800; color: var(--scene-accent); }
 
 .report .prose { max-width: 62ch; color: var(--ink-soft); }
+/* The install prose is a section of its own rather than a sidebar, so it
+ * gets a reading measure instead of whatever was left beside a heading.
+ * Code blocks do not reflow, so this stays one column. */
+/* Centred, not left-aligned. A 74ch column pinned to the left edge of a
+ * 1200px container orphans the right half of the section; centring reads
+ * as a document block, which is what this is. */
+#install .prose { max-width: 74ch; margin-inline: auto; color: var(--ink-soft); }
+#install .prose pre { overflow-x: auto; }
+#install .prose h2 { margin-block-start: 2.2em; font-size: clamp(1.25rem, 2vw, 1.55rem); letter-spacing: -0.015em; }
+#install .prose h2:first-child { margin-block-start: 0; }
 .report .prose p { margin-block: 0 0.9rem; }
 
 @media (max-width: 64rem) {
