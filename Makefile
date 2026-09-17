@@ -13,7 +13,8 @@ export CGO_ENABLED = 0
 COVER_MIN ?= 85
 
 .PHONY: all build docs test test-race vet lint format spdx-check example-check \
-        fuzz sbom coverage bench api-check clean help
+        fuzz sbom coverage bench api-check checks checks-verify docs-lock \
+        site clean help
 
 all: format vet lint spdx-check example-check test test-race build
 
@@ -42,6 +43,18 @@ bench:
 # API-breakage check against the last release tag. gorelease reports
 # removed or changed exported identifiers; a pre-1.0 module may accept them,
 # but they must be seen and named in the CHANGELOG.
+# Everything the Pages workflow builds, in the same order. Running `ssg
+# build` alone wipes dist and leaves /manual and /sample 404 until someone
+# remembers the other three steps — which is a thing to automate, not to
+# remember.
+site:
+	ssg build -f site/ssg.toml
+	mkdir -p site/dist/images && cp -R site/images/. site/dist/images/
+	python3 -m mkdocs build --strict --site-dir site/dist/manual
+	go build -o $(DIST)/scout-sample ./cmd/scout
+	go run ./scripts/samplereport/main.go $(DIST)/scout-sample site/dist/sample
+	@echo "site/dist is complete: /, /manual, /sample, /images"
+
 checks:
 	go run ./scripts/checkinventory/main.go
 

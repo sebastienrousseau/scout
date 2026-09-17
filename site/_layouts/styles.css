@@ -761,6 +761,34 @@ h1, h2, h3, p, a { color: #000000; }
 a[href]::after { content: " (" attr(href) ")"; overflow-wrap: anywhere; }
 }
 
+/* Four tokens the vendor reset also defines, and defines unlayered — so
+ * its values beat every theme layer however those layers read.
+ *
+ * Three are latent. --background-color, --foreground-color and
+ * --focus-ring-color are read only by rules in skeletonic.base that
+ * theme.base overrides, so nothing renders from them today; a rule added
+ * later that did read one would quietly get an oklch value from the donor
+ * theme instead of the brand.
+ *
+ * color-scheme is not latent. The reset says "light dark", which tells the
+ * browser to choose form controls, scrollbars and the canvas from the OS
+ * preference rather than from the theme — so a reader whose system is dark,
+ * looking at the light theme, gets dark scrollbars on a cream page. It has
+ * to follow the theme.
+ *
+ * Re-declared unlayered because that is the only place that wins. */
+:root,
+:root[data-theme="light"] {
+  --background-color: var(--bg);
+  --foreground-color: var(--ink);
+  --focus-ring-color: var(--focus);
+  color-scheme: light;
+}
+:root[data-theme="dark"] { color-scheme: dark; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { color-scheme: dark; }
+}
+
 /* Wide gamut. These must track the sRGB accents above: a display-p3 value
  * left behind from an older palette silently wins on every P3 screen, which
  * is most of them, and the site ships a colour nobody chose. */
