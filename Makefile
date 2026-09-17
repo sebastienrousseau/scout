@@ -53,6 +53,7 @@ site:
 	python3 -m mkdocs build --strict --site-dir site/dist/manual
 	go build -o $(DIST)/scout-sample ./cmd/scout
 	go run ./scripts/samplereport/main.go $(DIST)/scout-sample site/dist/sample
+	go run ./scripts/sitemap/main.go site/dist
 	@echo "site/dist is complete: /, /manual, /sample, /images"
 
 checks:
