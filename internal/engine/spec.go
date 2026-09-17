@@ -133,10 +133,16 @@ const (
 	// offline, the page scout serve shows, and — through its print
 	// stylesheet — the PDF a board reads.
 	FormatHTML Format = "html"
+	// FormatSARIF and FormatJUnit exist so a run reaches the place a team
+	// already looks: code scanning for one, the test panel for the other.
+	// Neither is a richer report than JSON; both are the same findings in
+	// the shape a specific reader will not accept a substitute for.
+	FormatSARIF Format = "sarif"
+	FormatJUnit Format = "junit"
 )
 
 // Formats lists every valid output format.
-var Formats = []Format{FormatText, FormatJSON, FormatMD, FormatNDJSON, FormatHTML}
+var Formats = []Format{FormatText, FormatJSON, FormatMD, FormatNDJSON, FormatHTML, FormatSARIF, FormatJUnit}
 
 // Valid reports whether f is a format scout can render.
 func (f Format) Valid() bool {

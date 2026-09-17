@@ -387,10 +387,17 @@ func TestWriteDir(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(files) != 6 {
-		t.Errorf("wrote %d files, want 6: %v", len(files), files)
+	// Named, not counted. The count went stale the moment a format was
+	// added and never said which file was missing.
+	want := []string{
+		"report.json", "report.md", "report.html", "report.txt",
+		"report.sarif", "report.junit.xml",
+		"telemetry.ndjson", "telemetry.har",
 	}
-	for _, name := range []string{"report.json", "report.md", "report.html", "report.txt", "telemetry.ndjson", "telemetry.har"} {
+	if len(files) != len(want) {
+		t.Errorf("wrote %d files, want %d: %v", len(files), len(want), files)
+	}
+	for _, name := range want {
 		info, err := os.Stat(filepath.Join(dir, name))
 		if err != nil {
 			t.Errorf("%s: %v", name, err)
@@ -400,8 +407,8 @@ func TestWriteDir(t *testing.T) {
 			t.Errorf("%s is empty", name)
 		}
 	}
-	if len(res.Report.Files) != 6 {
-		t.Error("the report should record what was written")
+	if len(res.Report.Files) != len(want) {
+		t.Errorf("the report records %d files, wrote %d", len(res.Report.Files), len(want))
 	}
 	// The HAR must be openable by a browser's devtools, so it has to parse.
 	b, _ := os.ReadFile(filepath.Join(dir, "telemetry.har"))

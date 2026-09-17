@@ -14,6 +14,9 @@ description: >-
 | `md` | the same as a shareable Markdown document, failures and warnings first |
 | `json` | the full report; `--events` embeds every recorded request |
 | `ndjson` | phases, findings and requests streamed as they happen, one JSON object per line, ending with the report |
+| `html` | one self-contained document — the page `scout serve` shows, and the PDF its print stylesheet produces |
+| `sarif` | SARIF 2.1.0, for GitHub code scanning and anything else that reads it |
+| `junit` | JUnit XML, so a run appears beside the unit tests in the CI panel |
 
 ## The report directory
 
@@ -24,8 +27,38 @@ description: >-
 | `report.txt` | the verbose text report |
 | `report.md` | the Markdown report |
 | `report.json` | the full report with every event embedded |
+| `report.sarif` | the SARIF 2.1.0 rendering |
+| `report.junit.xml` | the JUnit rendering |
 | `telemetry.ndjson` | one line per request |
 | `telemetry.har` | the same as an HTTP Archive 1.2, which any browser's devtools can open |
+
+## SARIF and JUnit
+
+Both are the same findings in a shape one particular reader will not accept
+a substitute for. Neither is richer than `json`; if you are writing your own
+consumer, use `json`.
+
+Two choices in the SARIF are worth knowing about, because the conventional
+answer is different:
+
+**Passing checks are emitted**, as `"kind": "pass"` with `"level": "none"`.
+SARIF models a passing result deliberately, and dropping them would mean a
+consumer cannot tell "scout checked this and it was fine" from "scout did
+not check this" — which, for a conformance tool, is the whole difference.
+Anything that shows only alerts filters on `level`, at no cost.
+
+**The location is the endpoint**, as an absolute URI. There is no file to
+point at: scout tests a running server, not a checkout. A tool that invents
+a repository path so its results look like source findings is lying about
+where the problem is.
+
+Each rule carries the check's `helpUri`, which is its `doc_url` — so an
+alert in code scanning links to what the check asserts.
+
+The JUnit mapping has one decision that surprises people: **a warning
+becomes a `<failure>`**, typed `warning`. JUnit has no third state, and
+reporting a deviation as a pass is how a warning stops being read. Filter on
+the `type` attribute if you want to gate only on real failures.
 
 ## What a finding holds
 
