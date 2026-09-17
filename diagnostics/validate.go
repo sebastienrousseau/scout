@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 )
 
@@ -36,6 +37,12 @@ func Validate(schema, value json.RawMessage) []string {
 	v8 := &validator{r: r}
 	v8.validate(s, v, "$", 0, &out)
 	out = append(out, r.externalRefIssues()...)
+	// Violations are collected by walking `properties`, which is a map, so
+	// without this two runs over the same schema return the same problems
+	// in a different order. That makes a report undiffable and a test
+	// flaky — runner.go was already sorting its copy downstream, which
+	// treated the symptom. Sorting here fixes it for every caller.
+	sort.Strings(out)
 	return out
 }
 
