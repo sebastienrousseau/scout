@@ -10,6 +10,38 @@ uses [Semantic Versioning](https://semver.org/).
 
 Nothing yet.
 
+## [0.0.2] — 2026-09-17
+
+A release-pipeline fix. No change to scout itself: the binaries in 0.0.2
+are built from the same source as 0.0.1.
+
+### Fixed
+
+- **0.0.1 was published without its SLSA provenance.** The release
+  workflow carried the Homebrew artefact from
+  `dist/homebrew/Formula/scout.rb`, which is where the deprecated
+  `brews:` wrote; `homebrew_casks` writes `dist/homebrew/Casks/scout.rb`.
+  With `if-no-files-found: error` that step failed, and the attestation
+  step behind it never ran. The binaries, checksums and cosign
+  signatures published; the provenance did not.
+
+  Two further defects were on the same path: `find dist/aur -name
+  PKGBUILD` matched nothing, because goreleaser names the file
+  `scout-bin.pkgbuild`, and the tap job asserted `class Scout` — a
+  formula's opening line, which a cask does not contain — then wrote to
+  `Formula/` rather than `Casks/`.
+
+  Attestation and the release uploads now run before any packaging step,
+  so a package host or a renamed artefact costs the tap pull request and
+  nothing else. That was already the stated intent of the job ordering;
+  it is now the structure.
+
+  0.0.1 is left as published. Reusing a tag whose checksums are already
+  in the sigstore transparency log is the supply-chain defect this tool
+  exists to find, so the fix is a new version rather than a corrected
+  one. **Verify 0.0.2, not 0.0.1:**
+  `gh attestation verify <file> --owner sebastienrousseau`.
+
 ## [0.0.1] — 2026-09-17
 
 The first release. Everything below was written before scout had ever been
@@ -212,5 +244,6 @@ something earlier.
 - The site at <https://scoutmcp.io>, including a sample report produced by
   the binary built from the same commit rather than a screenshot.
 
-[Unreleased]: https://github.com/sebastienrousseau/scout/compare/v0.0.1...HEAD
+[Unreleased]: https://github.com/sebastienrousseau/scout/compare/v0.0.2...HEAD
+[0.0.2]: https://github.com/sebastienrousseau/scout/compare/v0.0.1...v0.0.2
 [0.0.1]: https://github.com/sebastienrousseau/scout/releases/tag/v0.0.1
