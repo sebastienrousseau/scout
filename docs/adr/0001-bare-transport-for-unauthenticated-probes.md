@@ -1,4 +1,8 @@
-<!-- SPDX-License-Identifier: GPL-3.0-only -->
+---
+# SPDX-License-Identifier: GPL-3.0-only
+description: >-
+  Why scout probes an MCP server for unauthenticated access over a second transport that carries no credential at all.
+---
 
 # 0001 — Unauthenticated probes use a second, credential-free transport
 

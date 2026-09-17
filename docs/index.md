@@ -1,4 +1,8 @@
-<!-- SPDX-License-Identifier: GPL-3.0-only -->
+---
+# SPDX-License-Identifier: GPL-3.0-only
+description: >-
+  scout is a diagnostic for Model Context Protocol servers: nine phases, 76 checks, run from your own machine against a live server.
+---
 
 # scout
 

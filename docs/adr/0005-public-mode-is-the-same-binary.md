@@ -1,4 +1,8 @@
-<!-- SPDX-License-Identifier: GPL-3.0-only -->
+---
+# SPDX-License-Identifier: GPL-3.0-only
+description: >-
+  Why the hosted diagnostic on scoutmcp.io is the same binary as the CLI, and why it accepts no credentials at all.
+---
 
 # 0005 — The hosted diagnostic is the same binary, and it accepts no credentials
 

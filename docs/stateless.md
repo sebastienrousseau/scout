@@ -1,4 +1,8 @@
-<!-- SPDX-License-Identifier: GPL-3.0-only -->
+---
+# SPDX-License-Identifier: GPL-3.0-only
+description: >-
+  MCP's 2026-07-28 stateless revision: what changed, how scout works out which revision a server speaks, and what it checks on each.
+---
 
 # The stateless revision
 

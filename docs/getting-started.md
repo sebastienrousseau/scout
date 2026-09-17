@@ -1,4 +1,8 @@
-<!-- SPDX-License-Identifier: GPL-3.0-only -->
+---
+# SPDX-License-Identifier: GPL-3.0-only
+description: >-
+  Install scout and run your first diagnostic against a live MCP server — one command, a verdict in plain language, and a list of what to fix.
+---
 
 # Getting started
 
