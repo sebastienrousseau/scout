@@ -26,7 +26,7 @@ telemetry (`telemetry.ndjson`, `telemetry.har`) that a bug report needs.
 |---|---|
 | Install, flags, usage | [README.md](README.md) |
 | Package reference | <https://pkg.go.dev/github.com/sebastienrousseau/scout> |
-| How it works internally | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| How it works internally | [docs/architecture.md](docs/architecture.md) |
 | Why it works that way | [docs/adr/](docs/adr/README.md) |
 | Contributing and toolchain | [DEVELOPMENT.md](DEVELOPMENT.md) |
 | Security posture | [docs/security-model.md](docs/security-model.md) |

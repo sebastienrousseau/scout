@@ -59,7 +59,7 @@ make            # format, vet, lint, tests, build
 | `make fuzz` | Run every fuzz target for a short, fixed budget |
 | `make docs` | Generate manpages and completions into `build/` |
 | `make docs-lock` | Regenerate `docs/requirements.txt` after editing `docs/requirements.in` |
-| `make checks` | Regenerate `docs/CHECKS.md` from the check call sites |
+| `make checks` | Regenerate `docs/checks.md` from the check call sites |
 | `make install` | Install under `PREFIX` (default `/usr/local`) |
 | `make uninstall` | Remove everything `install` placed |
 | `make clean` | Remove build output |

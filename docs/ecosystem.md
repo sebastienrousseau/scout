@@ -92,4 +92,4 @@ force now.*
 - [User manual](https://scoutmcp.io/manual/) — installing, running, reading a report
 - [API reference](https://pkg.go.dev/github.com/sebastienrousseau/scout) — the Go packages the CLI is built on
 - [DEVELOPMENT.md](https://github.com/sebastienrousseau/scout/blob/main/DEVELOPMENT.md) — toolchain and every CI gate reproduced locally
-- [docs/ARCHITECTURE.md](ARCHITECTURE.md) — how a run is actually put together
+- [docs/architecture.md](architecture.md) — how a run is actually put together
