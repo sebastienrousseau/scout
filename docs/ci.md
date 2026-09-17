@@ -1,0 +1,213 @@
+---
+# SPDX-License-Identifier: GPL-3.0-only
+description: >-
+  Run scout in GitHub Actions or GitLab CI: the exit-code contract, gating on a score with jq, keeping the report as an artifact, and what not to run against production.
+---
+
+# Running scout in CI
+
+A diagnostic you run by hand tells you what was true the afternoon you ran
+it. The point of putting scout in a pipeline is that the answer stays
+current: the server changes, the tool catalog changes, the protocol
+revision changes, and the build tells you before an agent does.
+
+This page is the whole contract — what scout returns, what it writes, and
+where the sharp edges are.
+
+## The exit-code contract
+
+`scout check` has three outcomes and they mean different things. Treat
+them differently or CI will be useless in both directions.
+
+| Exit | Meaning | What CI should do |
+|---|---|---|
+| `0` | The run completed and nothing failed. Warnings may still be present. | Pass. |
+| `1` | scout could not do its job: bad flags, an endpoint it could not reach, an authorization step that did not complete. **No verdict was reached.** | Fail the job loudly. This is scout or the pipeline being broken, not the server. |
+| `2` | The run completed and at least one finding has status `fail`. | This is the finding you came for. |
+
+The distinction between `1` and `2` is the one that matters. A pipeline
+that treats "could not connect" the same as "connected and found four
+problems" will eventually go green because the endpoint was down.
+
+Exit `2` is triggered by `counts.fail > 0` — a `warn` never fails a build
+on its own. If you want warnings to fail yours, gate on the JSON instead;
+see below.
+
+## GitHub Actions
+
+```yaml
+name: MCP server diagnostic
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+
+      - name: Install scout
+        run: go install github.com/sebastienrousseau/scout/cmd/scout@latest
+
+      - name: Diagnose
+        env:
+          MCP_TOKEN: ${{ secrets.MCP_TOKEN }}
+        run: |
+          scout check https://mcp.example.com/mcp \
+            --token-env MCP_TOKEN \
+            --report-dir "$RUNNER_TEMP/scout" \
+            --no-color \
+            --rps 2
+
+      - name: Keep the evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scout-report
+          path: ${{ runner.temp }}/scout
+```
+
+Three things in there are deliberate.
+
+`--token-env MCP_TOKEN` rather than `--token "$MCP_TOKEN"`. The value
+never becomes a process argument, so it never appears in `ps`, in a shell
+trace, or in the log line a runner prints when a step fails.
+
+`if: always()` on the upload. The run you most want the HAR from is the
+one that just failed the job.
+
+`--rps 2` is the default and it is there to be seen. scout throttles
+because a scheduled job pointed at a production server is a scheduled
+load test if you let it be. Raise it only against something you own.
+
+### Gating on a score, not just a verdict
+
+Exit `2` fires on any failure at any severity. If you want a threshold
+instead, take the JSON:
+
+```bash
+scout check https://mcp.example.com/mcp \
+  --token-env MCP_TOKEN --output json --no-color > report.json || true
+
+jq -e '.score.total >= 85' report.json > /dev/null \
+  || { echo "score $(jq .score.total report.json) is below 85"; exit 1; }
+```
+
+The `|| true` is load-bearing: without it `set -e` ends the step on exit
+`2` before you ever read the file. Check the file for `.counts` first if
+you need to tell "scored 40" apart from "never ran".
+
+Other fields worth gating on:
+
+```bash
+jq '.counts'                                             # pass/warn/fail/skip/info
+jq '[.phases[].findings[] | select(.status == "fail")]'  # every failure, with evidence
+jq '[.phases[].findings[]
+     | select(.status == "fail" and .severity == "critical")] | length'
+jq '.score.categories[] | select(.assessed) | {name, score}'
+```
+
+Every failing finding carries `evidence`, an array like `["req#8"]`, which
+indexes the wire log in the report directory. See
+[Reading the evidence](evidence.md) for following one back to the bytes.
+
+### Surfacing findings on the pull request
+
+There is no SARIF output today, so scout does not write into GitHub code
+scanning. The honest interim is the step summary:
+
+```bash
+scout check "$ENDPOINT" --token-env MCP_TOKEN --output md --no-color \
+  >> "$GITHUB_STEP_SUMMARY" || true
+```
+
+`--output md` is the shareable report, failures and warnings first. It
+renders as-is on the workflow summary page.
+
+## GitLab CI
+
+```yaml
+mcp-diagnostic:
+  image: golang:1.26
+  timeout: 10m
+  script:
+    - go install github.com/sebastienrousseau/scout/cmd/scout@latest
+    - scout check "$MCP_ENDPOINT" --token-env MCP_TOKEN
+        --report-dir scout-report --no-color
+  artifacts:
+    when: always
+    paths:
+      - scout-report/
+    expire_in: 30 days
+```
+
+Set `MCP_TOKEN` as a masked, protected CI/CD variable. scout reads it
+from the environment; it is never an argument.
+
+## What not to run in a pipeline
+
+**`--allow-mutations` and `--allow-destructive` against anything you did
+not stand up for the run.** By default scout invokes only tools that
+declare `readOnlyHint`, which is what makes it safe to point at a live
+server — see [ADR 0004](adr/0004-read-only-by-default.md). Those two
+flags remove that guarantee. In CI they belong against an ephemeral
+instance, never against production, and never in a job any contributor
+can trigger.
+
+**`--allow-load`.** It runs the burst unthrottled. That is a load test,
+and a load test on a cron against someone else's infrastructure is an
+outage with a changelog entry.
+
+**`--capture-bodies` without reading [the security model](security-model.md)
+first.** Bodies are redacted structurally at the recorder and capped, but
+the artifact is still the closest thing to a copy of your traffic that
+scout produces. Decide who can download build artifacts before you turn
+it on.
+
+**A fork-triggered `pull_request` job with the credential attached.**
+`pull_request` from a fork must not see repository secrets. If the
+diagnostic needs a real token, run it on `schedule` or
+`workflow_dispatch`, or on `push` to your own branches.
+
+## Pinning the version
+
+`@latest` is fine for a scheduled job whose failure you will read. For a
+build that gates a merge, pin it, so a new check in a new release does not
+turn into a red build nobody changed anything to cause:
+
+```bash
+go install github.com/sebastienrousseau/scout/cmd/scout@v0.1.0   # a tag, not @latest
+```
+
+No version has been tagged yet, so `@latest` currently resolves to the tip
+of the default branch. Until the first release, a build that must not move
+under you should pin the commit.
+
+The report records what ran, under `scout.version`, so an archived
+`report.json` says which binary produced it.
+
+## Interpreting a run that changed
+
+Two runs against an unchanged server should produce the same findings.
+The score is derived from findings, not asserted independently
+([ADR 0002](adr/0002-findings-cite-requests.md)), so a moved score always
+has a finding under it. Diff the ids rather than the number:
+
+```bash
+jq -r '[.phases[].findings[] | select(.status == "fail") | .id] | sort[]' \
+  report.json > today.txt
+diff yesterday.txt today.txt
+```
+
+What legitimately moves without the server changing: latency percentiles
+in the performance phase, and the generated arguments if you change
+`--seed`. Everything else moving is a real difference.

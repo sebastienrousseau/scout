@@ -1,7 +1,7 @@
 ---
 # SPDX-License-Identifier: GPL-3.0-only
 description: >-
-  Bearer tokens, OAuth, mTLS, custom headers: how to hand scout the credential you were given without it ever leaving your machine.
+  Bearer tokens, OAuth, HTTP basic, API-key headers: how to hand scout the credential you were given without it ever leaving your machine.
 ---
 
 # Credentials

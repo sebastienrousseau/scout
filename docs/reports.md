@@ -1,7 +1,7 @@
 ---
 # SPDX-License-Identifier: GPL-3.0-only
 description: >-
-  scout's output formats — text, JSON, HTML, JUnit, SARIF — plus the wire log, the HAR export, and the telemetry it does not collect.
+  scout's output formats — text, Markdown, JSON, NDJSON and HTML — plus the report directory, the HAR export, and what telemetry holds.
 ---
 
 # Reports and telemetry

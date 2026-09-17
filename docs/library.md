@@ -1,7 +1,7 @@
 ---
 # SPDX-License-Identifier: GPL-3.0-only
 description: >-
-  Use scout's Go packages directly: connect to an MCP server, run the phases, and read findings from your own code.
+  Use scout's Go packages directly: the client and MCP types, OAuth discovery, the Streamable HTTP transport, and the schema validator.
 ---
 
 # Library use
