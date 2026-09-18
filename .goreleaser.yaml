@@ -211,12 +211,27 @@ homebrew_casks:
     # binaries are not notarised, so without this the first run dies with
     # "cannot be opened because the developer cannot be verified". A
     # formula was never subject to this; a cask is.
-    hooks:
-      post:
-        install: |
-          if system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/scout"]
-          end
+    # Gatekeeper quarantines anything a cask downloads, and the release
+    # binaries are not notarised. Without this the first run dies silently:
+    # verified by installing without it, where the binary keeps
+    # com.apple.quarantine and `scout version` prints nothing at all.
+    #
+    # custom_block rather than the hooks: block, because hooks emit
+    # `postflight do ... end` and Homebrew deprecated calling postflight.
+    # goreleaser has no postflight_steps option, so the replacement is
+    # written out here. goreleaser places a custom block directly after
+    # `cask "scout" do`, before the version stanza, which is unusual to read
+    # and works: confirmed by installing it in both positions.
+    #
+    # chdir is the part that is easy to get wrong. A step's args are literal
+    # strings and are not resolved against the staged path, so a bare
+    # "scout" is looked up in whatever the current directory happens to be
+    # and the install fails with exit 1. chdir does resolve against the
+    # staged path, so "." puts the command where the binary is.
+    custom_block: |
+      postflight_steps do
+        run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "scout"], chdir: "."
+      end
 
 # Arch Linux (AUR). Generated only: publishing needs an SSH key this
 # repository does not hold, so the PKGBUILD is attached to the release for
