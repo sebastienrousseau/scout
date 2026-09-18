@@ -10,13 +10,20 @@ no toolchain at run time and no assets beside it.
 ## Build
 
 ```sh
-ssg build -f web/ssg.toml
+make web-shell
 ```
+
+That runs `ssg build -f web/ssg.toml` and copies the icons from `brand/`
+afterwards, which matters because ssg wipes its output directory: anything
+committed inside `internal/web/dist` that ssg did not write is destroyed on
+the next build.
 
 Output lands in `internal/web/dist`, where `//go:embed` picks it up. Rebuild
 and commit the output whenever anything under `web/` changes — the embedded
 copy is what ships, so a change here that is not rebuilt is a change that
-does not exist.
+does not exist. It has already happened once: the shell shipped advertising
+the wrong check count, with every asset under a `/scout/` base path left
+over from an older `base_url`. CI now asserts both.
 
 ## Why the layouts are vendored
 

@@ -12,7 +12,7 @@ LDFLAGS = -s -w -X $(VERSION_PKG)/cmd.Version=$(VERSION)
 export CGO_ENABLED = 0
 COVER_MIN ?= 85
 
-.PHONY: all build docs test test-race vet lint format spdx-check example-check \
+.PHONY: web-shell all build docs test test-race vet lint format spdx-check example-check \
         fuzz sbom coverage bench api-check checks checks-verify docs-lock \
         site clean help
 
@@ -47,14 +47,30 @@ bench:
 # build` alone wipes dist and leaves /manual and /sample 404 until someone
 # remembers the other three steps — which is a thing to automate, not to
 # remember.
-site:
+# The icons are copied, not generated: ssg wipes its output directory on
+# every build, so anything committed inside it is destroyed. Keeping the
+# source in brand/ and copying afterwards also means neither this build nor
+# CI needs ImageMagick. scripts/gen-icons.sh regenerates them when the mark
+# changes.
+ICONS = favicon.ico favicon.svg apple-touch-icon.png icon-192.png icon-512.png icon-maskable-512.png
+
+site: web-shell
 	ssg build -f site/ssg.toml
 	mkdir -p site/dist/images && cp -R site/images/. site/dist/images/
+	for f in $(ICONS); do cp brand/$$f site/dist/$$f; done
 	python3 -m mkdocs build --strict --site-dir site/dist/manual
 	go build -o $(DIST)/scout-sample ./cmd/scout
 	go run ./scripts/samplereport/main.go $(DIST)/scout-sample site/dist/sample
 	go run ./scripts/sitemap/main.go site/dist
 	@echo "site/dist is complete: /, /manual, /sample, /images"
+
+# The shell `scout serve` embeds. It is committed because the binary must
+# carry it, and it goes stale the moment anything under web/ changes without
+# this being run — which is how it shipped advertising the wrong check count
+# with every asset under a /scout/ base path.
+web-shell:
+	ssg build -f web/ssg.toml
+	for f in $(ICONS); do cp brand/$$f internal/web/dist/$$f; done
 
 checks:
 	go run ./scripts/checkinventory/main.go
