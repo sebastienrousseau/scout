@@ -475,13 +475,27 @@ func (s *Stdio) writeLine(ctx context.Context, line []byte) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	if _, err := s.stdin.Write(append(line, '\n')); err != nil {
-		if exited, _ := s.Exited(); exited {
+		// A write to a server that has just died fails with EPIPE, and the
+		// reaping goroutine may not have finished yet — so asking Exited
+		// immediately can answer "still running" about a process that is
+		// already gone, and the caller gets "broken pipe" instead of the
+		// exit status and the stderr that explain it. Wait briefly for the
+		// reap before deciding; a genuinely live server never gets here.
+		select {
+		case <-s.done:
 			return s.exitError()
+		case <-time.After(exitReapGrace):
 		}
 		return fmt.Errorf("transport: write to server: %w", err)
 	}
 	return nil
 }
+
+// exitReapGrace is how long a failed write waits for the process to be
+// reaped before concluding the failure was something other than an exit.
+// Long enough for Wait to return on a process that has already died, short
+// enough not to be felt.
+const exitReapGrace = 2 * time.Second
 
 // exitError explains a dead process, with what it said on the way out.
 func (s *Stdio) exitError() error {
