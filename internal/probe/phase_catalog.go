@@ -186,6 +186,16 @@ func phaseCatalog(ctx context.Context, s *Session) []Finding {
 		}
 	}
 
+	// ---- what the catalog says to the model ----
+	//
+	// Everything above asks whether the catalog is well formed. This asks
+	// whether it is honest, which is a different question and the one an
+	// agent is exposed to: a description is not documentation, it is input
+	// the model reads before deciding what to call.
+	if len(tools) > 0 || len(res) > 0 || len(prompts) > 0 {
+		out = append(out, scanCatalog(s, res, prompts)...)
+	}
+
 	if len(tools) == 0 && len(res) == 0 && len(prompts) == 0 {
 		out = append(out, s.check("catalog.empty", "Server exposes something").fail(Critical, "no tools, resources or prompts", "an MCP server with an empty catalog has nothing for an agent to use"))
 	}

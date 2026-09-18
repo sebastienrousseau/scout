@@ -8,9 +8,9 @@ description: >-
 
 # The check inventory
 
-scout runs **76 checks** across **9 phases**.
+scout runs **81 checks** across **9 phases**.
 
-75 of those are fixed, and 1 is a family whose id is built at run time —
+80 of those are fixed, and 1 is a family whose id is built at run time —
 one check per value the run encounters, marked `*` below.
 
 This file is generated from the source: every check is created through
@@ -93,17 +93,22 @@ that is what a reader sees in a report.
 | <span id="check-protocol-unknown_tool"></span>`protocol.unknown_tool` | Unknown tool is reported |
 | <span id="check-protocol-version_header"></span>`protocol.version_header` | Bad MCP-Protocol-Version is rejected |
 
-## catalog — 14 checks
+## catalog — 19 checks
 
 | Check | What it looks for |
 |---|---|
 | <span id="check-catalog-empty"></span>`catalog.empty` | Server exposes something |
+| <span id="check-catalog-names-confusable"></span>`catalog.names.confusable` | Names use a single script |
 | <span id="check-catalog-prompts-descriptions"></span>`catalog.prompts.descriptions` | Prompts and arguments are described |
 | <span id="check-catalog-prompts-list"></span>`catalog.prompts.list` | prompts/list |
 | <span id="check-catalog-resources-list"></span>`catalog.resources.list` | resources/list |
 | <span id="check-catalog-resources-mime"></span>`catalog.resources.mime` | Resources declare mimeType |
 | <span id="check-catalog-resources-templates"></span>`catalog.resources.templates` | resources/templates/list |
 | <span id="check-catalog-resources-uris"></span>`catalog.resources.uris` | Resource URIs are absolute |
+| <span id="check-catalog-text-comments"></span>`catalog.text.comments` | Catalog text carries no hidden comments |
+| <span id="check-catalog-text-hidden"></span>`catalog.text.hidden` | Catalog text has nothing hidden in it |
+| <span id="check-catalog-text-instructions"></span>`catalog.text.instructions` | Catalog text describes rather than instructs |
+| <span id="check-catalog-text-secret_paths"></span>`catalog.text.secret_paths` | Catalog text names no credential locations |
 | <span id="check-catalog-tools-annotations"></span>`catalog.tools.annotations` | Tools declare behaviour annotations |
 | <span id="check-catalog-tools-descriptions"></span>`catalog.tools.descriptions` | Every tool has a useful description |
 | <span id="check-catalog-tools-input_schema"></span>`catalog.tools.input_schema` | inputSchema is a JSON Schema object |

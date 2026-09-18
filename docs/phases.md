@@ -100,6 +100,37 @@ Lists everything; invokes nothing.
 | `catalog.resources.uris`, `catalog.resources.mime`, `catalog.resources.templates` | absolute URIs, mime types, template listing |
 | `catalog.prompts.descriptions` | prompts and their arguments are described |
 | `catalog.empty` | critical when there are no tools, resources or prompts at all |
+| `catalog.text.hidden` | invisible characters and bidirectional overrides in any catalog text |
+| `catalog.text.comments` | HTML comments, which a rendered catalog hides and a model reads |
+| `catalog.text.instructions` | text addressed to the model rather than describing the tool |
+| `catalog.text.secret_paths` | descriptions naming SSH keys, AWS credentials, dotenv files or credential environment variables |
+| `catalog.names.confusable` | a name mixing scripts, which is how one tool is made to render like another |
+
+### What the last five are about
+
+A tool description is not documentation. It is input to the model, read
+before the model decides what to call, with the same standing as the user's
+own words. Everything above this point asks whether the catalog is *well
+formed*; these five ask whether it is *honest*.
+
+They read every string that reaches the model, not just the ones a catalog
+viewer renders: tool and resource descriptions and titles, prompt argument
+descriptions, and every `description` and `title` inside an `inputSchema` or
+`outputSchema`. The schema is where published poisoning has most often been
+found, for the obvious reason — it is the part nobody looks at.
+
+Severity is calibrated deliberately, because a scanner people learn to
+ignore is worse than none:
+
+| Severity | What earns it |
+|---|---|
+| `critical` | text with no honest reading — telling the reader to disregard earlier instructions, to conceal something from the user, to act as a different agent; a bidirectional override; a mixed-script name |
+| `major` | text a legitimate author very rarely writes and should be told about anyway — a reference to the system prompt, a pseudo-tag like `<IMPORTANT>`, a named credential path, an HTML comment |
+| `minor` | worth a reader's attention, not worth a failed build — a dotenv path, a description directing the model's behaviour |
+
+Each finding names the field it came from and quotes it, with invisible
+characters rendered as their code points, because "an instruction was found"
+is not something a maintainer can act on and `…<U+202E>nothing…` is.
 
 ## execution: Safe execution and content validation
 

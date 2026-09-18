@@ -202,7 +202,7 @@ func explain(r *Report) string {
 				ran++
 			}
 		}
-		return fmt.Sprintf("%s. scout got through %d of %d checks before stopping. Fix the problem below and run it again.",
+		return fmt.Sprintf("%s. scout got through %d of %d phases before stopping. Fix the problem below and run it again.",
 			upperFirst(r.Blocked), ran, len(r.Phases))
 	}
 	fail, warn := r.Counts.Fail, r.Counts.Warn
