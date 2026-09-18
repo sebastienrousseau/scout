@@ -255,7 +255,7 @@ jobs:
           # `git diff --quiet -- <path>` ignores untracked files, so the
           # first publish of a cask the tap has never held reads as "no
           # change" and the job reports success having pushed nothing.
-          # That is what happened on v0.1.0, and it is exactly the failure
+          # That is what happened on the first real release, and it is the failure
           # the comment on this job warns about: reporting success without
           # publishing is how a tap goes stale for months.
           git add Casks/scout.rb

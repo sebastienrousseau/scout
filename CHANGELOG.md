@@ -3,18 +3,26 @@
 # Changelog
 
 All notable changes to scout are documented here. The format follows
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project
-uses [Semantic Versioning](https://semver.org/).
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions are
+[Semantic Versioning](https://semver.org/) shaped.
+
+**Versions increment by 0.0.1 a release, whatever the release contains.**
+The sequence runs `v0.0.1`, `v0.0.2`, … and reaches `v0.1.0` only after
+`v0.0.999`. A new transport, a new output format or a new phase is still a
+patch bump. The slow climb is deliberate: it lets maturity be earned over
+many releases rather than declared, and a version number is not where this
+project announces that a change felt big.
 
 ## [Unreleased]
 
 Nothing yet.
 
-## [0.1.0] — 2026-09-18
+## [0.0.2] — 2026-09-18
 
-A minor release, not a patch: there is a second transport, two new output
-formats, five new checks and an export path. 0.0.2 was drafted as a
-pipeline fix and never tagged; everything it described is here.
+Versions here increment by 0.0.1 a release, whatever is in them. This one
+carries a second transport, two output formats, five checks and an export
+path, and it is still a patch bump: the slow climb is the point, and a
+version number is not where a project announces that something felt big.
 
 ### Added
 
@@ -325,6 +333,6 @@ something earlier.
 - The site at <https://scoutmcp.io>, including a sample report produced by
   the binary built from the same commit rather than a screenshot.
 
-[Unreleased]: https://github.com/sebastienrousseau/scout/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/sebastienrousseau/scout/compare/v0.0.1...v0.1.0
+[Unreleased]: https://github.com/sebastienrousseau/scout/compare/v0.0.2...HEAD
+[0.0.2]: https://github.com/sebastienrousseau/scout/compare/v0.0.1...v0.0.2
 [0.0.1]: https://github.com/sebastienrousseau/scout/releases/tag/v0.0.1

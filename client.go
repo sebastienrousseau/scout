@@ -150,6 +150,15 @@ type Client struct {
 }
 
 // New builds a Client. It does not contact the server.
+// DefaultClientVersion is the version scout announces to a server when the
+// caller sets no ClientInfo of its own.
+//
+// It is a fallback, not the build version: cmd sets the real one from the
+// ldflags stamp. It said "0.1.0" from the first import, which was never a
+// version scout had — and under this project's convention, where every
+// release increments by 0.0.1, it is not one it will reach for a long time.
+const DefaultClientVersion = "0.0.1"
+
 func New(cfg Config) (*Client, error) {
 	if cfg.Endpoint == "" {
 		return nil, errors.New("scout: Endpoint is required")
@@ -172,7 +181,7 @@ func New(cfg Config) (*Client, error) {
 		return nil, errors.New("scout: Token is required for bearer")
 	}
 	if cfg.ClientInfo.Name == "" {
-		cfg.ClientInfo = Implementation{Name: "scout", Version: "0.1.0"}
+		cfg.ClientInfo = Implementation{Name: "scout", Version: DefaultClientVersion}
 	}
 	base := http.DefaultClient
 	if cfg.HTTPClient != nil {
