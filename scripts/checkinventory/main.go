@@ -36,6 +36,12 @@ type entry struct {
 	// Family marks a check whose id is built at run time, so one entry
 	// here stands for one check per value the run encounters.
 	Family bool
+	// CanFail marks a check that reaches .fail or .warn somewhere. Those
+	// are the checks that can appear in a report's "what to fix first",
+	// and so the ones that want remediation guidance written for them.
+	// internal/report/remediation_test.go reads this back and fails when
+	// one of them has none.
+	CanFail bool
 }
 
 func main() {
@@ -140,6 +146,10 @@ func verifyPublishedCount(want int) error {
 func inventory(dir string) ([]entry, error) {
 	fset := token.NewFileSet()
 	byID := map[string]*entry{}
+	// Filled by markFailable while each file is parsed, and applied to the
+	// entries after every file has been seen — a check declared in one file
+	// can be failed in another.
+	failable := map[string]bool{}
 
 	files, err := filepath.Glob(filepath.Join(dir, "*.go"))
 	if err != nil {
@@ -153,6 +163,7 @@ func inventory(dir string) ([]entry, error) {
 		if err != nil {
 			return nil, fmt.Errorf("parsing %s: %w", f, err)
 		}
+		markFailable(parsed, failable)
 		ast.Inspect(parsed, func(n ast.Node) bool {
 			call, ok := n.(*ast.CallExpr)
 			if !ok {
@@ -195,6 +206,12 @@ func inventory(dir string) ([]entry, error) {
 			byID[id] = &entry{ID: id, Title: title, Sites: 1}
 			return true
 		})
+	}
+
+	for id := range failable {
+		if e, ok := byID[id]; ok {
+			e.CanFail = true
+		}
 	}
 
 	out := make([]entry, 0, len(byID))
@@ -309,7 +326,13 @@ func render(es []entry) []byte {
 			// a reader who gets a JSON report six months from now can follow
 			// a check id straight to what it asserts. probe.DocURL builds
 			// the same slug; checks_doc_test.go asserts the two agree.
-			fmt.Fprintf(&b, "| <span id=%q></span>`%s` | %s |\n", anchor(e.ID), e.ID, title)
+			// data-can-fail marks the checks that can reach a fail or a
+			// warn. It is an attribute rather than a visible column because
+			// a reader does not need it — internal/report does, to assert
+			// that every check able to appear in "what to fix first" has
+			// remediation guidance written for it.
+			fmt.Fprintf(&b, "| <span id=%q data-can-fail=%q></span>`%s` | %s |\n",
+				anchor(e.ID), boolAttr(e.CanFail), e.ID, title)
 		}
 		b.WriteString("\n")
 	}
@@ -332,4 +355,79 @@ func anchor(id string) string {
 	// probe.DocURL resolves a concrete "auth.source.token_env" to.
 	id = strings.TrimSuffix(strings.TrimSuffix(id, "*"), ".")
 	return "check-" + strings.ReplaceAll(id, ".", "-")
+}
+
+// markFailable records every check id that reaches .fail or .warn.
+//
+// The shapes in this package are `c := s.check(id, title)` followed by
+// `c.fail(...)` in the same function, and the inline
+// `s.check(id, title).fail(...)`. Both are matched; a check bound in one
+// function and failed in another is not, and would show up as a check with
+// no guidance required, which is the safe direction to be wrong in.
+func markFailable(f *ast.File, out map[string]bool) {
+	ast.Inspect(f, func(n ast.Node) bool {
+		fn, ok := n.(*ast.FuncDecl)
+		if !ok || fn.Body == nil {
+			return true
+		}
+		bound := map[string]string{} // variable -> check id
+		ast.Inspect(fn.Body, func(m ast.Node) bool {
+			if as, ok := m.(*ast.AssignStmt); ok && len(as.Rhs) == 1 && len(as.Lhs) == 1 {
+				if id, ok := checkCallID(as.Rhs[0]); ok {
+					if ident, ok := as.Lhs[0].(*ast.Ident); ok {
+						bound[ident.Name] = id
+					}
+				}
+			}
+			call, ok := m.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			sel, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok || (sel.Sel.Name != "fail" && sel.Sel.Name != "warn") {
+				return true
+			}
+			switch recv := sel.X.(type) {
+			case *ast.Ident: // c.fail(...)
+				if id, ok := bound[recv.Name]; ok {
+					out[id] = true
+				}
+			case *ast.CallExpr: // s.check(...).fail(...) or c.ev(...).fail(...)
+				if id, ok := checkCallID(recv); ok {
+					out[id] = true
+					break
+				}
+				if inner, ok := recv.Fun.(*ast.SelectorExpr); ok {
+					if ident, ok := inner.X.(*ast.Ident); ok {
+						if id, ok := bound[ident.Name]; ok {
+							out[id] = true
+						}
+					}
+				}
+			}
+			return true
+		})
+		return true
+	})
+}
+
+// checkCallID returns the literal id from an s.check("id", "title") call.
+func checkCallID(e ast.Expr) (string, bool) {
+	call, ok := e.(*ast.CallExpr)
+	if !ok {
+		return "", false
+	}
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok || sel.Sel.Name != "check" || len(call.Args) == 0 {
+		return "", false
+	}
+	return literal(call.Args[0])
+}
+
+// boolAttr renders a bool for an HTML attribute.
+func boolAttr(b bool) string {
+	if b {
+		return "true"
+	}
+	return "false"
 }

@@ -25,124 +25,124 @@ that is what a reader sees in a report.
 
 | Check | What it looks for |
 |---|---|
-| <span id="check-net-dns"></span>`net.dns` | Hostname resolves |
-| <span id="check-net-scheme"></span>`net.scheme` | Endpoint uses HTTPS |
-| <span id="check-net-tcp"></span>`net.tcp` | TCP connection |
-| <span id="check-net-tls"></span>`net.tls` | TLS handshake and certificate |
-| <span id="check-net-tls-cert"></span>`net.tls.cert` | Certificate validity window |
-| <span id="check-net-tls-version"></span>`net.tls.version` | TLS version is 1.2 or newer |
+| <span id="check-net-dns" data-can-fail="true"></span>`net.dns` | Hostname resolves |
+| <span id="check-net-scheme" data-can-fail="true"></span>`net.scheme` | Endpoint uses HTTPS |
+| <span id="check-net-tcp" data-can-fail="true"></span>`net.tcp` | TCP connection |
+| <span id="check-net-tls" data-can-fail="true"></span>`net.tls` | TLS handshake and certificate |
+| <span id="check-net-tls-cert" data-can-fail="true"></span>`net.tls.cert` | Certificate validity window |
+| <span id="check-net-tls-version" data-can-fail="true"></span>`net.tls.version` | TLS version is 1.2 or newer |
 
 ## discovery — 14 checks
 
 | Check | What it looks for |
 |---|---|
-| <span id="check-discovery-as"></span>`discovery.as` | Authorization server metadata (RFC 8414 / OIDC) |
-| <span id="check-discovery-as-grants"></span>`discovery.as.grants` | Grant types advertised |
-| <span id="check-discovery-as-https"></span>`discovery.as.https` | Authorization server uses HTTPS |
-| <span id="check-discovery-as-pkce"></span>`discovery.as.pkce` | PKCE S256 advertised |
-| <span id="check-discovery-assemble"></span>`discovery.assemble` | Assemble discovery |
-| <span id="check-discovery-challenge"></span>`discovery.challenge` | WWW-Authenticate challenge |
-| <span id="check-discovery-challenge-scope"></span>`discovery.challenge.scope` | Challenge advertises required scope |
-| <span id="check-discovery-creds_unused"></span>`discovery.creds_unused` | Credentials supplied to an open server |
-| <span id="check-discovery-first_contact"></span>`discovery.first_contact` | Unauthenticated first contact |
-| <span id="check-discovery-override"></span>`discovery.override` | Discovery bypassed by --token-url |
-| <span id="check-discovery-override-build"></span>`discovery.override.build` | Override endpoints |
-| <span id="check-discovery-prm"></span>`discovery.prm` | Protected resource metadata |
-| <span id="check-discovery-prm-resource"></span>`discovery.prm.resource` | PRM resource matches endpoint |
-| <span id="check-discovery-registration"></span>`discovery.registration` | Client registration path |
+| <span id="check-discovery-as" data-can-fail="true"></span>`discovery.as` | Authorization server metadata (RFC 8414 / OIDC) |
+| <span id="check-discovery-as-grants" data-can-fail="false"></span>`discovery.as.grants` | Grant types advertised |
+| <span id="check-discovery-as-https" data-can-fail="true"></span>`discovery.as.https` | Authorization server uses HTTPS |
+| <span id="check-discovery-as-pkce" data-can-fail="true"></span>`discovery.as.pkce` | PKCE S256 advertised |
+| <span id="check-discovery-assemble" data-can-fail="true"></span>`discovery.assemble` | Assemble discovery |
+| <span id="check-discovery-challenge" data-can-fail="true"></span>`discovery.challenge` | WWW-Authenticate challenge |
+| <span id="check-discovery-challenge-scope" data-can-fail="false"></span>`discovery.challenge.scope` | Challenge advertises required scope |
+| <span id="check-discovery-creds_unused" data-can-fail="true"></span>`discovery.creds_unused` | Credentials supplied to an open server |
+| <span id="check-discovery-first_contact" data-can-fail="true"></span>`discovery.first_contact` | Unauthenticated first contact |
+| <span id="check-discovery-override" data-can-fail="false"></span>`discovery.override` | Discovery bypassed by --token-url |
+| <span id="check-discovery-override-build" data-can-fail="true"></span>`discovery.override.build` | Override endpoints |
+| <span id="check-discovery-prm" data-can-fail="true"></span>`discovery.prm` | Protected resource metadata |
+| <span id="check-discovery-prm-resource" data-can-fail="true"></span>`discovery.prm.resource` | PRM resource matches endpoint |
+| <span id="check-discovery-registration" data-can-fail="true"></span>`discovery.registration` | Client registration path |
 
 ## auth — 8 checks
 
 | Check | What it looks for |
 |---|---|
-| <span id="check-auth-mode"></span>`auth.mode` | Credentials |
-| <span id="check-auth-registration"></span>`auth.registration` | Client identity |
-| <span id="check-auth-rejects_garbage"></span>`auth.rejects_garbage` | Server rejects an invalid token |
-| <span id="check-auth-source"></span>`auth.source.*` | _(title computed at run time)_ — one per value encountered |
-| <span id="check-auth-token"></span>`auth.token` | Token acquisition |
-| <span id="check-auth-token-expiry"></span>`auth.token.expiry` | Token lifetime |
-| <span id="check-auth-token-scope"></span>`auth.token.scope` | Granted scope covers requested scope |
-| <span id="check-auth-token-type"></span>`auth.token.type` | Token type |
+| <span id="check-auth-mode" data-can-fail="false"></span>`auth.mode` | Credentials |
+| <span id="check-auth-registration" data-can-fail="true"></span>`auth.registration` | Client identity |
+| <span id="check-auth-rejects_garbage" data-can-fail="true"></span>`auth.rejects_garbage` | Server rejects an invalid token |
+| <span id="check-auth-source" data-can-fail="false"></span>`auth.source.*` | _(title computed at run time)_ — one per value encountered |
+| <span id="check-auth-token" data-can-fail="true"></span>`auth.token` | Token acquisition |
+| <span id="check-auth-token-expiry" data-can-fail="true"></span>`auth.token.expiry` | Token lifetime |
+| <span id="check-auth-token-scope" data-can-fail="true"></span>`auth.token.scope` | Granted scope covers requested scope |
+| <span id="check-auth-token-type" data-can-fail="true"></span>`auth.token.type` | Token type |
 
 ## handshake — 8 checks
 
 | Check | What it looks for |
 |---|---|
-| <span id="check-handshake-capabilities"></span>`handshake.capabilities` | Capabilities advertised |
-| <span id="check-handshake-initialize"></span>`handshake.initialize` | initialize succeeds |
-| <span id="check-handshake-instructions"></span>`handshake.instructions` | Server instructions |
-| <span id="check-handshake-protocol_era"></span>`handshake.protocol_era` | Protocol generation |
-| <span id="check-handshake-protocol_version"></span>`handshake.protocol_version` | Negotiated protocol version |
-| <span id="check-handshake-server_info"></span>`handshake.server_info` | Server identifies itself |
-| <span id="check-handshake-session"></span>`handshake.session` | Mcp-Session-Id issued |
-| <span id="check-handshake-stateless"></span>`handshake.stateless` | Stateless session setup |
+| <span id="check-handshake-capabilities" data-can-fail="true"></span>`handshake.capabilities` | Capabilities advertised |
+| <span id="check-handshake-initialize" data-can-fail="true"></span>`handshake.initialize` | initialize succeeds |
+| <span id="check-handshake-instructions" data-can-fail="false"></span>`handshake.instructions` | Server instructions |
+| <span id="check-handshake-protocol_era" data-can-fail="true"></span>`handshake.protocol_era` | Protocol generation |
+| <span id="check-handshake-protocol_version" data-can-fail="false"></span>`handshake.protocol_version` | Negotiated protocol version |
+| <span id="check-handshake-server_info" data-can-fail="true"></span>`handshake.server_info` | Server identifies itself |
+| <span id="check-handshake-session" data-can-fail="false"></span>`handshake.session` | Mcp-Session-Id issued |
+| <span id="check-handshake-stateless" data-can-fail="true"></span>`handshake.stateless` | Stateless session setup |
 
 ## protocol — 11 checks
 
 | Check | What it looks for |
 |---|---|
-| <span id="check-protocol-accept_header"></span>`protocol.accept_header` | Request without Accept header |
-| <span id="check-protocol-bogus_session"></span>`protocol.bogus_session` | Unknown session id is rejected |
-| <span id="check-protocol-get_stream"></span>`protocol.get_stream` | GET on the MCP endpoint |
-| <span id="check-protocol-id_echo"></span>`protocol.id_echo` | Response id matches request id |
-| <span id="check-protocol-invalid_params"></span>`protocol.invalid_params` | tools/call without a name is rejected |
-| <span id="check-protocol-malformed_json"></span>`protocol.malformed_json` | Malformed JSON is rejected |
-| <span id="check-protocol-ping"></span>`protocol.ping` | _(title computed at run time)_ |
-| <span id="check-protocol-routing_headers"></span>`protocol.routing_headers` | Mirrored routing headers are validated |
-| <span id="check-protocol-unknown_method"></span>`protocol.unknown_method` | Unknown method returns -32601 |
-| <span id="check-protocol-unknown_tool"></span>`protocol.unknown_tool` | Unknown tool is reported |
-| <span id="check-protocol-version_header"></span>`protocol.version_header` | Bad MCP-Protocol-Version is rejected |
+| <span id="check-protocol-accept_header" data-can-fail="false"></span>`protocol.accept_header` | Request without Accept header |
+| <span id="check-protocol-bogus_session" data-can-fail="true"></span>`protocol.bogus_session` | Unknown session id is rejected |
+| <span id="check-protocol-get_stream" data-can-fail="true"></span>`protocol.get_stream` | GET on the MCP endpoint |
+| <span id="check-protocol-id_echo" data-can-fail="true"></span>`protocol.id_echo` | Response id matches request id |
+| <span id="check-protocol-invalid_params" data-can-fail="true"></span>`protocol.invalid_params` | tools/call without a name is rejected |
+| <span id="check-protocol-malformed_json" data-can-fail="true"></span>`protocol.malformed_json` | Malformed JSON is rejected |
+| <span id="check-protocol-ping" data-can-fail="true"></span>`protocol.ping` | _(title computed at run time)_ |
+| <span id="check-protocol-routing_headers" data-can-fail="true"></span>`protocol.routing_headers` | Mirrored routing headers are validated |
+| <span id="check-protocol-unknown_method" data-can-fail="true"></span>`protocol.unknown_method` | Unknown method returns -32601 |
+| <span id="check-protocol-unknown_tool" data-can-fail="true"></span>`protocol.unknown_tool` | Unknown tool is reported |
+| <span id="check-protocol-version_header" data-can-fail="false"></span>`protocol.version_header` | Bad MCP-Protocol-Version is rejected |
 
 ## catalog — 19 checks
 
 | Check | What it looks for |
 |---|---|
-| <span id="check-catalog-empty"></span>`catalog.empty` | Server exposes something |
-| <span id="check-catalog-names-confusable"></span>`catalog.names.confusable` | Names use a single script |
-| <span id="check-catalog-prompts-descriptions"></span>`catalog.prompts.descriptions` | Prompts and arguments are described |
-| <span id="check-catalog-prompts-list"></span>`catalog.prompts.list` | prompts/list |
-| <span id="check-catalog-resources-list"></span>`catalog.resources.list` | resources/list |
-| <span id="check-catalog-resources-mime"></span>`catalog.resources.mime` | Resources declare mimeType |
-| <span id="check-catalog-resources-templates"></span>`catalog.resources.templates` | resources/templates/list |
-| <span id="check-catalog-resources-uris"></span>`catalog.resources.uris` | Resource URIs are absolute |
-| <span id="check-catalog-text-comments"></span>`catalog.text.comments` | Catalog text carries no hidden comments |
-| <span id="check-catalog-text-hidden"></span>`catalog.text.hidden` | Catalog text has nothing hidden in it |
-| <span id="check-catalog-text-instructions"></span>`catalog.text.instructions` | Catalog text describes rather than instructs |
-| <span id="check-catalog-text-secret_paths"></span>`catalog.text.secret_paths` | Catalog text names no credential locations |
-| <span id="check-catalog-tools-annotations"></span>`catalog.tools.annotations` | Tools declare behaviour annotations |
-| <span id="check-catalog-tools-descriptions"></span>`catalog.tools.descriptions` | Every tool has a useful description |
-| <span id="check-catalog-tools-input_schema"></span>`catalog.tools.input_schema` | inputSchema is a JSON Schema object |
-| <span id="check-catalog-tools-list"></span>`catalog.tools.list` | tools/list |
-| <span id="check-catalog-tools-output_schema"></span>`catalog.tools.output_schema` | Tools declare outputSchema |
-| <span id="check-catalog-tools-title"></span>`catalog.tools.title` | Tools have a human title |
-| <span id="check-catalog-tools-unique"></span>`catalog.tools.unique` | Tool names are unique |
+| <span id="check-catalog-empty" data-can-fail="true"></span>`catalog.empty` | Server exposes something |
+| <span id="check-catalog-names-confusable" data-can-fail="false"></span>`catalog.names.confusable` | Names use a single script |
+| <span id="check-catalog-prompts-descriptions" data-can-fail="true"></span>`catalog.prompts.descriptions` | Prompts and arguments are described |
+| <span id="check-catalog-prompts-list" data-can-fail="true"></span>`catalog.prompts.list` | prompts/list |
+| <span id="check-catalog-resources-list" data-can-fail="true"></span>`catalog.resources.list` | resources/list |
+| <span id="check-catalog-resources-mime" data-can-fail="false"></span>`catalog.resources.mime` | Resources declare mimeType |
+| <span id="check-catalog-resources-templates" data-can-fail="false"></span>`catalog.resources.templates` | resources/templates/list |
+| <span id="check-catalog-resources-uris" data-can-fail="true"></span>`catalog.resources.uris` | Resource URIs are absolute |
+| <span id="check-catalog-text-comments" data-can-fail="false"></span>`catalog.text.comments` | Catalog text carries no hidden comments |
+| <span id="check-catalog-text-hidden" data-can-fail="false"></span>`catalog.text.hidden` | Catalog text has nothing hidden in it |
+| <span id="check-catalog-text-instructions" data-can-fail="false"></span>`catalog.text.instructions` | Catalog text describes rather than instructs |
+| <span id="check-catalog-text-secret_paths" data-can-fail="false"></span>`catalog.text.secret_paths` | Catalog text names no credential locations |
+| <span id="check-catalog-tools-annotations" data-can-fail="true"></span>`catalog.tools.annotations` | Tools declare behaviour annotations |
+| <span id="check-catalog-tools-descriptions" data-can-fail="true"></span>`catalog.tools.descriptions` | Every tool has a useful description |
+| <span id="check-catalog-tools-input_schema" data-can-fail="true"></span>`catalog.tools.input_schema` | inputSchema is a JSON Schema object |
+| <span id="check-catalog-tools-list" data-can-fail="true"></span>`catalog.tools.list` | tools/list |
+| <span id="check-catalog-tools-output_schema" data-can-fail="true"></span>`catalog.tools.output_schema` | Tools declare outputSchema |
+| <span id="check-catalog-tools-title" data-can-fail="false"></span>`catalog.tools.title` | Tools have a human title |
+| <span id="check-catalog-tools-unique" data-can-fail="true"></span>`catalog.tools.unique` | Tool names are unique |
 
 ## execution — 6 checks
 
 | Check | What it looks for |
 |---|---|
-| <span id="check-execution-content"></span>`execution.content` | Results validate against outputSchema |
-| <span id="check-execution-policy"></span>`execution.policy` | Safety policy |
-| <span id="check-execution-prompts"></span>`execution.prompts` | Prompt rendering |
-| <span id="check-execution-resources"></span>`execution.resources` | Resource reads |
-| <span id="check-execution-tools"></span>`execution.tools` | Tool invocations |
-| <span id="check-execution-validation"></span>`execution.validation` | Tools reject missing required arguments |
+| <span id="check-execution-content" data-can-fail="true"></span>`execution.content` | Results validate against outputSchema |
+| <span id="check-execution-policy" data-can-fail="false"></span>`execution.policy` | Safety policy |
+| <span id="check-execution-prompts" data-can-fail="true"></span>`execution.prompts` | Prompt rendering |
+| <span id="check-execution-resources" data-can-fail="true"></span>`execution.resources` | Resource reads |
+| <span id="check-execution-tools" data-can-fail="true"></span>`execution.tools` | Tool invocations |
+| <span id="check-execution-validation" data-can-fail="true"></span>`execution.validation` | Tools reject missing required arguments |
 
 ## performance — 6 checks
 
 | Check | What it looks for |
 |---|---|
-| <span id="check-performance-concurrency"></span>`performance.concurrency` | _(title computed at run time)_ |
-| <span id="check-performance-ping"></span>`performance.ping` | _(title computed at run time)_ |
-| <span id="check-performance-rate_limit"></span>`performance.rate_limit` | Server rate-limits an unthrottled burst |
-| <span id="check-performance-throttle"></span>`performance.throttle` | Burst was throttled |
-| <span id="check-performance-tools"></span>`performance.tools` | Tool latency profile |
-| <span id="check-performance-warmup"></span>`performance.warmup` | Cold vs warm call |
+| <span id="check-performance-concurrency" data-can-fail="true"></span>`performance.concurrency` | _(title computed at run time)_ |
+| <span id="check-performance-ping" data-can-fail="true"></span>`performance.ping` | _(title computed at run time)_ |
+| <span id="check-performance-rate_limit" data-can-fail="true"></span>`performance.rate_limit` | Server rate-limits an unthrottled burst |
+| <span id="check-performance-throttle" data-can-fail="false"></span>`performance.throttle` | Burst was throttled |
+| <span id="check-performance-tools" data-can-fail="true"></span>`performance.tools` | Tool latency profile |
+| <span id="check-performance-warmup" data-can-fail="false"></span>`performance.warmup` | Cold vs warm call |
 
 ## resilience — 3 checks
 
 | Check | What it looks for |
 |---|---|
-| <span id="check-resilience-session_reinit"></span>`resilience.session_reinit` | Client recovers from a lost session |
-| <span id="check-resilience-stateless"></span>`resilience.stateless` | Requests do not depend on the connection |
-| <span id="check-resilience-token_refresh"></span>`resilience.token_refresh` | Token source can renew |
+| <span id="check-resilience-session_reinit" data-can-fail="true"></span>`resilience.session_reinit` | Client recovers from a lost session |
+| <span id="check-resilience-stateless" data-can-fail="true"></span>`resilience.stateless` | Requests do not depend on the connection |
+| <span id="check-resilience-token_refresh" data-can-fail="true"></span>`resilience.token_refresh` | Token source can renew |
