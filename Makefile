@@ -68,10 +68,24 @@ docs-lock:
 	pip-compile --generate-hashes --strip-extras --allow-unsafe \
 	  --output-file=docs/requirements.txt docs/requirements.in
 
+# gorelease exits non-zero for two unrelated reasons: it found an
+# incompatible change, or it could not suggest a version. The second happens
+# for a few minutes after every tag, while the module proxy catches up —
+# "Can only suggest a release version when compared against the most recent
+# version of this major" — and failing the branch for it teaches people that
+# a red API gate means nothing. Only an incompatible change fails here.
 api-check:
 	@tag=$$(git describe --tags --abbrev=0 2>/dev/null || true); \
 	if [ -z "$$tag" ]; then echo "api-check: no release tag yet, nothing to compare"; exit 0; fi; \
-	go run golang.org/x/exp/cmd/gorelease@latest -base="$$tag"
+	out=$$(go run golang.org/x/exp/cmd/gorelease@latest -base="$$tag" 2>&1); rc=$$?; \
+	printf '%s\n' "$$out"; \
+	if printf '%s' "$$out" | grep -qiE 'incompatible changes'; then \
+	  echo "api-check: the public API changed incompatibly against $$tag"; exit 1; \
+	fi; \
+	if [ $$rc -ne 0 ] && ! printf '%s' "$$out" | grep -q 'Cannot suggest a release version'; then \
+	  echo "api-check: gorelease failed against $$tag"; exit $$rc; \
+	fi; \
+	echo "api-check: no incompatible change against $$tag"
 
 vet:
 	go vet ./...

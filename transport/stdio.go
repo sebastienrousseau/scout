@@ -186,39 +186,61 @@ func StartStdio(ctx context.Context, cfg StdioConfig) (*Stdio, error) {
 	cmd.Dir = cfg.Dir
 	cmd.Env = cfg.environment()
 
-	stdin, err := cmd.StdinPipe()
+	// os.Pipe rather than cmd.StdinPipe/StdoutPipe, and a plain writer for
+	// stderr, because Wait closes the pipes those return. The documentation
+	// says so plainly — "it is incorrect to call Wait before all reads from
+	// the pipe have completed" — and this type has a goroutine that owns
+	// Wait and a reader that lives for the whole connection, so the two
+	// race by construction. CI caught it as an error that said the server
+	// had exited without the stderr line explaining why: Wait had closed
+	// the pipe before the drain read a byte.
+	//
+	// With os.Pipe the parent owns both ends and closes its own copies
+	// after Start; the child keeps its own, so the reader sees a clean EOF
+	// when the child exits and nothing else can close it underneath.
+	stdinRead, stdinWrite, err := os.Pipe()
 	if err != nil {
 		return nil, fmt.Errorf("transport: stdin pipe: %w", err)
 	}
-	stdout, err := cmd.StdoutPipe()
+	stdoutRead, stdoutWrite, err := os.Pipe()
 	if err != nil {
+		_ = stdinRead.Close()
+		_ = stdinWrite.Close()
 		return nil, fmt.Errorf("transport: stdout pipe: %w", err)
 	}
-	stderrPipe, err := cmd.StderrPipe()
-	if err != nil {
-		return nil, fmt.Errorf("transport: stderr pipe: %w", err)
-	}
+	cmd.Stdin = stdinRead
+	cmd.Stdout = stdoutWrite
 
 	s := &Stdio{
 		cfg:    cfg,
 		cmd:    cmd,
-		stdin:  stdin,
-		stdout: bufio.NewReaderSize(stdout, 64<<10),
+		stdin:  stdinWrite,
+		stdout: bufio.NewReaderSize(stdoutRead, 64<<10),
 		stderr: newRingBuffer(cfg.StderrCap),
 		done:   make(chan struct{}),
 	}
+	// A writer rather than StderrPipe: os/exec copies into it on its own
+	// goroutine and Wait joins that goroutine, so by the time done closes
+	// the buffer holds everything the server said.
+	cmd.Stderr = s.stderr
 	s.protocolVersion.Store("")
 	s.sessionID.Store("")
 	s.dialect.Store(&dialectBox{d: &Sessioned{}})
 
 	if err := cmd.Start(); err != nil {
+		_ = stdinRead.Close()
+		_ = stdinWrite.Close()
+		_ = stdoutRead.Close()
+		_ = stdoutWrite.Close()
 		return nil, fmt.Errorf("transport: start %s: %w", cfg.Command, err)
 	}
 
-	// stderr is drained continuously. A server whose stderr fills the pipe
-	// buffer blocks on write and stops answering, which presents as a hang
-	// with no explanation anywhere.
-	go func() { _, _ = io.Copy(s.stderr, stderrPipe) }()
+	// The child has its own descriptors now. Closing the parent's copies is
+	// what makes EOF mean "the child exited" rather than "nobody is writing
+	// yet", and what lets the child see EOF on stdin when Close shuts its
+	// end.
+	_ = stdinRead.Close()
+	_ = stdoutWrite.Close()
 
 	// One goroutine owns Wait, so the exit status is available to every
 	// caller and reaped exactly once.
@@ -500,6 +522,8 @@ const exitReapGrace = 2 * time.Second
 // exitError explains a dead process, with what it said on the way out.
 func (s *Stdio) exitError() error {
 	<-s.done
+	// No wait for the drain: cmd.Stderr is a writer, so os/exec owns the
+	// copy and Wait joins it. done closing already means stderr is whole.
 	msg := strings.TrimSpace(s.stderr.String())
 	switch {
 	case s.waitErr != nil && msg != "":
@@ -514,13 +538,19 @@ func (s *Stdio) exitError() error {
 	return ErrProcessExited
 }
 
+// truncateForError keeps the END of the message, not the beginning.
+//
+// The ring buffer already keeps the last bytes for the reason that a server
+// which logs steadily and then dies puts the explanation last. Truncating
+// from the front would throw that away again and show an operator the
+// startup chatter instead of "fatal: config missing".
 func truncateForError(s string) string {
 	const limit = 400
 	r := []rune(s)
 	if len(r) <= limit {
 		return s
 	}
-	return string(r[:limit]) + "…"
+	return "…" + string(r[len(r)-limit:])
 }
 
 // Close ends the server and waits for it.
