@@ -96,6 +96,36 @@ run's `trace_id`, which is the same id on the report and on the spans, so a
 log line can be joined to the run it came from. The default stays human: a
 person watching a single run wants a line they can read.
 
+## How much a finding explains
+
+A finding always carries a one-line `advice`. Sixty-five of the eighty-one
+checks — every one that can fail or warn — also have a fuller explanation:
+what the finding means in terms of the protocol, and numbered steps naming
+the field, header or error code to change.
+
+Where that appears depends on who is reading:
+
+| Rendering | Carries the full guidance |
+|---|---|
+| `text` (default) | no — one-line advice only |
+| `text --verbose` | yes |
+| `md` | yes, always |
+| `html` | yes, always |
+| `json`, `ndjson` | no — `advice` and `doc_url` |
+
+The default terminal output is read while the run is still fresh, by
+somebody who wants to know what is wrong; five findings with three steps
+each is sixty lines nobody asked for. The Markdown and HTML renderings are
+the ones forwarded to people who cannot re-run the tool, so they carry
+everything.
+
+The JSON keeps `advice` and `doc_url` rather than the prose, because the
+prose is identical for every run and would otherwise be duplicated into
+every report, once per occurrence. `doc_url` reaches the same material.
+
+A test fails the build when a check that can fail has no guidance written
+for it, so this does not quietly regress as checks are added.
+
 ## What a finding holds
 
 Every finding in the JSON report carries the same fields:

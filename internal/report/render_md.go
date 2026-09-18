@@ -57,9 +57,34 @@ func Markdown(w io.Writer, r *Report) {
 	if steps := r.NextSteps(); len(steps) > 0 {
 		p("## What to do next\n\n")
 		for i, f := range steps {
-			p("%d. **%s** — %s\n", i+1, f.Title, esc(f.Advice))
+			p("### %d. %s\n\n", i+1, f.Title)
+			if d := strings.TrimSpace(f.Detail); d != "" {
+				p("%s", esc(upperFirst(d)))
+				if f.Advice != "" {
+					p(" — %s", esc(f.Advice))
+				}
+				p("\n\n")
+			}
+			// The Markdown rendering is the one people paste into a ticket,
+			// so it carries the whole explanation rather than a pointer to
+			// it. A reader opening that ticket has no scout to run.
+			rem, ok := RemediationFor(f.ID)
+			if !ok {
+				continue
+			}
+			p("%s\n\n", esc(rem.Means))
+			p("**How to fix it**\n\n")
+			for _, st := range rem.Steps {
+				p("1. **%s** — %s\n", esc(st.Title), esc(st.Body))
+			}
+			p("\n")
+			if rem.Note != "" {
+				p("> %s\n\n", esc(rem.Note))
+			}
+			if f.DocURL != "" {
+				p("[What this check asserts](%s)\n\n", f.DocURL)
+			}
 		}
-		p("\n")
 	}
 	p("## Score breakdown\n\n| Category | Weight | Score | Deductions |\n|---|---|---|---|\n")
 	for _, c := range r.Score.Categories {

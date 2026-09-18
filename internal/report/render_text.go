@@ -116,6 +116,27 @@ func Text(w io.Writer, r *Report, o TextOptions) {
 			if f.Advice != "" {
 				p("     %s %s\n", st(dimStyle, "→"), st(textStyle, wrapHang(f.Advice, width-8, "       ")))
 			}
+			// The full explanation is behind --verbose on purpose. The
+			// default output is read while the run is still fresh, by
+			// somebody who wants to know what is wrong; five findings with
+			// three steps each is sixty lines of terminal for a reader who
+			// has not asked for it. --output md and the HTML report carry
+			// it unconditionally, because those are the ones forwarded to
+			// people who cannot re-run the tool.
+			if o.Verbose {
+				if rem, ok := RemediationFor(f.ID); ok {
+					p("\n%s\n", st(dimStyle, "     What it means"))
+					p("%s\n", wrapIndent(rem.Means, width-6, "     "))
+					p("\n%s\n", st(dimStyle, "     How to fix it"))
+					for n, step := range rem.Steps {
+						p("     %s %s\n", st(accentBld, fmt.Sprintf("%d.", n+1)), st(boldStyle, step.Title))
+						p("%s\n", wrapIndent(step.Body, width-9, "        "))
+					}
+					if rem.Note != "" {
+						p("\n%s\n", wrapIndent(rem.Note, width-6, "     "))
+					}
+				}
+			}
 			if i < len(steps)-1 {
 				p("\n")
 			}
