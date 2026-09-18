@@ -23,6 +23,10 @@
     <link rel="alternate" type="application/feed+json" title="{{name}} — JSON Feed" href="{{site_path}}feed.json" />
     <link rel="manifest" href="{{site_path}}manifest.json" />
     <link rel="icon" href="{{site_path}}favicon.ico" sizes="any" />
+    <!-- A browser that understands SVG takes this one and scales it; the ico
+         above carries 16, 32 and 48 for everything else. -->
+    <link rel="icon" href="{{site_path}}favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="{{site_path}}apple-touch-icon.png" />
     <meta name="color-scheme" content="light dark" />
     <meta name="theme-color" content="{{theme_colour}}" />
     <meta name="view-transition" content="same-origin" />
