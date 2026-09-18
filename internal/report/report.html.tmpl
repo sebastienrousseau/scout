@@ -103,6 +103,19 @@ escaping is doing real work here and must not be bypassed.
         <span class="rank">{{ inc $i }}</span>
         <span class="what">{{ $f.Title }}</span>
         <span class="why">{{ $f.Detail }}{{ with $f.Advice }} — {{ . }}{{ end }}</span>
+        {{- if $f.HasGuidance }}
+        <div class="guide">
+          <p class="guide-means">{{ $f.Remediation.Means }}</p>
+          <p class="guide-lead">How to fix it</p>
+          <ol class="guide-steps">
+            {{- range $f.Remediation.Steps }}
+            <li><b>{{ .Title }}</b><span>{{ .Body }}</span></li>
+            {{- end }}
+          </ol>
+          {{- with $f.Remediation.Note }}<p class="guide-note">{{ . }}</p>{{ end }}
+          {{- with $f.DocURL }}<p class="guide-more"><a href="{{ . }}">What this check asserts</a></p>{{ end }}
+        </div>
+        {{- end }}
       </li>
       {{- end }}
     </ol>

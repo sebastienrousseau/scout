@@ -43,7 +43,18 @@ type htmlView struct {
 	ScoreTotal   string
 	Started      string
 	AuthLine     string
-	FixFirst     []probe.Finding
+	FixFirst     []FixItem
+}
+
+// FixItem is a finding with its guidance attached.
+//
+// The guidance is keyed by check id and identical for every run, so it is
+// joined here at render time rather than carried on the Finding — which
+// would put the same paragraphs into every JSON report, once per occurrence.
+type FixItem struct {
+	probe.Finding
+	Remediation Remediation
+	HasGuidance bool
 }
 
 var htmlTmpl = template.Must(template.New("report").Funcs(template.FuncMap{
@@ -92,7 +103,7 @@ func HTML(w io.Writer, r *Report, opts HTMLOptions) error {
 		ScoreTotal:   fmt.Sprintf("%.0f", r.Score.Total),
 		Started:      r.Started.Format(time.RFC1123),
 		AuthLine:     htmlAuthLine(r),
-		FixFirst:     fixFirst(r),
+		FixFirst:     withGuidance(fixFirst(r)),
 	}
 	return htmlTmpl.Execute(w, view)
 }
@@ -138,6 +149,16 @@ func hostOf(issuer string) string {
 // A report that lists eighty checks in phase order buries the one thing
 // that matters. This is the answer to "what do I do on Monday", and it is
 // capped because a list of twenty priorities is not a list of priorities.
+// withGuidance attaches the remediation for each finding that has one.
+func withGuidance(fs []probe.Finding) []FixItem {
+	out := make([]FixItem, 0, len(fs))
+	for _, f := range fs {
+		rem, ok := RemediationFor(f.ID)
+		out = append(out, FixItem{Finding: f, Remediation: rem, HasGuidance: ok})
+	}
+	return out
+}
+
 func fixFirst(r *Report) []probe.Finding {
 	const max = 5
 	var out []probe.Finding
