@@ -102,7 +102,14 @@ jobs:
           version: '~> v2'
           # A dry run builds and packages everything, then stops: --snapshot
           # skips the publish, sign and announce pipes and does not need a tag.
-          args: ${{ env.DRY_RUN == 'true' && 'release --clean --snapshot --skip=publish,sign,announce,docker' || 'release --clean' }}
+          #
+          # It no longer skips docker. It did, which made it useless for the
+          # one thing a dry run is for: a Dockerfile or an image config that
+          # cannot build is a failure that otherwise appears only after the
+          # tag exists, which is the expensive order. buildx builds without
+          # pushing while --skip=publish is set, so this costs a few minutes
+          # and nothing else.
+          args: ${{ env.DRY_RUN == 'true' && 'release --clean --snapshot --skip=publish,sign,announce' || 'release --clean' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}

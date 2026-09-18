@@ -77,49 +77,50 @@ archives:
 
 # GitHub Container Registry. One image per arch; docker_manifests below
 # fans them into a multi-arch manifest under the version and :latest tags.
-dockers:
-  - image_templates:
-      - "ghcr.io/sebastienrousseau/scout:{{ .Version }}-amd64"
-    goos: linux
-    goarch: amd64
+# Container images.
+#
+# dockers_v2 rather than dockers + docker_manifests: those two are
+# deprecated and goreleaser drops them in v3, and the replacement is not a
+# rename — it collapses three blocks into one. Where the old form needed a
+# stanza per architecture plus two manifest stanzas to stitch them together,
+# this describes the image once and buildx produces the multi-arch manifest.
+#
+# The binaries are the ones already built above. Nothing is compiled in the
+# Dockerfile: the image ships the same artefact the tarball does, which is
+# the only way `docker pull` and a downloaded release can be the same
+# program.
+dockers_v2:
+  - id: scout
     dockerfile: Dockerfile
-    use: buildx
-    build_flag_templates:
-      - --platform=linux/amd64
-      - --label=org.opencontainers.image.title={{ .ProjectName }}
-      - --label=org.opencontainers.image.description=Onboard, test and diagnose remote MCP servers end to end
-      - --label=org.opencontainers.image.url=https://github.com/sebastienrousseau/scout
-      - --label=org.opencontainers.image.source=https://github.com/sebastienrousseau/scout
-      - --label=org.opencontainers.image.version={{ .Version }}
-      - --label=org.opencontainers.image.revision={{ .FullCommit }}
-      - --label=org.opencontainers.image.created={{ .Date }}
-      - --label=org.opencontainers.image.licenses=GPL-3.0-only
-  - image_templates:
-      - "ghcr.io/sebastienrousseau/scout:{{ .Version }}-arm64"
-    goos: linux
-    goarch: arm64
-    dockerfile: Dockerfile
-    use: buildx
-    build_flag_templates:
-      - --platform=linux/arm64
-      - --label=org.opencontainers.image.title={{ .ProjectName }}
-      - --label=org.opencontainers.image.description=Onboard, test and diagnose remote MCP servers end to end
-      - --label=org.opencontainers.image.url=https://github.com/sebastienrousseau/scout
-      - --label=org.opencontainers.image.source=https://github.com/sebastienrousseau/scout
-      - --label=org.opencontainers.image.version={{ .Version }}
-      - --label=org.opencontainers.image.revision={{ .FullCommit }}
-      - --label=org.opencontainers.image.created={{ .Date }}
-      - --label=org.opencontainers.image.licenses=GPL-3.0-only
-
-docker_manifests:
-  - name_template: "ghcr.io/sebastienrousseau/scout:{{ .Version }}"
-    image_templates:
-      - "ghcr.io/sebastienrousseau/scout:{{ .Version }}-amd64"
-      - "ghcr.io/sebastienrousseau/scout:{{ .Version }}-arm64"
-  - name_template: "ghcr.io/sebastienrousseau/scout:latest"
-    image_templates:
-      - "ghcr.io/sebastienrousseau/scout:{{ .Version }}-amd64"
-      - "ghcr.io/sebastienrousseau/scout:{{ .Version }}-arm64"
+    images:
+      - ghcr.io/sebastienrousseau/scout
+    tags:
+      # "latest" is guarded on prerelease. The old config published it
+      # unconditionally, so a prerelease tag would have moved the tag most
+      # people pull by default onto a release nobody said was ready.
+      - "{{ .Version }}"
+      - "{{ if not .Prerelease }}latest{{ end }}"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    labels:
+      org.opencontainers.image.title: "{{ .ProjectName }}"
+      org.opencontainers.image.description: "Onboard, test and diagnose remote MCP servers end to end"
+      org.opencontainers.image.url: "https://github.com/sebastienrousseau/scout"
+      org.opencontainers.image.source: "https://github.com/sebastienrousseau/scout"
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.created: "{{ .Date }}"
+      org.opencontainers.image.licenses: "GPL-3.0-only"
+    # Labels live on each platform image; a registry showing the multi-arch
+    # tag reads the index, which has none unless they are set here too.
+    annotations:
+      org.opencontainers.image.title: "{{ .ProjectName }}"
+      org.opencontainers.image.description: "Onboard, test and diagnose remote MCP servers end to end"
+      org.opencontainers.image.source: "https://github.com/sebastienrousseau/scout"
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.licenses: "GPL-3.0-only"
 
 # Keyless cosign signing of each per-arch image and both manifest tags,
 # with the sigstore OIDC identity of the GitHub Actions runner. Verify:
@@ -134,7 +135,11 @@ docker_signs:
       - sign
       - --yes
       - '${artifact}'
-    artifacts: all
+    # No `artifacts:` key on purpose. The enum values — all, images,
+    # manifests — address what the deprecated dockers/docker_manifests
+    # produced; images built by dockers_v2 are the empty default, so naming
+    # one of the old values here would sign nothing at all and report
+    # success. That is the same shape of failure the tap job had.
     output: true
 
 # Native Linux packages (Debian, Ubuntu, WSL, Fedora, RHEL, openSUSE).
