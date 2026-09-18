@@ -1,9 +1,9 @@
 {
   "pages_scanned": 1,
-  "passed_pillars": 10,
+  "passed_pillars": 9,
   "total_pillars": 10,
-  "pass_rate": 100.0,
-  "total_issues": 0,
+  "pass_rate": 90.0,
+  "total_issues": 1,
   "pillars": {
     "1. Output & Essential Files": {
       "pass": true,
@@ -30,8 +30,10 @@
       "issues": []
     },
     "6. Apple HIG Navbar & Footer Hygiene": {
-      "pass": true,
-      "issues": []
+      "pass": false,
+      "issues": [
+        "index.html: Footer missing 'Made with SSG' link"
+      ]
     },
     "7. Theme, Search & Lightbox Engines": {
       "pass": true,

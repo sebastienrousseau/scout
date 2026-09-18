@@ -384,3 +384,81 @@ func TestDoneEventNamesTheFailure(t *testing.T) {
 		t.Error("a run with no result should carry no report")
 	}
 }
+
+// TestTokenInURLSetsTheCookie is the half that was missing.
+//
+// authorized() read a scout_token cookie from the day it was written, and
+// nothing ever set one. The printed URL therefore authorised exactly one
+// request — the HTML — because a browser does not append a query string to
+// a stylesheet or a script. Every asset came back 401, and since a 401 body
+// is text/plain the console blamed the MIME type, which is a long way from
+// the cause.
+func TestTokenInURLSetsTheCookie(t *testing.T) {
+	s, ts := newTestServer(t)
+
+	resp, err := ts.Client().Get(ts.URL + "/?t=" + s.Token())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("the token-bearing page returned %d", resp.StatusCode)
+	}
+
+	var cookie *http.Cookie
+	for _, c := range resp.Cookies() {
+		if c.Name == "scout_token" {
+			cookie = c
+		}
+	}
+	if cookie == nil {
+		t.Fatal("no scout_token cookie was set; every asset the page loads will be refused")
+	}
+	if cookie.Value != s.Token() {
+		t.Errorf("cookie carries %q, want the server token", cookie.Value)
+	}
+	if !cookie.HttpOnly {
+		t.Error("the cookie is readable from script")
+	}
+	if cookie.SameSite != http.SameSiteStrictMode {
+		t.Errorf("SameSite = %v, want Strict", cookie.SameSite)
+	}
+	// Secure would stop a browser storing it over loopback http, which is
+	// the default listener — so it must be off unless the request was TLS.
+	if cookie.Secure {
+		t.Error("Secure is set on a plaintext listener; the browser would drop the cookie")
+	}
+
+	// The point of all of it: a second request carrying only the cookie,
+	// with no token in the URL, is authorised.
+	req, err := http.NewRequest(http.MethodGet, ts.URL+"/api/runs/none/report.json", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.AddCookie(cookie)
+	resp2, err := ts.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp2.Body.Close() }()
+	if resp2.StatusCode == http.StatusUnauthorized {
+		t.Error("the cookie the server itself set did not authorise the next request")
+	}
+}
+
+// TestAssetsStayRefusedWithoutAuthorization: the cookie is a convenience for
+// a page that already proved it had the token, not a way in.
+func TestAssetsStayRefusedWithoutAuthorization(t *testing.T) {
+	_, ts := newTestServer(t)
+	resp, err := ts.Client().Get(ts.URL + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("an unauthenticated request returned %d, want 401", resp.StatusCode)
+	}
+	if len(resp.Cookies()) != 0 {
+		t.Error("a refused request handed out a cookie")
+	}
+}

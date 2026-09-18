@@ -20,6 +20,6 @@
   "tools": [],
   "transport": {
     "type": "http",
-    "url": "https://sebastienrousseau.github.io/scout/.well-known/mcp"
+    "url": "https://scoutmcp.io/.well-known/mcp"
   }
 }

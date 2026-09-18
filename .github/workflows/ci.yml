@@ -345,13 +345,41 @@ jobs:
       - name: API breakage against the last release
         run: make api-check
 
-      # scout publishes "76 checks" on its own front page. A figure a reader
+      # scout publishes "81 checks" on its own front page. A figure a reader
       # is asked to trust, arrived at by counting by hand, is the same class
       # of claim scout exists to disbelieve. docs/checks.md is generated from
       # the call sites; this fails when the source and the published
       # inventory disagree.
       - name: The published check inventory matches the source
         run: make checks-verify
+
+      # internal/web/dist is the shell `scout serve` embeds. It is committed
+      # build output that nothing regenerates, so it drifts silently — it
+      # shipped with the SSG demo theme's nav and contact address, and with
+      # every asset URL under a /scout/ base path left over from GitHub
+      # Pages, which made every stylesheet and script 404 behind the local
+      # server. Rebuilding needs a toolchain CI does not otherwise want, so
+      # this asserts the two things that actually broke.
+      - name: The embedded web shell is built for this product, and for root
+        run: |
+          set -euo pipefail
+          shell=internal/web/dist/index.html
+          fail=0
+          if grep -qE '(href|src)="/[a-z-]+/[^"]*\.(css|js)"' "$shell"; then
+            echo "::error::$shell loads assets from a base path; scout serve serves them at /"
+            fail=1
+          fi
+          if grep -qE 'sebastienrousseau\.github\.io' "$shell"; then
+            echo "::error::$shell still points at the old GitHub Pages origin"
+            fail=1
+          fi
+          for phrase in 'hello@example.com' 'Demonstration content'; do
+            if grep -qF "$phrase" "$shell"; then
+              echo "::error::$shell still carries the demo theme's \"$phrase\""
+              fail=1
+            fi
+          done
+          [ "$fail" -eq 0 ] && echo "the embedded shell is scout's own, served from root"
 
       - name: Compile the examples
         env:
