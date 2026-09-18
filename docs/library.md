@@ -48,7 +48,7 @@ method on the current session.
 |---|---|
 | `scout` | the client, its configuration, and the MCP types |
 | `auth` | RFC 9110 challenge parsing, RFC 9728 and RFC 8414 discovery, registration, PKCE, token sources, and the bearer round-tripper that refreshes and steps up scope |
-| `transport` | the Streamable HTTP transport: JSON-RPC over POST, SSE responses, sessions, and raw access for conformance probes |
+| `transport` | the Streamable HTTP transport (JSON-RPC over POST, SSE responses, sessions, raw access for conformance probes) and the stdio transport, which runs a server as a child process over newline-delimited JSON |
 | `diagnostics` | the safety policy, the schema-driven argument generator, the structural JSON Schema validator, the token-bucket limiter, and a budgeted agent loop behind a vendor-neutral `Model` interface |
 | `trace` | the per-run trace id in context and the `X-MCP-Trace-ID` header |
 
