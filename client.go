@@ -149,7 +149,6 @@ type Client struct {
 	negotiated *Negotiation
 }
 
-// New builds a Client. It does not contact the server.
 // DefaultClientVersion is the version scout announces to a server when the
 // caller sets no ClientInfo of its own.
 //
@@ -159,6 +158,7 @@ type Client struct {
 // release increments by 0.0.1, it is not one it will reach for a long time.
 const DefaultClientVersion = "0.0.1"
 
+// New builds a Client. It does not contact the server.
 func New(cfg Config) (*Client, error) {
 	if cfg.Endpoint == "" {
 		return nil, errors.New("scout: Endpoint is required")
