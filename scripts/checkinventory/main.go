@@ -94,6 +94,11 @@ var publishedCountFiles = []string{
 	"web/ssg.toml",
 	"docs/index.md",
 	"README.md",
+	// The shell `scout serve` embeds is committed build output that
+	// nothing regenerates automatically. It shipped saying 76 checks long
+	// after the source said 81, because a rebuild is a thing a person has
+	// to remember.
+	"internal/web/dist/index.html",
 }
 
 // staleCount matches a quoted figure: "76 checks", or the site's own

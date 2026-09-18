@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 Disallow: /private/
-Sitemap: https://sebastienrousseau.github.io/scout/sitemap.xml
+Sitemap: https://scoutmcp.io/sitemap.xml

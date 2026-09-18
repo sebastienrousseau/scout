@@ -192,6 +192,33 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing or invalid token", http.StatusUnauthorized)
 		return
 	}
+	// A page authorised by the token in its URL hands that token to the
+	// browser as a cookie, so the stylesheet, the scripts and every later
+	// fetch carry it too.
+	//
+	// Without this the printed URL loads the HTML and nothing else: a
+	// browser does not append a query string to a subresource, so every
+	// asset came back 401 — and because a 401 body is text/plain, the
+	// console blamed the MIME type rather than the authorization. authorized
+	// already read this cookie; nothing ever set it.
+	if !s.opts.Public && r.URL.Query().Get("t") != "" {
+		//nolint:gosec // G124: Secure is conditional below, and cannot be
+		// unconditional — see the comment on the field.
+		http.SetCookie(w, &http.Cookie{
+			Name:     "scout_token",
+			Value:    s.token,
+			Path:     "/",
+			HttpOnly: true,
+			SameSite: http.SameSiteStrictMode,
+			// Set only when the connection is actually TLS. The default
+			// listener is loopback http, where a Secure cookie is never
+			// stored by the browser at all — so hardcoding it true would
+			// re-break every asset this cookie exists to authorise. Behind
+			// a TLS terminator (--allow-remote), r.TLS is set and the flag
+			// goes on.
+			Secure: r.TLS != nil,
+		})
+	}
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Referrer-Policy", "no-referrer")
 	s.mux.ServeHTTP(w, r)

@@ -5,17 +5,17 @@
     "topics": 0
   },
   "links": {
-    "index": "https://sebastienrousseau.github.io/scout/api/agents/index.json",
-    "person": "https://sebastienrousseau.github.io/scout/api/agents/person.json",
-    "posts": "https://sebastienrousseau.github.io/scout/api/agents/posts.json",
-    "topics": "https://sebastienrousseau.github.io/scout/api/agents/topics.json"
+    "index": "https://scoutmcp.io/api/agents/index.json",
+    "person": "https://scoutmcp.io/api/agents/person.json",
+    "posts": "https://scoutmcp.io/api/agents/posts.json",
+    "topics": "https://scoutmcp.io/api/agents/topics.json"
   },
   "site": {
-    "description": "A diagnostic for Model Context Protocol servers. Nine phases, 76 checks, every finding tied to the request that produced it. Runs where your credentials already live.",
+    "description": "A diagnostic for Model Context Protocol servers. Nine phases, 81 checks, every finding tied to the request that produced it. Runs where your credentials already live.",
     "language": "en-GB",
     "name": "scout",
     "title": "scout — test any MCP server, from your own machine",
-    "url": "https://sebastienrousseau.github.io/scout"
+    "url": "https://scoutmcp.io"
   },
   "version": "0.0.63"
 }
