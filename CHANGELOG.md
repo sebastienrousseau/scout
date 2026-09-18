@@ -10,37 +10,118 @@ uses [Semantic Versioning](https://semver.org/).
 
 Nothing yet.
 
-## [0.0.2] — 2026-09-17
+## [0.1.0] — 2026-09-18
 
-A release-pipeline fix. No change to scout itself: the binaries in 0.0.2
-are built from the same source as 0.0.1.
+A minor release, not a patch: there is a second transport, two new output
+formats, five new checks and an export path. 0.0.2 was drafted as a
+pipeline fix and never tagged; everything it described is here.
+
+### Added
+
+- **stdio transport.** `transport.Stdio` speaks newline-delimited JSON-RPC
+  to a server running as a child process, which is what most MCP servers
+  in the field actually are. It is not yet reachable from `scout check` —
+  the client holds a concrete `*transport.Streamable` and the protocol
+  phase probes at the HTTP level, so the seam is its own change.
+
+  The lifecycle is the substance. `Close` closes stdin first, because that
+  is how a well-behaved MCP server is told to stop, and kills what ignores
+  it after a grace period; it always returns having reaped the process. A
+  cancelled call ends the process, because the read is blocked on a pipe
+  only the process can release. A line longer than `MaxLine` ends the
+  connection. stderr is drained continuously — a server whose stderr fills
+  the pipe buffer stops answering, which presents as a hang with no
+  explanation — and kept, because a server that dies says why there and
+  nowhere else.
+
+  The environment is constructed, not inherited. `os/exec` treats a nil
+  `Env` as "give the child everything", which for a tool that starts a
+  program in order to find out what it does means handing over every
+  exported credential. A nil `Env` means `BaseEnv` — PATH, HOME, TMPDIR,
+  locale — plus whatever `PassEnv` names.
+
+- **`--output sarif`** writes SARIF 2.1.0, which GitHub code scanning reads
+  directly. Passing checks are included, as `kind: "pass"` with
+  `level: "none"`: SARIF models a pass deliberately, and dropping them
+  would leave a consumer unable to tell "checked and fine" from "not
+  checked", which for a conformance tool is the whole difference. The
+  location is the endpoint as an absolute URI — scout tests a running
+  server, not a checkout, and inventing a repository path would be lying
+  about where the problem is.
+
+- **`--output junit`** writes JUnit XML, so a run appears beside the unit
+  tests in whatever panel CI already has. A warning becomes a `<failure>`
+  typed `warning`: JUnit has no third state, and a deviation reported as a
+  pass stops being read.
+
+- **`--otlp-endpoint`** exports the finished run as OpenTelemetry traces —
+  a root span for the run, a span per phase, a span per request parented to
+  its phase, and each finding as a span event. A request made outside any
+  phase is parented to the root rather than dropped. It speaks OTLP/HTTP's
+  JSON encoding rather than protobuf, so traces cost the binary no new
+  dependency. The export never changes the verdict: a collector being
+  unreachable is not a finding about the server under test.
+
+- **`--log-format json`** writes scout's own diagnostics as one JSON object
+  per line through `log/slog`, each carrying the run's `trace_id` — the
+  same id on the report and on the exported spans.
+
+- **Five checks that read the catalog for intent rather than shape.**
+  `catalog.text.hidden`, `.comments`, `.instructions`, `.secret_paths` and
+  `catalog.names.confusable`. A tool description is not documentation: it
+  is input the model reads before deciding what to call, with the same
+  standing as the user's own words. They read every string that reaches the
+  model, including every `description` inside an `inputSchema` — the part
+  nobody renders, and where published poisoning has most often been found.
+
+  Severity is calibrated so the checks stay worth reading: `critical` is
+  reserved for text with no honest reading at all. A scanner people learn
+  to ignore is worse than none, so the first test written was a corpus of
+  descriptions a careful author actually writes, several containing rule
+  words in their ordinary sense, none of which may signal.
+
+- **`doc_url` on every finding**, addressing that check's row in the
+  published inventory. A report is normally read long after the run that
+  produced it, often by somebody who was not there, and
+  `protocol.malformed_json` is only self-explanatory to a reader who
+  already knows what it means. A test fails the build when the generator's
+  anchors and the runtime URLs disagree, so a link inside an archived
+  report keeps resolving.
+
+- **Per-page meta descriptions across the manual**, and `/manual/ci/`, a
+  page on running scout in a pipeline: the exit-code contract, gating with
+  `jq`, and what not to put on a cron against production.
 
 ### Fixed
 
-- **0.0.1 was published without its SLSA provenance.** The release
-  workflow carried the Homebrew artefact from
-  `dist/homebrew/Formula/scout.rb`, which is where the deprecated
-  `brews:` wrote; `homebrew_casks` writes `dist/homebrew/Casks/scout.rb`.
-  With `if-no-files-found: error` that step failed, and the attestation
-  step behind it never ran. The binaries, checksums and cosign
-  signatures published; the provenance did not.
+- **0.0.1 published without its SLSA provenance.** The release workflow
+  carried the Homebrew artefact from `dist/homebrew/Formula/scout.rb`,
+  where the deprecated `brews:` wrote; `homebrew_casks` writes to `Casks/`.
+  With `if-no-files-found: error` that step failed and took the attestation
+  behind it down with it. Two further defects sat on the same path:
+  `find dist/aur -name PKGBUILD` matched nothing because goreleaser names
+  the file `scout-bin.pkgbuild`, and the tap job asserted `class Scout`,
+  which a cask does not contain.
 
-  Two further defects were on the same path: `find dist/aur -name
-  PKGBUILD` matched nothing, because goreleaser names the file
-  `scout-bin.pkgbuild`, and the tap job asserted `class Scout` — a
-  formula's opening line, which a cask does not contain — then wrote to
-  `Formula/` rather than `Casks/`.
+  Attestation and the release uploads now run before any packaging step, so
+  a package host or a renamed artefact costs the tap pull request and
+  nothing else. 0.0.1 is left as published: reusing a tag whose checksums
+  are already in the sigstore transparency log is the supply-chain defect
+  this tool exists to find.
 
-  Attestation and the release uploads now run before any packaging step,
-  so a package host or a renamed artefact costs the tap pull request and
-  nothing else. That was already the stated intent of the job ordering;
-  it is now the structure.
+- **The TUI and the blocked-run summary counted phases and called them
+  checks.** A user saw "4 of 9 checks" from a tool that runs 81.
 
-  0.0.1 is left as published. Reusing a tag whose checksums are already
-  in the sigstore transparency log is the supply-chain defect this tool
-  exists to find, so the fix is a new version rather than a corrected
-  one. **Verify 0.0.2, not 0.0.1:**
-  `gh attestation verify <file> --owner sebastienrousseau`.
+### Changed
+
+- The check inventory gate now verifies the figure quoted on the site, in
+  the local app, the manual index and the README — not only the generated
+  table. `docs/checks.md` could never drift; the headline number could, and
+  it is the one number a reader checks scout against.
+
+- `docs/CHECKS.md`, `ARCHITECTURE.md` and `ECOSYSTEM.md` are lowercase, and
+  the manual's URLs lost a redundant `/manual/` segment. Both were done
+  before anything could link to the old addresses.
 
 ## [0.0.1] — 2026-09-17
 
@@ -244,6 +325,6 @@ something earlier.
 - The site at <https://scoutmcp.io>, including a sample report produced by
   the binary built from the same commit rather than a screenshot.
 
-[Unreleased]: https://github.com/sebastienrousseau/scout/compare/v0.0.2...HEAD
-[0.0.2]: https://github.com/sebastienrousseau/scout/compare/v0.0.1...v0.0.2
+[Unreleased]: https://github.com/sebastienrousseau/scout/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/sebastienrousseau/scout/compare/v0.0.1...v0.1.0
 [0.0.1]: https://github.com/sebastienrousseau/scout/releases/tag/v0.0.1
