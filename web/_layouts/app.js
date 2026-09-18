@@ -56,9 +56,34 @@
   }
 
   function running(on) {
-    runBtn.disabled = on;
+    runBtn.disabled = on || !endpointLooksUsable();
     runBtn.textContent = on ? 'Running…' : 'Run diagnostic';
     cancelBtn.hidden = !on;
+  }
+
+  // The button starts disabled. A form whose primary action is always
+  // available, and which answers a click with a validation error, has made
+  // the person do the checking — and the only input that cannot be
+  // defaulted is the one the whole run is about.
+  function endpointLooksUsable() {
+    var v = val('endpoint');
+    if (v === '') return false;
+    try {
+      var u = new URL(v);
+      return u.protocol === 'http:' || u.protocol === 'https:';
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function reflectEndpoint() {
+    var ok = endpointLooksUsable();
+    runBtn.disabled = !ok;
+    if (ok) {
+      if (statusEl.textContent === '' || /endpoint/i.test(statusEl.textContent)) setStatus('');
+      return;
+    }
+    setStatus(val('endpoint') === '' ? 'Enter an endpoint to begin.' : 'That is not an http or https URL.');
   }
 
   function phaseRow(name) {
@@ -229,6 +254,12 @@
       setStatus('scout is not reachable. Is it still running?', 'fail');
     });
   });
+
+  var endpointEl = document.getElementById('endpoint');
+  if (endpointEl) {
+    endpointEl.addEventListener('input', reflectEndpoint);
+    reflectEndpoint();
+  }
 
   cancelBtn.addEventListener('click', function () {
     if (!runID) return;
