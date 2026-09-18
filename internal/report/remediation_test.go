@@ -33,11 +33,16 @@ func checkIDs(t *testing.T) map[string]bool {
 // failableIDs are the checks the generator detected as able to reach a fail
 // or a warn — the ones that can appear in a report's "what to fix first".
 //
-// It is a lower bound. A check opened through a helper rather than directly
-// is not detected, which is why catalog.text.* reads false despite failing
-// for real. Erring that way means the gate below can under-demand, never
-// over-demand, and an undetected check simply goes unguarded rather than
-// failing the build for no reason.
+// The generator matches three shapes: a check bound then failed, one failed
+// inline, and one handed to a helper that fails its own parameter. Those are
+// every shape internal/probe uses, so the set is currently exact rather than
+// a lower bound — every check that can fail is marked, and all 65 are
+// covered.
+//
+// It is still a lower bound by construction: a fourth shape would go
+// undetected and unguarded rather than failing the build for a check nobody
+// can act on. That is the safe direction, and the reason to keep the
+// detection honest rather than clever.
 func failableIDs(t *testing.T) []string {
 	t.Helper()
 	b, err := os.ReadFile("../../docs/checks.md")

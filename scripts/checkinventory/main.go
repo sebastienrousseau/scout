@@ -41,6 +41,11 @@ type entry struct {
 	// and so the ones that want remediation guidance written for them.
 	// internal/report/remediation_test.go reads this back and fails when
 	// one of them has none.
+	//
+	// markFailable matches every shape this package uses, so the answer is
+	// currently exact. A shape it does not know would read false, which
+	// leaves a check unguarded rather than failing the build for one that
+	// cannot fail — the safe direction for a gate to be wrong in.
 	CanFail bool
 }
 
@@ -155,6 +160,11 @@ func inventory(dir string) ([]entry, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Parsed once and walked three times. The helper pass has to finish
+	// before the failable pass starts, because a check opened in one file
+	// can be handed to a helper declared in another.
+	asts := make([]*ast.File, 0, len(files))
 	for _, f := range files {
 		if strings.HasSuffix(f, "_test.go") {
 			continue
@@ -163,7 +173,17 @@ func inventory(dir string) ([]entry, error) {
 		if err != nil {
 			return nil, fmt.Errorf("parsing %s: %w", f, err)
 		}
-		markFailable(parsed, failable)
+		asts = append(asts, parsed)
+	}
+	failingHelpers := map[string]bool{}
+	for _, parsed := range asts {
+		collectFailingHelpers(parsed, failingHelpers)
+	}
+	for _, parsed := range asts {
+		markFailable(parsed, failable, failingHelpers)
+	}
+
+	for _, parsed := range asts {
 		ast.Inspect(parsed, func(n ast.Node) bool {
 			call, ok := n.(*ast.CallExpr)
 			if !ok {
@@ -359,12 +379,19 @@ func anchor(id string) string {
 
 // markFailable records every check id that reaches .fail or .warn.
 //
-// The shapes in this package are `c := s.check(id, title)` followed by
-// `c.fail(...)` in the same function, and the inline
-// `s.check(id, title).fail(...)`. Both are matched; a check bound in one
-// function and failed in another is not, and would show up as a check with
-// no guidance required, which is the safe direction to be wrong in.
-func markFailable(f *ast.File, out map[string]bool) {
+// Three shapes are matched, which is every shape this package uses:
+//
+//	c := s.check(id, title); ...; c.fail(...)     bound, then failed
+//	s.check(id, title).fail(...)                  inline
+//	helper(s.check(id, title), ...)               opened here, judged there
+//
+// The third needs failingHelpers: a function that calls .fail or .warn on
+// one of its own *check parameters is one that can fail whatever it is
+// given, so a check handed to it can fail. internal/probe/poison.go is
+// built that way — the id has to be a literal at the call site for the
+// inventory, and the verdict is shared across five checks, so the two
+// cannot sit in the same function.
+func markFailable(f *ast.File, out map[string]bool, failing map[string]bool) {
 	ast.Inspect(f, func(n ast.Node) bool {
 		fn, ok := n.(*ast.FuncDecl)
 		if !ok || fn.Body == nil {
@@ -382,6 +409,15 @@ func markFailable(f *ast.File, out map[string]bool) {
 			call, ok := m.(*ast.CallExpr)
 			if !ok {
 				return true
+			}
+			// helper(s.check(id, title), ...) — a check handed to something
+			// that fails its own parameter.
+			if name, ok := calleeName(call); ok && failing[name] {
+				for _, arg := range call.Args {
+					if id, ok := checkCallID(arg); ok {
+						out[id] = true
+					}
+				}
 			}
 			sel, ok := call.Fun.(*ast.SelectorExpr)
 			if !ok || (sel.Sel.Name != "fail" && sel.Sel.Name != "warn") {
@@ -430,4 +466,55 @@ func boolAttr(b bool) string {
 		return "true"
 	}
 	return "false"
+}
+
+// collectFailingHelpers finds functions that call .fail or .warn on one of
+// their own *check parameters. A check passed to one of those can fail.
+func collectFailingHelpers(f *ast.File, out map[string]bool) {
+	ast.Inspect(f, func(n ast.Node) bool {
+		fn, ok := n.(*ast.FuncDecl)
+		if !ok || fn.Body == nil || fn.Type.Params == nil {
+			return true
+		}
+		params := map[string]bool{}
+		for _, field := range fn.Type.Params.List {
+			star, ok := field.Type.(*ast.StarExpr)
+			if !ok {
+				continue
+			}
+			if ident, ok := star.X.(*ast.Ident); !ok || ident.Name != "check" {
+				continue
+			}
+			for _, name := range field.Names {
+				params[name.Name] = true
+			}
+		}
+		if len(params) == 0 {
+			return true
+		}
+		ast.Inspect(fn.Body, func(m ast.Node) bool {
+			call, ok := m.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			sel, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok || (sel.Sel.Name != "fail" && sel.Sel.Name != "warn") {
+				return true
+			}
+			if ident, ok := sel.X.(*ast.Ident); ok && params[ident.Name] {
+				out[fn.Name.Name] = true
+			}
+			return true
+		})
+		return true
+	})
+}
+
+// calleeName returns the name of a plain function call.
+func calleeName(call *ast.CallExpr) (string, bool) {
+	ident, ok := call.Fun.(*ast.Ident)
+	if !ok {
+		return "", false
+	}
+	return ident.Name, true
 }
