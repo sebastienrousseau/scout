@@ -21,8 +21,8 @@ const docPath = "../../docs/checks.md"
 // did not, and quietly compared two equally-filtered halves of the
 // inventory: it passed, and it was checking 22 of 76 checks.
 var (
-	anchorRe = regexp.MustCompile(`<span id="(check-[a-z0-9_-]+)"></span>`)
-	idRe     = regexp.MustCompile("<span id=\"check-[a-z0-9_-]+\"></span>`([^`]+)`")
+	anchorRe = regexp.MustCompile(`<span id="(check-[a-z0-9_-]+)" data-can-fail="(?:true|false)"></span>`)
+	idRe     = regexp.MustCompile("<span id=\"check-[a-z0-9_-]+\" data-can-fail=\"(?:true|false)\"></span>`([^`]+)`")
 )
 
 // familySuffix marks a row whose id is built at run time.

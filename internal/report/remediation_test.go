@@ -19,15 +19,59 @@ func checkIDs(t *testing.T) map[string]bool {
 	if err != nil {
 		t.Fatalf("reading the inventory: %v", err)
 	}
-	re := regexp.MustCompile("<span id=\"check-[a-z0-9_-]+\"></span>`([^`]+)`")
+	re := regexp.MustCompile("<span id=\"check-[a-z0-9_-]+\" data-can-fail=\"(true|false)\"></span>`([^`]+)`")
 	out := map[string]bool{}
 	for _, m := range re.FindAllStringSubmatch(string(b), -1) {
-		out[m[1]] = true
+		out[m[2]] = true
 	}
 	if len(out) == 0 {
 		t.Fatal("no check ids found; the inventory format changed and this test did not")
 	}
 	return out
+}
+
+// failableIDs are the checks the generator detected as able to reach a fail
+// or a warn — the ones that can appear in a report's "what to fix first".
+//
+// It is a lower bound. A check opened through a helper rather than directly
+// is not detected, which is why catalog.text.* reads false despite failing
+// for real. Erring that way means the gate below can under-demand, never
+// over-demand, and an undetected check simply goes unguarded rather than
+// failing the build for no reason.
+func failableIDs(t *testing.T) []string {
+	t.Helper()
+	b, err := os.ReadFile("../../docs/checks.md")
+	if err != nil {
+		t.Fatalf("reading the inventory: %v", err)
+	}
+	re := regexp.MustCompile("data-can-fail=\"true\"></span>`([^`]+)`")
+	var out []string
+	for _, m := range re.FindAllStringSubmatch(string(b), -1) {
+		out = append(out, m[1])
+	}
+	if len(out) == 0 {
+		t.Fatal("no failable checks found; the inventory format changed and this test did not")
+	}
+	return out
+}
+
+// TestEveryFailableCheckHasGuidance is the thoroughness gate.
+//
+// A check that can appear in "what to fix first" and has no guidance
+// renders as a bare one-line advice string — which is where this whole
+// catalogue started. Adding a failing check without writing for it should
+// stop the build, not quietly regress the report.
+func TestEveryFailableCheckHasGuidance(t *testing.T) {
+	var missing []string
+	for _, id := range failableIDs(t) {
+		if _, ok := RemediationFor(id); !ok {
+			missing = append(missing, id)
+		}
+	}
+	if len(missing) > 0 {
+		t.Errorf("%d check(s) can fail with no remediation written: %s",
+			len(missing), strings.Join(missing, ", "))
+	}
 }
 
 // TestRemediationKeysAreRealChecks is the guard that matters.
@@ -79,9 +123,12 @@ func TestRemediationForResolvesFamilies(t *testing.T) {
 	if _, ok := RemediationFor("catalog.tools.output_schema"); !ok {
 		t.Error("a documented check resolved to nothing")
 	}
-	// An undocumented one is absent rather than wrong.
-	if _, ok := RemediationFor("net.dns"); ok {
-		t.Error("an undocumented check resolved to something")
+	// An id nothing produces is absent rather than wrong. Using a made-up id
+	// rather than a real-but-undocumented one, because the set of documented
+	// checks is meant to grow and this assertion should not need revisiting
+	// every time it does — which it just did.
+	if _, ok := RemediationFor("not.a.real.check"); ok {
+		t.Error("an unknown id resolved to guidance")
 	}
 	// Families resolve through their prefix, if any are registered.
 	for key := range remediations {
