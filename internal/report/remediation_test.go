@@ -4,10 +4,13 @@
 package report
 
 import (
+	"bytes"
 	"os"
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/sebastienrousseau/scout/internal/probe"
 )
 
 // checkIDs reads the ids out of the generated inventory, which is itself
@@ -142,6 +145,69 @@ func TestRemediationForResolvesFamilies(t *testing.T) {
 		}
 		if _, ok := RemediationFor(key + "an_observed_value"); !ok {
 			t.Errorf("family %q did not resolve for an instance", key)
+		}
+	}
+}
+
+// guidedReport is a report whose worst finding has remediation written for
+// it, so the renderers have something to show.
+func guidedReport() *Report {
+	r := &Report{
+		Scout:  Meta{Version: "t"},
+		Target: Target{Endpoint: "https://x/mcp"},
+	}
+	r.Phases = []probe.PhaseResult{{
+		Name: "protocol", Title: "Protocol", Status: probe.Fail,
+		Findings: []probe.Finding{{
+			ID: "protocol.malformed_json", Phase: "protocol",
+			Title: "Malformed JSON is rejected", Status: probe.Fail,
+			Severity: probe.Minor, Detail: "HTTP 200 for a truncated body",
+			Advice: "return 400 or -32700",
+			DocURL: "https://scoutmcp.io/manual/checks/#check-protocol-malformed_json",
+		}},
+	}}
+	r.Counts = Counts{Fail: 1}
+	return r
+}
+
+// TestTextGuidanceIsBehindVerbose pins the split.
+//
+// The default output is read while the run is still fresh, by somebody who
+// wants to know what is wrong. Five findings with three steps each is sixty
+// lines of terminal nobody asked for, so the full explanation waits for
+// --verbose — while the renderings that get forwarded carry it always.
+func TestTextGuidanceIsBehindVerbose(t *testing.T) {
+	var terse, verbose bytes.Buffer
+	Text(&terse, guidedReport(), TextOptions{Width: 90})
+	Text(&verbose, guidedReport(), TextOptions{Width: 90, Verbose: true})
+
+	if strings.Contains(terse.String(), "What it means") {
+		t.Error("the default text output carries the full guidance; it should stay scannable")
+	}
+	if !strings.Contains(terse.String(), "return 400 or -32700") {
+		t.Error("the default output lost the one-line advice")
+	}
+	for _, want := range []string{"What it means", "How to fix it", "Reject a body that does not parse"} {
+		if !strings.Contains(verbose.String(), want) {
+			t.Errorf("--verbose output is missing %q", want)
+		}
+	}
+}
+
+// TestMarkdownCarriesGuidance: the Markdown rendering is what gets pasted
+// into a ticket, and the person reading that ticket has no scout to run.
+func TestMarkdownCarriesGuidance(t *testing.T) {
+	var buf bytes.Buffer
+	Markdown(&buf, guidedReport())
+	got := buf.String()
+	for _, want := range []string{
+		"## What to do next",
+		"**How to fix it**",
+		"Reject a body that does not parse",
+		"#check-protocol-malformed_json",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("markdown is missing %q", want)
 		}
 	}
 }

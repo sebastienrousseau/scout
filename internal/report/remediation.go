@@ -159,7 +159,7 @@ var remediations = map[string]Remediation{
 			"status. A client cannot distinguish that from a real answer, and a " +
 			"proxy or a retry that corrupts a body will look like it worked.",
 		Steps: []Step{
-			{"Reject unparseable bodies",
+			{"Reject a body that does not parse",
 				"Return HTTP 400, or the JSON-RPC `Parse error` code -32700. Either " +
 					"tells the caller what happened; 200 does not."},
 			{"Check the framing before the handler",
