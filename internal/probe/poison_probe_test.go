@@ -100,7 +100,7 @@ func TestScanCatalogPassesACleanCatalog(t *testing.T) {
 func TestScanCatalogFindsHiddenCharactersInAPromptArgument(t *testing.T) {
 	prompts := []scout.Prompt{{
 		Name:      "summarise",
-		Arguments: []scout.PromptArgument{{Name: "id", Description: "The account‮number‬."}},
+		Arguments: []scout.PromptArgument{{Name: "id", Description: "The account\u202enumber\u202c."}},
 	}}
 	out := scanCatalog(session(nil), nil, prompts)
 	for _, f := range out {

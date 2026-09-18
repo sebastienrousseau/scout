@@ -108,7 +108,7 @@ func TestScanTextFindsInstructions(t *testing.T) {
 
 func TestScanTextFindsHiddenCharacters(t *testing.T) {
 	t.Run("zero width", func(t *testing.T) {
-		sigs := ScanText("desc", "Looks​ordinary")
+		sigs := ScanText("desc", "Looks\u200bordinary")
 		if len(sigs) != 1 || sigs[0].Kind != SignalHidden {
 			t.Fatalf("got %+v", sigs)
 		}
@@ -125,7 +125,7 @@ func TestScanTextFindsHiddenCharacters(t *testing.T) {
 	})
 
 	t.Run("bidi override", func(t *testing.T) {
-		sigs := ScanText("desc", "Deletes ‮nothing‬ at all")
+		sigs := ScanText("desc", "Deletes \u202enothing\u202c at all")
 		if len(sigs) == 0 || sigs[0].Kind != SignalHidden || sigs[0].Severity != SeverityCritical {
 			t.Fatalf("a bidirectional override is the Trojan Source class: %+v", sigs)
 		}
