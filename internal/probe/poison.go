@@ -126,67 +126,37 @@ func scanCatalog(s *Session, res []scout.Resource, prompts []scout.Prompt) []Fin
 	// One check per kind, so a reader can tell "there is a hidden
 	// character somewhere" from "a description is addressed to the model".
 	// They are different problems with different answers.
-	// Each entry opens its own check with literal arguments rather than
-	// passing the id through a variable. scripts/checkinventory parses
-	// (*Session).check call sites from the source, so an id built at run
-	// time is an id the published inventory cannot list — and the
-	// inventory gate caught exactly that when this table held strings.
-	checks := []struct {
-		kind  diagnostics.SignalKind
-		open  func(*Session) *check
-		clean string
-		fix   string
-	}{
-		{diagnostics.SignalHidden,
-			func(s *Session) *check {
-				return s.check("catalog.text.hidden", "Catalog text has nothing hidden in it")
-			},
+	// Each call opens its check with literal arguments and hands it to
+	// verdict, which decides pass, warn or fail from the signals.
+	//
+	// Both halves have to be visible to the tools that read this package.
+	// scripts/checkinventory parses (*Session).check call sites for the
+	// published inventory, so the id must be a literal here rather than a
+	// variable — an earlier version held these in a table of strings and the
+	// five checks were simply absent from the inventory. The same tool marks
+	// which checks can fail, by finding .fail and .warn; those live in
+	// verdict, so it follows a check passed to a helper that fails it.
+	out := []Finding{
+		verdict(s.check("catalog.text.hidden", "Catalog text has nothing hidden in it"),
+			byKind[diagnostics.SignalHidden],
 			"no invisible or bidirectional characters",
-			"remove the characters; a description that needs them is a description a reviewer cannot check"},
-		{diagnostics.SignalComment,
-			func(s *Session) *check {
-				return s.check("catalog.text.comments", "Catalog text carries no hidden comments")
-			},
+			"remove the characters; a description that needs them is a description a reviewer cannot check"),
+		verdict(s.check("catalog.text.comments", "Catalog text carries no hidden comments"),
+			byKind[diagnostics.SignalComment],
 			"no HTML comments",
-			"move the content into the description itself, or delete it: a rendered catalog hides a comment and the model does not"},
-		{diagnostics.SignalInstruction,
-			func(s *Session) *check {
-				return s.check("catalog.text.instructions", "Catalog text describes rather than instructs")
-			},
+			"move the content into the description itself, or delete it: a rendered catalog hides a comment and the model does not"),
+		verdict(s.check("catalog.text.instructions", "Catalog text describes rather than instructs"),
+			byKind[diagnostics.SignalInstruction],
 			"no text addressed to the model",
-			"describe what the tool does; an instruction aimed at the model is indistinguishable from one an attacker planted"},
-		{diagnostics.SignalSecretPath,
-			func(s *Session) *check {
-				return s.check("catalog.text.secret_paths", "Catalog text names no credential locations")
-			},
+			"describe what the tool does; an instruction aimed at the model is indistinguishable from one an attacker planted"),
+		verdict(s.check("catalog.text.secret_paths", "Catalog text names no credential locations"),
+			byKind[diagnostics.SignalSecretPath],
 			"no credential paths named",
-			"if the tool genuinely reads these, say so in prose an operator approves rather than in a schema field"},
-		{diagnostics.SignalConfusable,
-			func(s *Session) *check {
-				return s.check("catalog.names.confusable", "Names use a single script")
-			},
+			"if the tool genuinely reads these, say so in prose an operator approves rather than in a schema field"),
+		verdict(s.check("catalog.names.confusable", "Names use a single script"),
+			byKind[diagnostics.SignalConfusable],
 			"every name is single-script",
-			"use one script per name; a mixed-script name exists to render like a name the user already trusts"},
-	}
-
-	var out []Finding
-	for _, spec := range checks {
-		c := spec.open(s)
-		found := byKind[spec.kind]
-		if len(found) == 0 {
-			out = append(out, c.pass(spec.clean))
-			continue
-		}
-		worst, _ := diagnostics.Worst(found)
-		detail := describeSignals(found)
-		switch worst {
-		case diagnostics.SeverityCritical:
-			out = append(out, c.fail(Critical, detail, spec.fix))
-		case diagnostics.SeverityMajor:
-			out = append(out, c.fail(Major, detail, spec.fix))
-		default:
-			out = append(out, c.warn(detail, spec.fix))
-		}
+			"use one script per name; a mixed-script name exists to render like a name the user already trusts"),
 	}
 	return out
 }
@@ -223,5 +193,25 @@ func severityRank(s diagnostics.SignalSeverity) int {
 		return 1
 	default:
 		return 2
+	}
+}
+
+// verdict turns the signals found for one kind into that check's finding.
+//
+// Severity carries straight through from the scanner: it decides what
+// cannot be honest documentation, and this only decides how loudly to say
+// so.
+func verdict(c *check, found []diagnostics.Signal, clean, fix string) Finding {
+	if len(found) == 0 {
+		return c.pass(clean)
+	}
+	detail := describeSignals(found)
+	switch worst, _ := diagnostics.Worst(found); worst {
+	case diagnostics.SeverityCritical:
+		return c.fail(Critical, detail, fix)
+	case diagnostics.SeverityMajor:
+		return c.fail(Major, detail, fix)
+	default:
+		return c.warn(detail, fix)
 	}
 }

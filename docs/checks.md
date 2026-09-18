@@ -98,17 +98,17 @@ that is what a reader sees in a report.
 | Check | What it looks for |
 |---|---|
 | <span id="check-catalog-empty" data-can-fail="true"></span>`catalog.empty` | Server exposes something |
-| <span id="check-catalog-names-confusable" data-can-fail="false"></span>`catalog.names.confusable` | Names use a single script |
+| <span id="check-catalog-names-confusable" data-can-fail="true"></span>`catalog.names.confusable` | Names use a single script |
 | <span id="check-catalog-prompts-descriptions" data-can-fail="true"></span>`catalog.prompts.descriptions` | Prompts and arguments are described |
 | <span id="check-catalog-prompts-list" data-can-fail="true"></span>`catalog.prompts.list` | prompts/list |
 | <span id="check-catalog-resources-list" data-can-fail="true"></span>`catalog.resources.list` | resources/list |
 | <span id="check-catalog-resources-mime" data-can-fail="false"></span>`catalog.resources.mime` | Resources declare mimeType |
 | <span id="check-catalog-resources-templates" data-can-fail="false"></span>`catalog.resources.templates` | resources/templates/list |
 | <span id="check-catalog-resources-uris" data-can-fail="true"></span>`catalog.resources.uris` | Resource URIs are absolute |
-| <span id="check-catalog-text-comments" data-can-fail="false"></span>`catalog.text.comments` | Catalog text carries no hidden comments |
-| <span id="check-catalog-text-hidden" data-can-fail="false"></span>`catalog.text.hidden` | Catalog text has nothing hidden in it |
-| <span id="check-catalog-text-instructions" data-can-fail="false"></span>`catalog.text.instructions` | Catalog text describes rather than instructs |
-| <span id="check-catalog-text-secret_paths" data-can-fail="false"></span>`catalog.text.secret_paths` | Catalog text names no credential locations |
+| <span id="check-catalog-text-comments" data-can-fail="true"></span>`catalog.text.comments` | Catalog text carries no hidden comments |
+| <span id="check-catalog-text-hidden" data-can-fail="true"></span>`catalog.text.hidden` | Catalog text has nothing hidden in it |
+| <span id="check-catalog-text-instructions" data-can-fail="true"></span>`catalog.text.instructions` | Catalog text describes rather than instructs |
+| <span id="check-catalog-text-secret_paths" data-can-fail="true"></span>`catalog.text.secret_paths` | Catalog text names no credential locations |
 | <span id="check-catalog-tools-annotations" data-can-fail="true"></span>`catalog.tools.annotations` | Tools declare behaviour annotations |
 | <span id="check-catalog-tools-descriptions" data-can-fail="true"></span>`catalog.tools.descriptions` | Every tool has a useful description |
 | <span id="check-catalog-tools-input_schema" data-can-fail="true"></span>`catalog.tools.input_schema` | inputSchema is a JSON Schema object |

@@ -211,6 +211,24 @@ var remediations = map[string]Remediation{
 		},
 	},
 
+	"catalog.text.comments": {
+		Means: "Catalog text contains an HTML comment. A catalog viewer renders " +
+			"the description and hides the comment; the model receives the raw " +
+			"string and reads both. That gap is the whole attraction — a comment " +
+			"is the one place to put text a reviewer will not see and the model " +
+			"will.",
+		Steps: []Step{
+			{"Read what the comment says",
+				"scout quotes it in the finding. A leftover note and an instruction " +
+					"aimed at the model look identical in a diff and are not the " +
+					"same problem."},
+			{"Move it or delete it",
+				"If it belongs in the description, put it there, where a person " +
+					"approving the tool will see it. If it does not, it does not " +
+					"belong in text the model reads either."},
+		},
+	},
+
 	"catalog.text.hidden": {
 		Means: "The catalog contains characters a reviewer cannot see — " +
 			"zero-width spaces, or bidirectional overrides that reorder how text " +
