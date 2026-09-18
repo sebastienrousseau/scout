@@ -897,3 +897,115 @@ a[href]::after { content: " (" attr(href) ")"; overflow-wrap: anywhere; }
 .style-scout .report .prose p {
   margin-block: 0 2.75rem;
 }
+
+/* --- scout serve: the application shell -----------------------------------
+ *
+ * The vendored theme styles a marketing page. These are the pieces only the
+ * app has: the brand mark as an SVG rather than a letter in a box, and the
+ * diagnostic form, which had no rules at all and was rendering as raw
+ * HTML — label and input on one line, fieldset with a default border.
+ */
+
+/* The mark is an inline SVG with a viewBox and no intrinsic size, so
+ * without a height it lays out at the replaced-element default and shoves
+ * the wordmark into a column one letter wide. */
+.brand-logo { display: block; width: auto; height: 1.65rem; flex: none; }
+.brand-logo path { transition: none; }
+.footer-brand .brand-logo { height: 1.9rem; }
+
+.run-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1.5rem 1.75rem;
+  align-items: start;
+  margin-block-start: 2rem;
+}
+/* The endpoint, the safety block and the buttons each want the full width;
+ * the short numeric fields sit beside one another. */
+.run-form .field-wide { grid-column: 1 / -1; }
+
+.field { display: flex; flex-direction: column; gap: 0.45rem; min-width: 0; }
+/* :not(.check) because the safety opt-ins are labels too, and a checkbox
+ * caption set at the weight of a field name reads as three headings. */
+.field > label:not(.check),
+.field > legend {
+  font-size: var(--step--1);
+  font-weight: 740;
+  color: var(--ink);
+  padding: 0;
+}
+.field input[type="url"],
+.field input[type="text"],
+.field input[type="number"],
+.field select {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--step-0);
+}
+.field input:focus-visible,
+.field select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
+.field input::placeholder { color: var(--ink-mute); }
+.field-help { margin: 0; color: var(--ink-soft); font-size: var(--step--1); max-width: 60ch; }
+
+/* The safety opt-ins. A bare fieldset draws a 1990s border and lays its
+ * checkboxes out inline, which is how three mutually independent choices
+ * ended up reading as one sentence. */
+fieldset.field {
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  padding: 1.1rem 1.25rem 1.25rem;
+  background: var(--surface-soft);
+}
+fieldset.field > legend { padding-inline: 0.4rem; }
+.check {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  font-size: var(--step-0);
+  font-weight: 450;
+  color: var(--ink-soft);
+  cursor: pointer;
+  line-height: 1.45;
+}
+.check input { margin-block-start: 0.2rem; flex: none; width: 1.05rem; height: 1.05rem; accent-color: var(--accent); }
+.check span { min-width: 0; }
+
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; margin-block-start: 0.5rem; }
+.run-status { color: var(--ink-soft); font-size: var(--step--1); }
+
+@media (max-width: 40rem) {
+  .run-form { grid-template-columns: 1fr; }
+  .actions .button { flex: 1 1 100%; }
+}
+
+/* The markup marks Cancel `hidden` until a run is in flight, and .button
+ * sets display:inline-flex, which wins over the UA rule for [hidden]. The
+ * button was visible from page load, offering to cancel nothing. This is
+ * the standard guard, and it protects every other [hidden] section — #live
+ * and #result are hidden the same way. */
+[hidden] { display: none !important; }
+
+/* .sr-only is used in the markup and had no rule, so every heading meant
+ * for a screen reader alone was rendering full size — "Run a diagnostic"
+ * above the form is one of them. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
