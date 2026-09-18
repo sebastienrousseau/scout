@@ -201,15 +201,21 @@ jobs:
           retention-days: 1
 
   # The Homebrew tap is published in its own job, after the release has
-  # succeeded, and cannot fail it: a package host being unreachable must not
-  # cost a release its artefacts, signatures or attestations.
+  # succeeded. It used to carry continue-on-error so a package host being
+  # unreachable could not cost a release its artefacts, signatures or
+  # attestations — but that is now guaranteed by ordering instead: every
+  # release upload and the attestation happen in the job before this one.
+  #
+  # So this job failing costs the tap and nothing else, and it should say
+  # so. v0.0.2 published green with a tap that had not been updated,
+  # because the token could push a branch and not open a pull request. A
+  # job that cannot fail is a job whose result nobody reads.
   brew:
     name: Publish the Homebrew cask
     needs: release
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    continue-on-error: true
     permissions:
       contents: read
     steps:
