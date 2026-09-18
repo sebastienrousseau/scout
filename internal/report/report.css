@@ -412,3 +412,52 @@ footer { padding-block: 30px 44px; color: var(--ink-mute); font-size: 12.5px;
   /* A URL the reader cannot click should still be readable. */
   a[href^="http"]::after { content: " (" attr(href) ")"; font-size: 8.5pt; color: var(--ink-mute); }
 }
+
+/* Remediation. A finding says what is wrong; this says what it means and
+   what to change. It is indented under the finding so the list still scans
+   as a list when somebody is only counting problems. */
+.guide {
+  grid-column: 2 / -1;
+  margin-block-start: 0.85rem;
+  padding: 0.95rem 1.1rem;
+  border-left: 3px solid var(--rule);
+  background: var(--surface-sunk);
+  border-radius: 0 0.5rem 0.5rem 0;
+}
+.guide-means { margin: 0; color: var(--ink-soft); font-size: 0.9375rem; max-width: 72ch; }
+.guide-lead {
+  margin: 0.9rem 0 0.4rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+.guide-steps { margin: 0; padding-left: 1.35rem; display: flex; flex-direction: column; gap: 0.6rem; }
+/* The outer .fix-first li is a grid with a severity rule down its left
+   edge. These are nested inside one, so they inherit both and the step
+   title ends up in a column beside its own body, under a red bar that
+   means nothing here. Everything below is an override, not a style. */
+.guide-steps li {
+  display: list-item;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.9375rem;
+  list-style: decimal;
+}
+.guide-steps b { display: block; color: var(--ink); font-weight: 650; }
+.guide-steps span { display: block; }
+.guide-note {
+  margin: 0.85rem 0 0;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--rule);
+  color: var(--ink-mute);
+  font-size: 0.875rem;
+}
+.guide-more { margin: 0.6rem 0 0; font-size: 0.875rem; }
+
+@media print {
+  .guide { background: none; border-left: 2px solid #999; break-inside: avoid; }
+}
