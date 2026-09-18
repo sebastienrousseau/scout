@@ -502,3 +502,47 @@ done
 		t.Errorf("an explicitly empty Env still received %q", got.Home)
 	}
 }
+
+// TestStdioStderrIsCompleteWhenTheProcessIsReaped pins the invariant that
+// the pipe rewrite exists for.
+//
+// The first version used cmd.StderrPipe with a goroutine owning Wait, and
+// Wait closes that pipe — so the drain raced the reap and usually lost on
+// CI, producing "server process exited: exit status 3" with the line
+// explaining it missing. cmd.Stderr is a writer now, so os/exec owns the
+// copy and Wait joins it: once the process is reaped, stderr is whole.
+//
+// A large payload is written because a few bytes fit in the pipe buffer
+// and would arrive even under the old race.
+func TestStdioStderrIsCompleteWhenTheProcessIsReaped(t *testing.T) {
+	requireShell(t)
+	s := start(t, transport.StdioConfig{Command: script(t, `
+i=0
+while [ $i -lt 400 ]; do
+  echo "diagnostic line $i padding padding padding padding padding" >&2
+  i=$((i+1))
+done
+echo "fatal: the last line" >&2
+exit 7
+`)})
+
+	err := s.Call(context.Background(), "tools/list", nil, nil)
+	if err == nil {
+		t.Fatal("a call to a server that exits succeeded")
+	}
+	if !errors.Is(err, transport.ErrProcessExited) {
+		t.Fatalf("error is not ErrProcessExited: %v", err)
+	}
+
+	// Read immediately, with no sleep: the point is that no wait is needed.
+	out := s.Stderr()
+	if !strings.Contains(out, "fatal: the last line") {
+		t.Errorf("the last line the server wrote is missing from stderr (%d bytes captured)", len(out))
+	}
+	if !strings.Contains(err.Error(), "the last line") {
+		t.Errorf("the error does not carry it either: %v", err)
+	}
+	if exited, _ := s.Exited(); !exited {
+		t.Error("the process was not reaped")
+	}
+}

@@ -243,7 +243,16 @@ jobs:
           mkdir -p Casks
           cp ../cask/scout.rb Casks/scout.rb
 
-          if git diff --quiet -- Casks/scout.rb; then
+          # Staged, then compared against the index.
+          #
+          # `git diff --quiet -- <path>` ignores untracked files, so the
+          # first publish of a cask the tap has never held reads as "no
+          # change" and the job reports success having pushed nothing.
+          # That is what happened on v0.1.0, and it is exactly the failure
+          # the comment on this job warns about: reporting success without
+          # publishing is how a tap goes stale for months.
+          git add Casks/scout.rb
+          if git diff --cached --quiet; then
             echo "cask already matches ${VERSION}; nothing to publish"
             exit 0
           fi
