@@ -16,6 +16,7 @@
   <a href="https://golangci-lint.run/"><img src="https://img.shields.io/badge/lint-golangci--lint-00ADD8?style=for-the-badge&logo=go&logoColor=white" alt="golangci-lint" /></a>
   <a href="https://codecov.io/gh/sebastienrousseau/scout"><img src="https://img.shields.io/codecov/c/github/sebastienrousseau/scout?style=for-the-badge&logo=codecov" alt="Code Coverage" /></a>
   <a href="https://scorecard.dev/viewer/?uri=github.com/sebastienrousseau/scout"><img src="https://img.shields.io/ossf-scorecard/github.com/sebastienrousseau/scout?style=for-the-badge&label=OpenSSF%20Scorecard&logo=openssf" alt="OpenSSF Scorecard" /></a>
+  <a href="https://www.bestpractices.dev/projects/14698"><img src="https://img.shields.io/cii/level/14698?style=for-the-badge&label=OpenSSF%20Best%20Practices&logo=openssf" alt="OpenSSF Best Practices" /></a>
   <a href="https://scoutmcp.io/manual/"><img src="https://img.shields.io/badge/docs-manual-brightgreen?style=for-the-badge&logo=github" alt="Documentation" /></a>
   <a href="https://github.com/sebastienrousseau/scout/releases/latest"><img src="https://img.shields.io/github/v/release/sebastienrousseau/scout?style=for-the-badge" alt="Release Version" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-blue?style=for-the-badge" alt="License" /></a>
