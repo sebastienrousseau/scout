@@ -171,7 +171,7 @@ func (m *RunModel) View() string {
 				done++
 			}
 		}
-		b.WriteString("\n  " + subtleS.Render(fmt.Sprintf("%d of %d checks", done, len(m.steps))) +
+		b.WriteString("\n  " + subtleS.Render(fmt.Sprintf("%d of %d phases", done, len(m.steps))) +
 			faintS.Render("   ·   press ") + subtleS.Render("q") + faintS.Render(" to stop") + "\n")
 	}
 	return b.String()

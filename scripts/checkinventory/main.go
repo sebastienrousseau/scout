@@ -23,6 +23,7 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -71,7 +72,63 @@ func main() {
 		fmt.Fprintf(os.Stderr, "check-inventory: %s is stale — the source declares %d checks.\nRun: make checks\n", path, len(found))
 		os.Exit(1)
 	}
+	if err := verifyPublishedCount(len(found)); err != nil {
+		fmt.Fprintf(os.Stderr, "check-inventory: %v\n", err)
+		os.Exit(1)
+	}
 	fmt.Printf("check-inventory: %s matches the source (%d checks, %d phases)\n", path, len(found), phaseCount(found))
+}
+
+// publishedCountFiles are the places the figure is quoted to a reader
+// rather than generated.
+//
+// docs/checks.md is regenerated, so it cannot drift. These cannot be
+// regenerated — they are prose, a marketing headline and an FAQ answer —
+// and every one of them was wrong the first time a check was added, which
+// is how a tool whose whole argument is "the number is verifiable" ends up
+// publishing a number that is not.
+var publishedCountFiles = []string{
+	"site/content/index.md",
+	"site/ssg.toml",
+	"web/content/index.md",
+	"web/ssg.toml",
+	"docs/index.md",
+	"README.md",
+}
+
+// staleCount matches a quoted figure: "76 checks", or the site's own
+// metric_one_value, which is the headline number with no word after it.
+var staleCount = regexp.MustCompile(`(\d+)\s+checks\b|metric_one_value:\s*"(\d+)"`)
+
+// verifyPublishedCount fails when any published figure disagrees with the
+// source.
+func verifyPublishedCount(want int) error {
+	var wrong []string
+	for _, f := range publishedCountFiles {
+		b, err := os.ReadFile(f)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return err
+		}
+		for _, m := range staleCount.FindAllStringSubmatch(string(b), -1) {
+			got := m[1]
+			if got == "" {
+				got = m[2]
+			}
+			n, err := strconv.Atoi(got)
+			if err != nil || n == want {
+				continue
+			}
+			wrong = append(wrong, fmt.Sprintf("%s says %d", f, n))
+		}
+	}
+	if len(wrong) > 0 {
+		return fmt.Errorf("the source declares %d checks but %s.\nUpdate the published figure; it is the one number a reader checks scout against",
+			want, strings.Join(wrong, "; "))
+	}
+	return nil
 }
 
 // inventory walks the package and records every (*Session).check(id, title).

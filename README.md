@@ -354,7 +354,7 @@ the one in flight and a plain result as it finishes:
   ○  Performance
   ○  Resilience
 
-  4 of 9 checks   ·   press q to stop
+  4 of 9 phases   ·   press q to stop
 ```
 
 Press `q` at any time to stop. When the run finishes, the checklist stays

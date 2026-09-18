@@ -49,7 +49,7 @@ func TestRunModel(t *testing.T) {
 	next, _ := m.Update(tea.WindowSizeMsg{Width: 90, Height: 30})
 	m = next.(*RunModel)
 	v := m.View()
-	for _, want := range []string{"scout", "http://x/mcp", "no credentials", "Connectivity", "3 checks", "q"} {
+	for _, want := range []string{"scout", "http://x/mcp", "no credentials", "Connectivity", "3 phases", "q"} {
 		if !strings.Contains(v, want) {
 			t.Errorf("initial view lacks %q:\n%s", want, v)
 		}
