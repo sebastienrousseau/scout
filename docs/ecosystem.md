@@ -10,9 +10,98 @@ What exists, what each piece is for, and what is only planned. Nothing on
 this page is aspirational unless it says so: a map that lists things which
 do not exist is worse than no map, because it costs a reader the trip.
 
-## Today: one repository, three surfaces, one engine
+## The family
 
-`scout` is a single repository. Everything below ships from it.
+Every repository around scout, generated from `internal/ecosystem` so that
+this table and the manifest cannot disagree. `make ecosystem-verify` fails the
+build when they do.
+
+<!-- BEGIN generated family table — run `make ecosystem`; do not edit by hand -->
+
+### Shipping
+
+| Repository | Licence | Lockstep | What it owns |
+|---|---|---|---|
+| `scout` | GPL-3.0-only | yes | The engine, every check, and the three peer surfaces: CLI, TUI and the embedded local web UI. |
+
+### Planned
+
+**These do not exist yet.** They are recorded so the layout cannot drift
+silently once they do, and so nobody goes looking for them. Every row states
+the boundary that forces a separate repository and the criterion for
+archiving it.
+
+#### `scout-reporting`
+
+The report schema, the renderers, the attestation predicate and its offline verifier, plus the rubric as versioned data.
+
+- **Licence** Apache-2.0 · **go** · **Lockstep** yes
+- **Why separate** Licence. A GPL-3.0 library cannot be embedded by the gateways and registries the strategy depends on, so the format and the renderers have to live where they can be imported.
+- **Archive when** No third party has adopted the predicate twelve months after v1. Fold it back into scout and stop paying the two-repository cost.
+
+#### `scout-mcp`
+
+An MCP server exposing scout's diagnostics as tools, so an agent can evaluate a server from inside the editor.
+
+- **Licence** GPL-3.0-only · **go** · **Lockstep** yes
+- **Why separate** Distribution surface. Its deliverable is a registry listing — server.json, glama.json, a container catalogue entry — which is a different release artefact with a different review path.
+- **Archive when** Registry listings produce no measurable referrals across two quarters.
+
+#### `scout-action`
+
+The GitHub Action wrapping the published image by digest, and a GitLab CI template.
+
+- **Licence** Apache-2.0 · **composite** · **Lockstep** yes
+- **Why separate** The Marketplace requires its own repository. It is also the cheapest verifiable traction signal, because GitHub publishes the usage count.
+- **Archive when** None. It is the lowest-cost, highest-signal artefact in the family.
+
+#### `scout-lsp`
+
+A language server over MCP artefacts — server.json, tool schemas, client configuration, scout policy and attestation files — with check-id hover from the guidance catalogue.
+
+- **Licence** Apache-2.0 · **go** · **Lockstep** no
+- **Why separate** Editor embedding. It ships inside editors and extension marketplaces whose licensing and release cadence are not scout's; the extensions live in its own editors/ directory rather than a repository each.
+- **Archive when** The guidance hover goes unused. Scoped so that cutting it costs one repository and no capability.
+
+#### `scout-census`
+
+The published reliability census: the dataset, the methodology, the disclosure log and the reproduction command.
+
+- **Licence** CC-BY-4.0 · **data** · **Lockstep** no
+- **Why separate** Licence and cadence. A GPL repository cannot cleanly carry a CC-BY dataset, and a quarterly data release has no business sharing a version with a fortnightly tool release.
+- **Archive when** The census is not repeated on schedule. Delete it rather than leave a stale dataset presented as current.
+
+### Considered and rejected
+
+| Repository | Why not |
+|---|---|
+| `scout-gateway` | Fourteen incumbents, two of them free and open source, one of them AWS. Being in the data path would also convert scout from a tool that touches nothing into a production dependency trusted with traffic. |
+| `scout-registry` | Contested by the official registry, the container catalogue and four directories, two of which already publish a score. Supply the signal they display instead. |
+| `scout-wasm` | CORS blocks a browser build against most servers. A build target, not a repository. |
+<!-- END generated family table -->
+
+Two names in that table are still open questions, recorded here rather than
+settled quietly:
+
+- **`scout-mcp`** was previously reserved for the public site and hosted
+  diagnostic. It is listed above as an MCP server instead, because a
+  repository with that name containing no MCP server misleads everyone who
+  finds it. The site keeps its current home in this repository — it is
+  `go:embed`ed, and the published check count is verified across `site/`,
+  `web/`, `docs/`, the README and the embedded shell, so splitting it would
+  reintroduce the drift that gate prevents.
+- **`scout-lsp`** was considered and deliberately deferred, on the grounds
+  that a language server is a large permanent surface with no demand behind
+  it. That reasoning holds for a language server over MCP *server source* and
+  not for one over MCP *artefacts* — `server.json`, tool schemas, client
+  configuration, and scout's own policy and attestation files, where hovering
+  a check id can return the guidance catalogue's remediation. It is listed
+  above at that narrower scope. The original objection is kept because a
+  reversed decision with its history intact is worth more than a tidy page.
+
+## Today: three surfaces, one engine
+
+Everything below ships from `scout` itself.
 
 | Surface | Entry point | What it is |
 |---|---|---|
@@ -46,22 +135,6 @@ Verification instructions, including the cosign certificate identity, are in
 keyless, so there is no long-lived key to publish, and the thing to check is
 the workflow identity in the certificate rather than a key fingerprint.
 
-## Planned
-
-**These do not exist yet.** They are recorded here so the layout cannot
-drift silently once they do, and so nobody goes looking for them.
-
-| Repository | Status | What it would own |
-|---|---|---|
-| `scout-mcp` | Designed, not created | scoutmcp.io — the public site and the hosted diagnostic. Deploys the published container image by digest; contains no Go source, so it cannot drift from the tool. |
-| `scout-action` | Proposed | A GitHub Action wrapping the published image. `scout check --output sarif` already writes what code scanning reads, so what is left is packaging, not capability. |
-
-`scout-lsp` and `scout-wasm` have been considered and deliberately deferred.
-A browser build is a target rather than a repository, and is blocked against
-most servers by CORS; a language server is a large permanent surface with no
-demand behind it yet. Most of that value was `scout check` emitting SARIF,
-which it now does, plus `scout-action`.
-
 ## The version rule
 
 **Every repository in the ecosystem always carries the same version.**
@@ -86,6 +159,13 @@ deployed is not.
 
 *Rule 2 and rule 3 take effect when the first satellite exists. Rule 1 is in
 force now.*
+
+The rule binds every repository whose **Lockstep** column says yes. Two rows
+are deliberately outside it. `scout-census` publishes a dataset, and a census
+edition is not a build of the tool — binding them would force a no-op tool
+release every quarter. `scout-lsp` follows editor and marketplace cadences
+that are not this project's. Anything that embeds or reports a scout version
+stays in lockstep, because that is the ambiguity the rule exists to remove.
 
 ## Where to go next
 

@@ -14,9 +14,9 @@ COVER_MIN ?= 85
 
 .PHONY: web-shell all build docs test test-race vet lint format spdx-check example-check \
         fuzz sbom coverage bench api-check checks checks-verify docs-lock \
-        site clean help
+        ecosystem ecosystem-verify commitlint site clean help
 
-all: format vet lint spdx-check example-check test test-race build
+all: format vet lint spdx-check example-check ecosystem-verify test test-race build
 
 build:
 	go build -trimpath -ldflags '$(LDFLAGS)' -o $(DIST)/$(BINARY_NAME) ./cmd/scout
@@ -84,6 +84,22 @@ checks:
 
 checks-verify:
 	go run ./scripts/checkinventory/main.go -check
+
+# The family manifest in internal/ecosystem is the single source; the table in
+# docs/ecosystem.md and the ecosystem.json that other repositories read are
+# both generated from it. REPO-STANDARD requires that table to be CI-checked
+# so a multi-repository family cannot drift.
+ecosystem:
+	go run ./scripts/ecosystem/main.go
+
+ecosystem-verify:
+	go run ./scripts/ecosystem/main.go -check
+
+# AGENTS.md section 4, on the commits this change adds and never on the
+# history behind them. RANGE overrides the default for a local check.
+RANGE ?= origin/main..HEAD
+commitlint:
+	go run ./scripts/commitlint.go "$(RANGE)"
 
 docs-lock:
 	@command -v pip-compile >/dev/null 2>&1 || { \

@@ -1,0 +1,117 @@
+{
+  "_comment": "Generated from internal/ecosystem by scripts/ecosystem. Do not edit by hand. Every repository in the family verifies its own row against this file in CI.",
+  "schema_version": 1,
+  "family": "scout",
+  "standard": "REPO-STANDARD.md",
+  "repositories": [
+    {
+      "name": "scout",
+      "status": "shipping",
+      "role": "The engine, every check, and the three peer surfaces: CLI, TUI and the embedded local web UI.",
+      "language": "go",
+      "license": "GPL-3.0-only",
+      "lockstep": true,
+      "artifacts": [
+        "README.md",
+        "CHANGELOG.md",
+        "LICENSE",
+        "LICENSES",
+        "REUSE.toml",
+        "DEVELOPMENT.md",
+        "SECURITY.md",
+        "SUPPORT.md",
+        "GOVERNANCE.md",
+        "CODE_OF_CONDUCT.md",
+        "CONTRIBUTING.md",
+        "AGENTS.md",
+        "CITATION.cff",
+        "Makefile",
+        "GNUmakefile",
+        "docs",
+        "docs/adr",
+        "examples",
+        "pkg",
+        "scripts",
+        "supply-chain",
+        ".devcontainer",
+        ".editorconfig",
+        ".pre-commit-config.yaml",
+        ".github/workflows"
+      ]
+    },
+    {
+      "name": "scout-reporting",
+      "status": "planned",
+      "role": "The report schema, the renderers, the attestation predicate and its offline verifier, plus the rubric as versioned data.",
+      "language": "go",
+      "license": "Apache-2.0",
+      "boundary": "Licence. A GPL-3.0 library cannot be embedded by the gateways and registries the strategy depends on, so the format and the renderers have to live where they can be imported.",
+      "lockstep": true,
+      "archive_when": "No third party has adopted the predicate twelve months after v1. Fold it back into scout and stop paying the two-repository cost."
+    },
+    {
+      "name": "scout-mcp",
+      "status": "planned",
+      "role": "An MCP server exposing scout's diagnostics as tools, so an agent can evaluate a server from inside the editor.",
+      "language": "go",
+      "license": "GPL-3.0-only",
+      "boundary": "Distribution surface. Its deliverable is a registry listing — server.json, glama.json, a container catalogue entry — which is a different release artefact with a different review path.",
+      "lockstep": true,
+      "archive_when": "Registry listings produce no measurable referrals across two quarters."
+    },
+    {
+      "name": "scout-action",
+      "status": "planned",
+      "role": "The GitHub Action wrapping the published image by digest, and a GitLab CI template.",
+      "language": "composite",
+      "license": "Apache-2.0",
+      "boundary": "The Marketplace requires its own repository. It is also the cheapest verifiable traction signal, because GitHub publishes the usage count.",
+      "lockstep": true,
+      "archive_when": "None. It is the lowest-cost, highest-signal artefact in the family."
+    },
+    {
+      "name": "scout-lsp",
+      "status": "planned",
+      "role": "A language server over MCP artefacts — server.json, tool schemas, client configuration, scout policy and attestation files — with check-id hover from the guidance catalogue.",
+      "language": "go",
+      "license": "Apache-2.0",
+      "boundary": "Editor embedding. It ships inside editors and extension marketplaces whose licensing and release cadence are not scout's; the extensions live in its own editors/ directory rather than a repository each.",
+      "lockstep": false,
+      "archive_when": "The guidance hover goes unused. Scoped so that cutting it costs one repository and no capability."
+    },
+    {
+      "name": "scout-census",
+      "status": "planned",
+      "role": "The published reliability census: the dataset, the methodology, the disclosure log and the reproduction command.",
+      "language": "data",
+      "license": "CC-BY-4.0",
+      "boundary": "Licence and cadence. A GPL repository cannot cleanly carry a CC-BY dataset, and a quarterly data release has no business sharing a version with a fortnightly tool release.",
+      "lockstep": false,
+      "archive_when": "The census is not repeated on schedule. Delete it rather than leave a stale dataset presented as current."
+    },
+    {
+      "name": "scout-gateway",
+      "status": "rejected",
+      "role": "An in-path MCP gateway.",
+      "language": "—",
+      "lockstep": false,
+      "rejected_because": "Fourteen incumbents, two of them free and open source, one of them AWS. Being in the data path would also convert scout from a tool that touches nothing into a production dependency trusted with traffic."
+    },
+    {
+      "name": "scout-registry",
+      "status": "rejected",
+      "role": "An index of MCP servers.",
+      "language": "—",
+      "lockstep": false,
+      "rejected_because": "Contested by the official registry, the container catalogue and four directories, two of which already publish a score. Supply the signal they display instead."
+    },
+    {
+      "name": "scout-wasm",
+      "status": "rejected",
+      "role": "A browser build of the engine.",
+      "language": "—",
+      "lockstep": false,
+      "rejected_because": "CORS blocks a browser build against most servers. A build target, not a repository."
+    }
+  ]
+}
