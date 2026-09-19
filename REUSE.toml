@@ -44,7 +44,7 @@ SPDX-FileCopyrightText = "2026 Sebastien Rousseau <sebastian.rousseau@gmail.com>
 SPDX-License-Identifier = "GPL-3.0-only"
 
 # Fuzzing corpora and test fixtures. A seed file is bytes by definition; the
-# committed crashers are regression inputs, replayed on every push.
+# committed failing inputs are regression cases, replayed on every push.
 [[annotations]]
 path = ["**/testdata/**"]
 precedence = "aggregate"
