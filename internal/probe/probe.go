@@ -221,6 +221,11 @@ type Session struct {
 	ResourceResults []ResourceResult
 	PromptResults   []PromptResult
 	Perf            *PerfResult
+	// MRTR records every input_required result the run saw, so
+	// protocol.mrtr can judge whether they were answerable. Observational
+	// rather than probed: scout cannot make a server ask for input, and a
+	// tool that needs it is the only thing that produces one.
+	MRTR []MRTRObservation
 
 	Results []PhaseResult
 	blocked string

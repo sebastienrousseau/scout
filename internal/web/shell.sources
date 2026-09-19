@@ -3,4 +3,4 @@
 # committed build that no longer matches its sources is caught, which is a
 # thing nothing else notices: the shell is embedded at compile time and a
 # stale one builds perfectly.
-0f2448b22f64eae074e00fc23a2f2a732ea55fda16c8ced1b49c252ef4bc8844
+d488c8273cc20c6b9d3d0a45a42bb2568009189c30b3e27e2965d404eb7e636e
