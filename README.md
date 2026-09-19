@@ -20,7 +20,7 @@
   <a href="https://scoutmcp.io/manual/"><img src="https://img.shields.io/badge/docs-manual-brightgreen?style=for-the-badge&logo=github" alt="Documentation" /></a>
   <a href="https://github.com/sebastienrousseau/scout/releases/latest"><img src="https://img.shields.io/github/v/release/sebastienrousseau/scout?style=for-the-badge" alt="Release Version" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-blue?style=for-the-badge" alt="License" /></a>
-  <a href="#requirements--toolchain-policy"><img src="https://img.shields.io/github/go-mod/go-version/sebastienrousseau/scout?style=for-the-badge&logo=go&logoColor=white&label=Go" alt="Minimum Go version" /></a>
+  <a href="#requirements"><img src="https://img.shields.io/github/go-mod/go-version/sebastienrousseau/scout?style=for-the-badge&logo=go&logoColor=white&label=Go" alt="Minimum Go version" /></a>
 </p>
 
 ---
@@ -30,10 +30,15 @@
 **Getting started**
 
 - [Install](#install) — mise, Homebrew, Arch, Nix, Go, or from source
+- [Requirements](#requirements) — the Go floor, the policy for raising it, network
 - [Quick Start](#quick-start) — diagnose a server in one command
 - [Servers that are programs](#servers-that-are-programs) — `--stdio`, for a server you run rather than fetch
 
-**Features & Capabilities**
+**The scout ecosystem** (one engine, three surfaces, five satellites)
+
+- [The scout ecosystem](#the-scout-ecosystem) — `scout`, `scout-reporting`, `scout-mcp`, `scout-action`, `scout-lsp`, `scout-census` at a glance
+
+**Using scout**
 
 - [Features](#features) — nine phases, real credentials, honest scoring
 - [Architecture](#architecture) — end-to-end flow from first contact to report
@@ -44,9 +49,6 @@
 - [Understanding your report](#understanding-your-report) — the verdict, the score, what to fix
 - [Scoring](#scoring) — six weighted categories, every deduction named
 - [Library use](#library-use) — the public packages the CLI is built on
-
-**Reference & Operational**
-
 - [Usage & Flags](#usage--flags) — complete CLI parameter reference
 - [Configuration file](#configuration-file) — defaults and profiles keyed by flag name
 - [Coming from another tool](#coming-from-another-tool) — Inspector, curl scripts, playgrounds
@@ -54,13 +56,13 @@
 - [Troubleshooting](#troubleshooting) — quick solutions to common errors
 - [Frequently Asked Questions](#frequently-asked-questions) — design decisions
 
-**Project**
+**Operational**
 
-- [Documentation](#documentation) — manual, API reference, developer docs, ecosystem map
 - [When not to use scout](#when-not-to-use-scout) — honest limits
-- [Requirements & toolchain policy](#requirements--toolchain-policy) — the Go floor and when it moves
+- [Development](#development) — make targets, what is generated, the site toolchain
+- [Security](#security) — reporting, posture, fuzzing, supply chain
+- [Documentation](#documentation) — manual, API reference, developer docs, ecosystem map
 - [Stability guarantees](#stability-guarantees) — what a breaking change means here
-- [Security & hardening](#security--hardening) — reporting, posture, fuzzing
 - [License](#license)
 
 ---
@@ -156,6 +158,25 @@ sudo dnf install golang
 ```
 
 </details>
+
+---
+
+## Requirements
+
+| | |
+|---|---|
+| **Go** | The `go` directive in [`go.mod`](go.mod) — currently **1.26.8** |
+| **Network** | Outbound HTTPS to the server under test and its authorization server |
+
+The Go floor is stated in exactly one place, `go.mod`, and CI sets
+`GOTOOLCHAIN=auto` so it cannot disagree with a workflow input.
+
+**Policy for raising it.** The floor may rise in any release when a
+standard-library fix or language feature justifies it, and the reason is
+recorded in that release's CHANGELOG entry. scout makes **no distro-LTS
+compatibility promise** — an aspirational claim without a table mapping
+distro toolchains to the floor would be worse than none. Packagers should
+check `go.mod` on every version bump rather than assume the floor held.
 
 ---
 
@@ -315,6 +336,75 @@ scout call --stdio get-sum --arg a=2 --arg b=3 -- npx -y @modelcontextprotocol/s
 ```
 
 The full picture is in [the manual](https://scoutmcp.io/manual/stdio/).
+
+## The scout ecosystem
+
+scout is one engine with three peer surfaces, plus a family of satellites that
+reach places a single binary cannot: an editor, a registry listing, a licence
+that permits embedding. The map below is generated from
+[`internal/ecosystem`](internal/ecosystem/family.go) so that it cannot
+disagree with the manifest; `make ecosystem-verify` fails the build when it
+does.
+
+<!-- BEGIN generated family table — run `make ecosystem`; do not edit by hand -->
+
+| Repository | Status | Licence | What it owns |
+|---|---|---|---|
+| **`scout`** | shipping | GPL-3.0-only | The engine, every check, and the three peer surfaces: CLI, TUI and the embedded local web UI. |
+| `scout-reporting` | planned | Apache-2.0 | The report schema, the renderers, the attestation predicate and its offline verifier, plus the rubric as versioned data. |
+| `scout-mcp` | planned | GPL-3.0-only | An MCP server exposing scout's diagnostics as tools, so an agent can evaluate a server from inside the editor. |
+| `scout-action` | planned | Apache-2.0 | The GitHub Action wrapping the published image by digest, and a GitLab CI template. |
+| `scout-lsp` | planned | Apache-2.0 | A language server over MCP artefacts — `server.json`, tool schemas, client configuration, scout policy and attestation files — with check-id hover from the guidance catalogue. |
+| `scout-census` | planned | CC-BY-4.0 | The published reliability census: the dataset, the methodology, the disclosure log and the reproduction command. |
+
+<!-- END generated family table -->
+
+**Everything except `scout` is planned, not shipping.** They are listed
+because a layout recorded before it exists cannot drift silently once it
+does — and so nobody goes looking for a repository that is not there.
+[`docs/ecosystem.md`](docs/ecosystem.md) carries the full entry for each one,
+including why it is a separate repository at all and the criterion for
+archiving it.
+
+Three were considered and rejected, with the reasons kept rather than
+forgotten: `scout-gateway` (fourteen incumbents, and being in the data path
+would make scout a production dependency rather than a tool that touches
+nothing), `scout-registry` (contested by the official registry and four
+directories — supply the signal they display instead), and `scout-wasm`
+(CORS blocks a browser build against most servers, so it is a build target
+rather than a repository).
+
+### Install the pieces
+
+Only one of them exists today, which is why there is one command:
+
+```bash
+mise use -g ubi:sebastienrousseau/scout          # the engine, CLI, TUI and local web UI
+```
+
+### The three surfaces
+
+One engine, three front ends, and the parity is enforced rather than
+intended — `cmd/parity_test.go` fails the build when a flag configures a run
+but carries no `RunSpec` field, because a capability reachable only through a
+flag is one the other two surfaces can never have.
+
+| Surface | Entry point | For |
+|---|---|---|
+| CLI | `scout check` | CI, scripts, and an exit code |
+| TUI | `scout tui` | Watching a run and picking which tools to exercise |
+| Web | `scout serve` | A browser on your own machine; the same run, the same report |
+
+### The version rule
+
+Every repository whose **Lockstep** column says yes carries the same version
+as `scout`, propagated automatically on release, with a required check that
+blocks a merge on disagreement. Ambiguity about which build sits behind a
+hosted diagnostic is the expensive kind for a security tool. The dataset and
+the language server sit outside it deliberately: a census edition is not a
+build of the tool, and editor marketplaces keep their own cadence.
+
+---
 
 ## Features
 
@@ -889,33 +979,6 @@ see the self-contained, copy-pasteable Go code examples in the
 
 ---
 
-## Documentation
-
-The four entry points, identical across every repo in the family:
-
-- **[User Manual](https://scoutmcp.io/manual/)** — the rendered manual: getting started, credentials, the nine phases, reports, configuration
-- **[API reference](https://pkg.go.dev/github.com/sebastienrousseau/scout)** — the Go packages the CLI is built on
-- **[Developer docs](DEVELOPMENT.md)** — toolchain, task map, reproducing every CI gate locally
-- **[Ecosystem map](docs/ecosystem.md)** — the surfaces, the published artefacts, the lockstep version rule
-
-| Document | Covers |
-|---|---|
-| [`docs/architecture.md`](docs/architecture.md) | How a run is put together: the engine, the phases, the transports |
-| [`docs/checks.md`](docs/checks.md) | Every check scout runs, generated from the source and gated in CI |
-| [`docs/adr/`](docs/adr/) | Decision records for the choices that get questioned later |
-| [`docs/security-model.md`](docs/security-model.md) | Threat model, the credential boundary, what scout will and will not send |
-| [`docs/packaging.md`](docs/packaging.md) | Addressed to distribution maintainers: licence grant, toolchain policy, offline tests |
-| [`pkg/VERIFY.md`](pkg/VERIFY.md) | Verifying a release: checksums, keyless cosign identity, SBOM |
-| [`SECURITY.md`](SECURITY.md) | Disclosure policy, supported versions, response SLA |
-| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Signed-commit and DCO policy, PR guidelines, the local test recipe |
-| [`CHANGELOG.md`](CHANGELOG.md) | Per-release notes following Keep a Changelog 1.1.0 |
-| [`SUPPORT.md`](SUPPORT.md) | Where to ask, and what to expect |
-
-Once installed, `man scout` works offline, and every subcommand has its own
-page (`man scout-check`).
-
----
-
 ## When not to use scout
 
 scout is opinionated, and the opinions do not suit everyone.
@@ -946,54 +1009,64 @@ scout is opinionated, and the opinions do not suit everyone.
 
 ---
 
-## Requirements & toolchain policy
+## Development
 
-| | |
-|---|---|
-| **Go** | The `go` directive in [`go.mod`](go.mod) — currently **1.26.8** |
-| **Network** | Outbound HTTPS to the server under test and its authorization server |
+```bash
+make              # format, vet, lint, spdx, examples, ecosystem, test, race, build
+make test         # go test ./...
+make test-race    # -race -shuffle=on -count=1
+make lint         # golangci-lint at zero warnings
+make coverage     # coverage against the stated gate
+make bench        # benchmarks, smoke-run and asserted on nothing
+make checks       # regenerate docs/checks.md from the call sites
+make ecosystem    # regenerate the family map from internal/ecosystem
+make commitlint   # AGENTS.md section 4 on the commits this branch adds
+make docs         # manpages and shell completions from the cobra definitions
+make site         # the marketing site, via ssg
+make web-shell    # the embedded application shell, via ssg
+make sbom         # CycloneDX bill of materials
+make api-check    # API breakage against the last release
+make fuzz         # every fuzz target, with the committed corpus replayed
+```
 
-The Go floor is stated in exactly one place, `go.mod`, and CI sets
-`GOTOOLCHAIN=auto` so it cannot disagree with a workflow input.
+[`DEVELOPMENT.md`](DEVELOPMENT.md) reproduces every CI gate locally, one
+command per gate, and is the single entry point for a new contributor.
 
-**Policy for raising it.** The floor may rise in any release when a
-standard-library fix or language feature justifies it, and the reason is
-recorded in that release's CHANGELOG entry. scout makes **no distro-LTS
-compatibility promise** — an aspirational claim without a table mapping
-distro toolchains to the floor would be worse than none. Packagers should
-check `go.mod` on every version bump rather than assume the floor held.
+### What is generated, and never edited by hand
+
+Four things in this repository are derived, and editing the output instead of
+the source is the mistake the gates exist to catch:
+
+| Output | Source | Gate |
+|---|---|---|
+| `docs/checks.md` | the `(*Session).check(id, title)` call sites | `make checks-verify` |
+| `docs/ecosystem.md`, `ecosystem.json`, the table above | `internal/ecosystem` | `make ecosystem-verify` |
+| `internal/web/dist/` | `web/content` + `web/_layouts`, via `ssg` | `make web-shell` asserts it is not empty |
+| manpages, completions | the cobra command definitions | `make docs` |
+
+The published check count is verified across seven files, including the
+committed application shell. That gate exists because the shell once shipped
+advertising a figure the source had long since left behind: a rebuild is
+something a person has to remember, and this is what happens when they do
+not.
+
+### The website and the application shell
+
+Both are built with [`ssg`](https://static-site-generator.com/) from the
+**Scout theme** in the [SSG theme suite](https://github.com/sebastienrousseau/ssg-themes.github.io),
+which supplies the WCAG AAA colour tokens, the dark mode, the severity ledger,
+the evidence tables and the print stylesheet that turns a report into a PDF.
+The layouts are vendored under `web/_layouts` and `site/_layouts` on purpose,
+so the site builds in CI with nothing but the `ssg` binary: a product site
+that needs a second repository checked out to build is a product site that
+breaks the week nobody is looking.
+
+There is no second toolchain and no hand-written page. Design changes belong
+upstream in the theme, not in a local fork of it.
 
 ---
 
-## Stability guarantees
-
-scout is pre-1.0 and follows SemVer, with the patch digit moving for
-everything until 1.0.
-
-**The breaking axis is behaviour, not signatures.** For a tool whose output
-is consumed by pipelines and whose requests reach other people's servers, a
-change to what it *sends* or *reports* is breaking even when no flag or
-function signature moves. Specifically, these are treated as breaking:
-
-- A change to what `--output json` / `ndjson` emits, beyond added fields
-- A change to a finding id, or to the status a given observation produces
-- A change to the score weights or deductions
-- A change to an exit code
-- A safety refusal becoming permissive: any case where scout used to
-  decline to invoke a tool and now proceeds
-- A new request that reaches the server under test without a flag to
-  disable it
-
-Added fields, new flags with inert defaults, new findings, and new refusals
-are **not** breaking.
-
-**Deprecation window.** A deprecated flag keeps working for at least one
-minor release after the release that announces it, and warns on stderr —
-never on stdout, which carries the selected output format.
-
----
-
-## Security & hardening
+## Security
 
 **Reporting.** Do not open a public issue. Follow the private process in
 [SECURITY.md](SECURITY.md); the response SLA is stated there.
@@ -1032,6 +1105,61 @@ provenance and a CycloneDX SBOM, and are built with `-trimpath` so two
 builds of a commit are byte-identical. Every GitHub Action is pinned by
 commit SHA and the container base by digest. `govulncheck` runs on every
 push.
+
+---
+
+## Documentation
+
+The four entry points, identical across every repo in the family:
+
+- **[User Manual](https://scoutmcp.io/manual/)** — the rendered manual: getting started, credentials, the nine phases, reports, configuration
+- **[API reference](https://pkg.go.dev/github.com/sebastienrousseau/scout)** — the Go packages the CLI is built on
+- **[Developer docs](DEVELOPMENT.md)** — toolchain, task map, reproducing every CI gate locally
+- **[Ecosystem map](docs/ecosystem.md)** — the surfaces, the published artefacts, the lockstep version rule
+
+| Document | Covers |
+|---|---|
+| [`docs/architecture.md`](docs/architecture.md) | How a run is put together: the engine, the phases, the transports |
+| [`docs/checks.md`](docs/checks.md) | Every check scout runs, generated from the source and gated in CI |
+| [`docs/adr/`](docs/adr/) | Decision records for the choices that get questioned later |
+| [`docs/security-model.md`](docs/security-model.md) | Threat model, the credential boundary, what scout will and will not send |
+| [`docs/packaging.md`](docs/packaging.md) | Addressed to distribution maintainers: licence grant, toolchain policy, offline tests |
+| [`pkg/VERIFY.md`](pkg/VERIFY.md) | Verifying a release: checksums, keyless cosign identity, SBOM |
+| [`SECURITY.md`](SECURITY.md) | Disclosure policy, supported versions, response SLA |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Signed-commit and DCO policy, PR guidelines, the local test recipe |
+| [`CHANGELOG.md`](CHANGELOG.md) | Per-release notes following Keep a Changelog 1.1.0 |
+| [`SUPPORT.md`](SUPPORT.md) | Where to ask, and what to expect |
+
+Once installed, `man scout` works offline, and every subcommand has its own
+page (`man scout-check`).
+
+---
+
+## Stability guarantees
+
+scout is pre-1.0 and follows SemVer, with the patch digit moving for
+everything until 1.0.
+
+**The breaking axis is behaviour, not signatures.** For a tool whose output
+is consumed by pipelines and whose requests reach other people's servers, a
+change to what it *sends* or *reports* is breaking even when no flag or
+function signature moves. Specifically, these are treated as breaking:
+
+- A change to what `--output json` / `ndjson` emits, beyond added fields
+- A change to a finding id, or to the status a given observation produces
+- A change to the score weights or deductions
+- A change to an exit code
+- A safety refusal becoming permissive: any case where scout used to
+  decline to invoke a tool and now proceeds
+- A new request that reaches the server under test without a flag to
+  disable it
+
+Added fields, new flags with inert defaults, new findings, and new refusals
+are **not** breaking.
+
+**Deprecation window.** A deprecated flag keeps working for at least one
+minor release after the release that announces it, and warns on stderr —
+never on stdout, which carries the selected output format.
 
 ---
 
