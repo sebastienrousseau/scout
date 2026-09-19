@@ -1,0 +1,6 @@
+# The hash of every tracked file under web and brand,
+# written by `make web-shell` and verified by `make ssg-check`. It is how a
+# committed build that no longer matches its sources is caught, which is a
+# thing nothing else notices: the shell is embedded at compile time and a
+# stale one builds perfectly.
+0f2448b22f64eae074e00fc23a2f2a732ea55fda16c8ced1b49c252ef4bc8844
