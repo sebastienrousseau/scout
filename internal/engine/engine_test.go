@@ -391,7 +391,7 @@ func TestWriteDir(t *testing.T) {
 	// added and never said which file was missing.
 	want := []string{
 		"report.json", "report.md", "report.html", "report.txt",
-		"report.sarif", "report.junit.xml",
+		"report.sarif", "report.junit.xml", "attestation.json",
 		"telemetry.ndjson", "telemetry.har",
 	}
 	if len(files) != len(want) {

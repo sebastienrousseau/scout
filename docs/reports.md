@@ -1,7 +1,7 @@
 ---
 # SPDX-License-Identifier: GPL-3.0-only
 description: >-
-  scout's output formats — text, Markdown, JSON, NDJSON and HTML — plus the report directory, the HAR export, and what telemetry holds.
+  scout's output formats — text, Markdown, JSON, NDJSON, HTML and the in-toto attestation — plus the report directory, the HAR export, and what telemetry holds.
 ---
 
 # Reports and telemetry
@@ -17,6 +17,7 @@ description: >-
 | `html` | one self-contained document — the page `scout serve` shows, and the PDF its print stylesheet produces |
 | `sarif` | SARIF 2.1.0, for GitHub code scanning and anything else that reads it |
 | `junit` | JUnit XML, so a run appears beside the unit tests in the CI panel |
+| `attestation` | not a report: an in-toto statement about the server, for signing and for `scout verify`. See [Attestations](#attestations) |
 
 ## The report directory
 
@@ -29,8 +30,89 @@ description: >-
 | `report.json` | the full report with every event embedded |
 | `report.sarif` | the SARIF 2.1.0 rendering |
 | `report.junit.xml` | the JUnit rendering |
+| `attestation.json` | the in-toto statement — the only file here a machine can act on without reading prose |
 | `telemetry.ndjson` | one line per request |
 | `telemetry.har` | the same as an HTTP Archive 1.2, which any browser's devtools can open |
+
+## Attestations
+
+Every format above is the findings arranged for a particular reader. An
+attestation is a different thing: a **claim** about the server, in the
+in-toto envelope a supply-chain pipeline already verifies, meant to be signed
+and handed to a machine that was not present when the run happened — a
+gateway deciding whether to route, a registry deciding what to display, an
+auditor deciding in March whether a control was met.
+
+```sh
+scout check https://mcp.example.com/mcp --output attestation > attestation.json
+```
+
+Four properties make it worth more than the JSON report:
+
+- **It says what it was judged against.** `82/100` means nothing in 2029
+  without the rubric version and the MCP revision attached to it.
+- **The subject digest covers a target descriptor, and the statement says
+  so.** A digest that looked like an artifact hash while covering a URL
+  would be the kind of lie that survives review.
+- **It carries every verdict, passes included.** A consumer cannot otherwise
+  tell "checked and fine" from "not checked".
+- **It verifies offline.** A gateway must never have to call scout to trust
+  a statement scout produced.
+
+### Producing one in a later job
+
+Signing usually is not the job that ran the diagnostic. Run scout where the
+server credentials live, save the report, and attest somewhere with an OIDC
+identity and no access to the server at all — the split SLSA provenance uses:
+
+```sh
+scout check "$URL" --output json > report.json   # has credentials
+scout attest report.json > attestation.json      # has an identity
+cosign attest-blob --predicate attestation.json --new-bundle-format ...
+```
+
+`scout attest` reads standard input when given no filename.
+
+### Verifying and gating
+
+`scout verify` answers one question by default: **can the statement be
+believed?** It parses, its subject digest still covers the target it names,
+its subject is named for that same target, and it records what the verdicts
+were judged against.
+
+That is not approval. A statement can be perfectly valid and describe a
+server you would never route to, so approval is opt-in:
+
+```sh
+scout verify attestation.json \
+  --endpoint https://mcp.example.com/mcp \
+  --require auth.unauthenticated_tools \
+  --max-fail 0
+```
+
+| Gate | Holds when |
+|---|---|
+| `--endpoint URL` | the statement is about that target. Add `--transport stdio` for a child process |
+| `--require ID` | that check's verdict is a pass. **Absent is not a pass** — a statement that never ran the check cannot vouch for it |
+| `--max-fail N` | at most N checks failed |
+| `--min-score N` | the score is at least N. A run that assessed nothing carries no score, and a missing score never counts as zero |
+
+A gate applies because the flag was given, not because of its value:
+`--max-fail 0` is the strictest form of that gate, and omitting the flag asks
+for no gate at all.
+
+Exit status is the part a pipeline reads:
+
+| Code | Meaning |
+|---|---|
+| `0` | valid, and every gate met |
+| `2` | valid, and a gate was not met — the evidence is good and the answer is no |
+| `1` | the statement cannot be believed at all — the evidence is unusable |
+
+Treat `1` and `2` differently. They are different incidents.
+
+Nothing in `scout verify` checks a signature. Verify the envelope with the
+tool that produced it, then verify what is inside it with this.
 
 ## SARIF and JUnit
 
