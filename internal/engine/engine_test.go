@@ -15,6 +15,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/sebastienrousseau/scout/internal/policy"
 )
 
 // demoServer is a small, well-behaved MCP server: enough catalog for a
@@ -452,3 +454,102 @@ func TestSpecString(t *testing.T) {
 		t.Errorf("String should name the target: %q", got)
 	}
 }
+
+// A policy replaces the default failure rule rather than adding to it, and
+// the decision belongs here rather than in a surface: the package comment
+// says no capability lives in one surface, and "is this server acceptable"
+// is the capability most likely to drift if the CLI owned it.
+func TestGateDecidesWhetherARunFailed(t *testing.T) {
+	srv := demoServer(t)
+	spec := demoSpec(srv)
+	spec.Phases.Only = []string{"net", "handshake"}
+
+	// No policy: the default rule, whatever this fixture produces.
+	plain := Run(context.Background(), spec, nil)
+	if plain.Report == nil {
+		t.Fatalf("no report: %v", plain.Err)
+	}
+	if plain.Gate != nil {
+		t.Errorf("a gate was evaluated without a policy: %+v", plain.Gate)
+	}
+	wantDefault := plain.Report.Counts.Fail > 0
+	if plain.Failed() != wantDefault {
+		t.Errorf("Failed() = %v with %d failures", plain.Failed(), plain.Report.Counts.Fail)
+	}
+
+	// A policy that cannot be met fails the run even if nothing else did.
+	spec.Gate = &policy.Policy{Version: 1, Name: "unreachable", MinScore: ptrTo(100.0)}
+	res := Run(context.Background(), spec, nil)
+	if res.Gate == nil {
+		t.Fatal("the spec carried a policy and no gate was evaluated")
+	}
+	if res.Gate.OK || !res.Failed() {
+		t.Errorf("an unmet policy did not fail the run: %+v", res.Gate.Rules)
+	}
+
+	// And one that is met passes it, which is the whole point: a team's
+	// written decision has to be able to overrule the default.
+	spec.Gate = &policy.Policy{Version: 1, Name: "reachable", MinScore: ptrTo(0.0)}
+	res = Run(context.Background(), spec, nil)
+	if res.Gate == nil || !res.Gate.OK {
+		t.Fatalf("gate = %+v", res.Gate)
+	}
+	if res.Failed() {
+		t.Error("a met policy did not clear the run")
+	}
+
+	// The report directory carries the decision beside the evidence.
+	dir := filepath.Join(t.TempDir(), "out")
+	spec.Output.ReportDir = dir
+	res = Run(context.Background(), spec, nil)
+	files, err := res.WriteDir(spec, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, f := range files {
+		if filepath.Base(f) == "policy.json" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("no policy.json in %v", files)
+	}
+	b, err := os.ReadFile(filepath.Join(dir, "policy.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got struct {
+		Policy string `json:"policy"`
+		OK     bool   `json:"ok"`
+	}
+	if err := json.Unmarshal(b, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Policy != "reachable" || !got.OK {
+		t.Errorf("policy.json = %+v", got)
+	}
+}
+
+// A spec carrying a policy that cannot be enforced must be refused before the
+// run starts. Nothing has been measured at that point, so proceeding would
+// produce a verdict the policy could not judge.
+func TestValidateRefusesAnUnenforceablePolicy(t *testing.T) {
+	spec := RunSpec{Target: TargetSpec{Endpoint: "https://mcp.example.com/mcp"}}.WithDefaults()
+	spec.Gate = &policy.Policy{Version: 99, Name: "from the future"}
+	err := spec.Validate()
+	if err == nil {
+		t.Fatal("a spec with a policy from a later version validated")
+	}
+	if !strings.Contains(err.Error(), "upgrade scout") {
+		t.Errorf("error = %v", err)
+	}
+
+	// And a valid one does not get in the way.
+	spec.Gate = &policy.Policy{Version: 1, Name: "fine"}
+	if err := spec.Validate(); err != nil {
+		t.Errorf("a valid policy was refused: %v", err)
+	}
+}
+
+func ptrTo[T any](v T) *T { return &v }

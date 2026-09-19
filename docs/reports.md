@@ -101,6 +101,12 @@ A gate applies because the flag was given, not because of its value:
 `--max-fail 0` is the strictest form of that gate, and omitting the flag asks
 for no gate at all.
 
+For anything an organisation has to agree on, `--policy` takes a file instead
+— reviewable, versioned, and able to carry exceptions with a reason and an
+expiry date. The same file governs a live run through `scout check --policy`,
+so a gateway checking a statement months later applies what the pipeline
+applied. See [Acceptance policies](policy.md).
+
 Exit status is the part a pipeline reads:
 
 | Code | Meaning |

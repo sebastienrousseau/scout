@@ -67,6 +67,7 @@ nav:
   - The stateless revision: stateless.md
   - Reports and telemetry: reports.md
   - Reading the evidence: evidence.md
+  - Acceptance policies: policy.md
   - Running scout in CI: ci.md
   - Configuration: configuration.md
   - Library use: library.md

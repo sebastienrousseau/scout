@@ -121,6 +121,20 @@ func (r *Result) WriteDir(spec RunSpec, version string) ([]string, error) {
 		{"telemetry.ndjson", func(w io.Writer) error { return r.recorder().WriteNDJSON(w) }},
 		{"telemetry.har", func(w io.Writer) error { return r.recorder().WriteHAR(w, version) }},
 	}
+	// The policy's answer, when one was applied. Separate from the report on
+	// purpose: a report is about the server and this is about a decision
+	// somebody made, and a consumer that wants one rarely wants the other.
+	if r.Gate != nil {
+		gate := *r.Gate
+		steps = append(steps, struct {
+			name string
+			fn   func(io.Writer) error
+		}{"policy.json", func(w io.Writer) error {
+			enc := json.NewEncoder(w)
+			enc.SetIndent("", "  ")
+			return enc.Encode(gate)
+		}})
+	}
 	for _, s := range steps {
 		if err := write(s.name, s.fn); err != nil {
 			return nil, err

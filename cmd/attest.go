@@ -11,8 +11,10 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/sebastienrousseau/scout/internal/attest"
+	"github.com/sebastienrousseau/scout/internal/policy"
 	"github.com/sebastienrousseau/scout/internal/report"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -32,8 +34,9 @@ import (
 // `verify` is deliberately not a verdict about the server. It answers
 // whether the statement can be believed: that it parses, that its digest
 // still covers the target it names, that it says what it was judged against.
-// Whether the server is good enough is a policy question, and policy is the
-// flags.
+// Whether the server is good enough is a separate question, answered by the
+// gate flags for a one-off and by --policy for anything an organisation has
+// to agree on.
 
 var attestCmd = &cobra.Command{
 	Use:   "attest [report.json]",
@@ -99,6 +102,7 @@ var (
 	// file's defaults, and neither applies to a command that renders a
 	// verification rather than a report.
 	verifyOutput string
+	verifyPolicy string
 )
 
 var verifyCmd = &cobra.Command{
@@ -128,6 +132,16 @@ how you ask for no gate at all.
   scout verify attestation.json --endpoint https://mcp.example.com/mcp \
     --require auth.unauthenticated_tools --max-fail 0
 
+For anything an organisation has to agree on, use a file instead:
+
+  scout verify attestation.json --policy company.json
+
+A policy is reviewable, it carries exceptions with a reason and an expiry
+date, and it is refused rather than partly applied if it was written for a
+later scout. The same file governs a live run through "scout check
+--policy", so what gates a pipeline and what a gateway checks months later
+cannot drift apart.
+
 Exit status is 0 when every gate is met, 2 when the statement is valid and
 a gate is not, and 1 when the statement cannot be believed at all. A
 gateway or registry should treat 1 and 2 differently: the first means the
@@ -148,6 +162,21 @@ with this.`,
 			return err
 		}
 		res := gate(st, cmd.Flags())
+
+		// Applied to the same subject the flags were, so the two cannot
+		// disagree about what the statement said.
+		if strings.TrimSpace(verifyPolicy) != "" {
+			p, err := policy.Load(verifyPolicy)
+			if err != nil {
+				return err
+			}
+			r := p.Evaluate(policy.FromStatement(st), time.Now())
+			res.Policy = &r
+			if !r.OK {
+				res.OK = false
+			}
+		}
+
 		if verifyOutput == "json" {
 			enc := json.NewEncoder(cmd.OutOrStdout())
 			enc.SetIndent("", "  ")
@@ -156,6 +185,9 @@ with this.`,
 			}
 		} else {
 			writeVerification(cmd.OutOrStdout(), res)
+			if res.Policy != nil {
+				writePolicyResult(cmd.OutOrStdout(), *res.Policy)
+			}
 		}
 		if !res.OK {
 			osExit(2)
@@ -185,6 +217,11 @@ type verification struct {
 	// failing run says which condition was not met rather than only that
 	// one was not.
 	Gates []gateResult `json:"gates,omitempty"`
+	// Policy is the acceptance policy's answer, when --policy was given. A
+	// separate field rather than more entries in Gates: a flag is one
+	// person's condition on one command line, and a policy is a document
+	// with a name, a version and exceptions somebody signed off.
+	Policy *policy.Result `json:"policy,omitempty"`
 }
 
 // gateResult is one asked-for condition and its outcome.
@@ -361,4 +398,5 @@ func init() {
 	f.IntVar(&verifyMaxFail, "max-fail", 0, "fail when more than this many checks failed")
 	f.Float64Var(&verifyMinScore, "min-score", 0, "fail when the score is below this")
 	f.StringVar(&verifyOutput, "output", "text", "output format: text or json")
+	f.StringVar(&verifyPolicy, "policy", "", "also judge the statement against this acceptance policy file")
 }

@@ -19,6 +19,7 @@ import (
 	"github.com/sebastienrousseau/scout/auth"
 	"github.com/sebastienrousseau/scout/diagnostics"
 	"github.com/sebastienrousseau/scout/internal/creds"
+	"github.com/sebastienrousseau/scout/internal/policy"
 	"github.com/sebastienrousseau/scout/internal/probe"
 )
 
@@ -36,6 +37,19 @@ type RunSpec struct {
 	Creds CredSpec `json:"credentials"`
 	// Policy decides which tools may be invoked.
 	Policy PolicySpec `json:"policy"`
+	// Gate is the acceptance policy the finished run is judged against, or
+	// nil to judge it by the default rule (any failing finding fails the
+	// run).
+	//
+	// Named Gate rather than Policy because PolicySpec above already means
+	// something narrower and older: what scout is allowed to do to the
+	// server. This is what the operator is willing to accept back. The
+	// user-facing flag is --policy, because that is what the file is.
+	//
+	// It carries the policy itself rather than a path, so a spec that
+	// crosses a network never asks the receiving process to read a file
+	// somebody else named.
+	Gate *policy.Policy `json:"gate,omitempty"`
 	// Pacing bounds how hard the server is exercised.
 	Pacing PacingSpec `json:"pacing"`
 	// Phases selects which parts of the diagnostic run.
@@ -297,6 +311,11 @@ func (s RunSpec) Validate() error {
 	}
 	if !s.Output.Format.Valid() {
 		return fmt.Errorf("output format %q is not one of %v", s.Output.Format, Formats)
+	}
+	if s.Gate != nil {
+		if err := s.Gate.Validate(); err != nil {
+			return err
+		}
 	}
 	for _, name := range append(append([]string{}, s.Phases.Only...), s.Phases.Skip...) {
 		if !knownPhase(name) {
