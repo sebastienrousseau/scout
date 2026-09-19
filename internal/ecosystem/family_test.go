@@ -295,7 +295,17 @@ func TestSiteManifestIsTrueOfTheWorkingTree(t *testing.T) {
 		t.Fatal("no sites, so this asserts nothing")
 	}
 	for _, s := range Sites {
-		for _, path := range []string{s.Config, s.Layouts, s.Output} {
+		required := []string{s.Config, s.Layouts}
+		// Output is only required to exist when it is embedded. The shell's
+		// output is committed because go:embed needs it at compile time; the
+		// marketing site's is gitignored and built on demand. Asserting both
+		// passed locally for the wrong reason — the site had been built — and
+		// failed on every CI runner, which is the test being right about the
+		// manifest and wrong about the repository.
+		if s.Embedded {
+			required = append(required, s.Output)
+		}
+		for _, path := range required {
 			if _, err := os.Stat(filepath.Join(root, path)); err != nil {
 				t.Errorf("site %s claims %s: %v", s.Name, path, err)
 			}
@@ -442,5 +452,60 @@ func TestDeltaHelpersAgreeWithTheManifest(t *testing.T) {
 	}
 	if _, ok := LookupSite("no-such-site"); ok {
 		t.Error("LookupSite invented a site")
+	}
+}
+
+// TestGeneratedRegionIsLintShaped.
+//
+// The generated table is markdown that two CI jobs judge: markdownlint wants
+// a blank line around every heading and none doubled anywhere, and MkDocs in
+// strict mode rejects a relative link to a file that is not a documentation
+// page. The generator got both wrong on its first run, and both failures
+// arrived from CI rather than from the test suite.
+//
+// This asserts the outcome rather than the helper that produces it, so a hand
+// edit inside the region is caught as well as a generator bug.
+func TestGeneratedRegionIsLintShaped(t *testing.T) {
+	const (
+		begin = "<!-- BEGIN generated family table"
+		end   = "<!-- END generated family table -->"
+	)
+	b, err := os.ReadFile(filepath.Join(repoRoot(t), "docs", "ecosystem.md"))
+	if err != nil {
+		t.Fatalf("reading the manual: %v", err)
+	}
+	doc := string(b)
+	i, j := strings.Index(doc, begin), strings.Index(doc, end)
+	if i < 0 || j < 0 || j < i {
+		t.Fatal("the manual has no generated region; the markers moved and this test did not")
+	}
+	region := strings.Split(doc[i:j], "\n")
+	if len(region) < 10 {
+		t.Fatalf("the generated region is %d lines; it cannot be the table", len(region))
+	}
+
+	for n, line := range region {
+		switch {
+		case strings.HasPrefix(line, "#"):
+			// MD022: a heading needs a blank line above and below.
+			if n > 0 && strings.TrimSpace(region[n-1]) != "" {
+				t.Errorf("line %d: no blank line above heading %q", n+1, line)
+			}
+			if n+1 < len(region) && strings.TrimSpace(region[n+1]) != "" {
+				t.Errorf("line %d: no blank line below heading %q", n+1, line)
+			}
+		case strings.TrimSpace(line) == "":
+			// MD012: never two blank lines together.
+			if n > 0 && strings.TrimSpace(region[n-1]) == "" {
+				t.Errorf("line %d: two blank lines in a row", n+1)
+			}
+		}
+		// MkDocs strict refuses a relative link to something that is not a
+		// documentation page, and every source file in this repository is one
+		// of those.
+		if strings.Contains(line, "](../") {
+			t.Errorf("line %d: relative link out of docs/ — MkDocs strict rejects it, use the full URL: %q",
+				n+1, strings.TrimSpace(line))
+		}
 	}
 }

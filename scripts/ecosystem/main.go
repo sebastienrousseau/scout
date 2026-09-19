@@ -154,9 +154,8 @@ func renderTable() string {
 			"binary. %d file(s) deliberately differ from the theme, each with a recorded\n"+
 			"reason — a declared delta is a patch on its way upstream, and an undeclared\n"+
 			"one is a fork nobody decided to make. The list is in\n"+
-			"[`internal/ecosystem/sites.go`](../internal/ecosystem/sites.go).\n", len(ecosystem.ThemeDeltas))
+			"[`internal/ecosystem/sites.go`](https://github.com/sebastienrousseau/scout/blob/main/internal/ecosystem/sites.go).\n", len(ecosystem.ThemeDeltas))
 	}
-	b.WriteString("\n")
 
 	if rejected := ecosystem.ByStatus(ecosystem.Rejected); len(rejected) > 0 {
 		b.WriteString("### Considered and rejected\n\n")
@@ -166,7 +165,34 @@ func renderTable() string {
 		}
 	}
 
-	return strings.TrimRight(b.String(), "\n")
+	return tidyMarkdown(b.String())
+}
+
+// tidyMarkdown makes the generated region satisfy markdownlint, rather than
+// leaving it to whoever last edited a WriteString.
+//
+// Two rules matter here and both were broken on the first run: MD022 wants a
+// blank line above and below every heading, and MD012 forbids two blank lines
+// in a row. Hand-tuning the writers to satisfy them is how a generator grows
+// a spacing bug every time a section is added, so the guarantee is made once,
+// at the end, over the whole block.
+func tidyMarkdown(md string) string {
+	var out []string
+	for _, line := range strings.Split(md, "\n") {
+		heading := strings.HasPrefix(line, "#")
+		if heading && len(out) > 0 && strings.TrimSpace(out[len(out)-1]) != "" {
+			out = append(out, "")
+		}
+		// Never two blank lines in a row.
+		if strings.TrimSpace(line) == "" && len(out) > 0 && strings.TrimSpace(out[len(out)-1]) == "" {
+			continue
+		}
+		out = append(out, line)
+		if heading {
+			out = append(out, "")
+		}
+	}
+	return strings.TrimRight(strings.Join(out, "\n"), "\n")
 }
 
 // jsonRepo is the published shape. It is separate from the Go type on
