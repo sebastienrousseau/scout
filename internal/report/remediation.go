@@ -194,6 +194,35 @@ var remediations = map[string]Remediation{
 		},
 	},
 
+	"catalog.text.encoded": {
+		Means: "A field in the catalogue carries base64 that decodes to readable " +
+			"text. This is the evasion route around every other check in this " +
+			"family: a reviewer skimming the tool list sees an opaque blob and " +
+			"moves on, and the model — asked to be helpful — is entirely capable " +
+			"of decoding it and acting on what it says. A tool description has no " +
+			"honest reason to carry one.",
+		Steps: []Step{
+			{"Decode it and read it",
+				"The finding includes the decoded text. If it is an instruction " +
+					"aimed at the model, this is a tool-poisoning payload and the " +
+					"question is how it got into your catalogue rather than how to " +
+					"reword it."},
+			{"If it is yours, write it out",
+				"Configuration, a sample payload or an encoded example belongs " +
+					"somewhere a person reviewing the catalogue can read it. If it is " +
+					"genuinely binary, describe it in prose and put the bytes behind " +
+					"a resource."},
+			{"If it is not yours, treat it as an incident",
+				"Check who can write tool metadata, when this field last changed, " +
+					"and whether any other server in your fleet carries the same " +
+					"blob. A payload encoded to survive review was put there by " +
+					"somebody who expected review."},
+		},
+		Note: "Only runs that decode to text are reported. Hashes, identifiers and " +
+			"genuine binary decode to noise and are passed over, so a finding here " +
+			"means something wrote a sentence and then hid it.",
+	},
+
 	"catalog.text.instructions": {
 		Means: "Somewhere in the catalog, text is addressed to the model rather " +
 			"than describing a tool — an instruction to ignore what it was told, " +

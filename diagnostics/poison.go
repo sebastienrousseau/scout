@@ -4,11 +4,13 @@
 package diagnostics
 
 import (
+	"encoding/base64"
 	"fmt"
 	"regexp"
 	"sort"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 // A tool's description is not documentation. It is input to the model, read
@@ -44,6 +46,13 @@ const (
 	// SignalConfusable is a name mixing scripts, which is how one tool
 	// impersonates another.
 	SignalConfusable SignalKind = "confusable"
+	// SignalEncoded is text that has been encoded rather than written.
+	//
+	// It is the evasion route around every other rule in this file. A
+	// reviewer skimming a catalogue sees an opaque blob and moves on; the
+	// model, asked to be helpful, is perfectly capable of decoding it. A
+	// tool description has no honest reason to carry one.
+	SignalEncoded SignalKind = "encoded"
 )
 
 // SignalSeverity is how much weight to give a signal.
@@ -179,8 +188,85 @@ func ScanText(where, text string) []Signal {
 			})
 		}
 	}
+	out = append(out, scanEncoded(where, text)...)
 	return out
 }
+
+// base64Run matches a run long enough to carry a sentence. Shorter runs are
+// everywhere — identifiers, hashes, short tokens — and flagging them would
+// bury the finding that matters.
+var base64Run = regexp.MustCompile(`[A-Za-z0-9+/]{32,}={0,2}`)
+
+// scanEncoded finds text that was encoded rather than written.
+//
+// The filter that makes this usable rather than noisy is the second half: a
+// run is only reported if it decodes to something that reads as text. A
+// SHA-256 digest, a UUID without its dashes and a binary blob are all made of
+// the same alphabet and all decode to noise, so they are passed over without
+// a rule listing them — which is the kind of list that is never complete.
+func scanEncoded(where, text string) []Signal {
+	var out []Signal
+	for _, loc := range base64Run.FindAllStringIndex(text, -1) {
+		raw := text[loc[0]:loc[1]]
+		decoded, ok := decodeReadable(raw)
+		if !ok {
+			continue
+		}
+		sev := SeverityMajor
+		detail := "carries base64 that decodes to text"
+		// Decoded instructions are the whole technique: the payload is
+		// encoded precisely so the rules above do not see it.
+		for _, r := range instructionRules {
+			if r.re.MatchString(decoded) {
+				sev = SeverityCritical
+				detail = "carries base64 that decodes to an instruction: " + r.detail
+				break
+			}
+		}
+		out = append(out, Signal{
+			Kind: SignalEncoded, Severity: sev, Where: where,
+			Detail:  detail,
+			Excerpt: "decodes to: " + excerpt(decoded),
+		})
+	}
+	return out
+}
+
+// decodeReadable decodes a base64 run and reports whether the result reads
+// as text rather than as bytes.
+func decodeReadable(raw string) (string, bool) {
+	for _, enc := range []*base64.Encoding{base64.StdEncoding, base64.RawStdEncoding, base64.URLEncoding, base64.RawURLEncoding} {
+		b, err := enc.DecodeString(raw)
+		if err != nil || len(b) < 12 {
+			continue
+		}
+		if !utf8.Valid(b) {
+			continue
+		}
+		printable := 0
+		for _, r := range string(b) {
+			if r == '\n' || r == '\t' || (r >= 0x20 && r != 0x7f) {
+				printable++
+			}
+		}
+		total := utf8.RuneCount(b)
+		// Four fifths: enough to exclude binary that happens to contain
+		// runs of ASCII, low enough to keep text with a little punctuation
+		// noise in it.
+		if total > 0 && printable*5 >= total*4 {
+			// And it has to contain a word, or "text" includes a run of
+			// spaces and symbols that decoded by accident.
+			if wordRun.MatchString(string(b)) {
+				return string(b), true
+			}
+		}
+	}
+	return "", false
+}
+
+// wordRun is four or more letters in a row: the cheapest test for "this is
+// language rather than an artefact of decoding".
+var wordRun = regexp.MustCompile(`[A-Za-z]{4,}`)
 
 // ScanName reports what is suspicious about an identifier.
 //

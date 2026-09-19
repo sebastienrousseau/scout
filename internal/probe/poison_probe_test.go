@@ -85,13 +85,31 @@ func TestScanCatalogPassesACleanCatalog(t *testing.T) {
 	}}
 
 	out := scanCatalog(s, res, prompts)
-	if len(out) != 5 {
-		t.Fatalf("got %d findings, want 5 (one per kind)", len(out))
-	}
+
+	// One finding per signal kind, derived rather than counted: a literal
+	// here has to be edited every time the scanner learns something, which
+	// is churn that teaches nobody anything. What matters is that every
+	// kind reports, and that a clean catalogue makes all of them pass.
+	ids := map[string]bool{}
 	for _, f := range out {
+		if ids[f.ID] {
+			t.Errorf("%s reported twice", f.ID)
+		}
+		ids[f.ID] = true
 		if f.Status != Pass {
 			t.Errorf("%s on a clean catalog: %s — %s", f.ID, f.Status, f.Detail)
 		}
+	}
+	for _, want := range []string{
+		"catalog.text.hidden", "catalog.text.comments", "catalog.text.instructions",
+		"catalog.text.secret_paths", "catalog.text.encoded", "catalog.names.confusable",
+	} {
+		if !ids[want] {
+			t.Errorf("%s did not report on a clean catalog; a check that is silent when nothing is wrong cannot be trusted when something is", want)
+		}
+	}
+	if len(out) != len(ids) {
+		t.Errorf("%d findings for %d distinct ids", len(out), len(ids))
 	}
 }
 
