@@ -376,6 +376,60 @@ var remediations = map[string]Remediation{
 		},
 	},
 
+	"protocol.extensions": {
+		Means: "`server/discover` carries an `extensions` list, and every entry on " +
+			"it is interface. scout's other checks exercise the base protocol, so " +
+			"a server that advertises an extension is offering a surface this " +
+			"report does not test — the enumeration exists so an operator knows " +
+			"that surface is there. The identifiers are reverse-DNS because they " +
+			"are a global namespace with no registry behind it: the domain is what " +
+			"stops two authors meaning different things by the same word.",
+		Steps: []Step{
+			{"Name each extension after a domain you control",
+				"`com.example.mcp/billing`, not `billing`. A bare word claims " +
+					"nothing, so the next server to pick it collides with yours and " +
+					"a client cannot tell which one it is talking to. " +
+					"`io.modelcontextprotocol/…` belongs to the specification."},
+			{"List each one once",
+				"A duplicate is not harmless. A client that deduplicates and one " +
+					"that does not will disagree about what the server offers, and " +
+					"neither behaviour is wrong."},
+			{"Advertise only what is implemented",
+				"An extension in the list is a promise a client may act on before " +
+					"it calls anything. Removing an extension from the list is a " +
+					"smaller change than removing it from the list after a client " +
+					"has built on it."},
+		},
+	},
+
+	"protocol.deprecated_features": {
+		Means: "The 2026-07-28 revision removed `initialize`, `ping` and the " +
+			"session. A server on that revision that still answers the first two " +
+			"is in one of two situations, and they look identical from outside: " +
+			"either it deliberately serves older clients as well, or it is " +
+			"carrying handlers no current client will call. `supportedVersions` in " +
+			"the `server/discover` result is how a server says which of those it " +
+			"is — so the finding is about the declaration, not about the handlers.",
+		Steps: []Step{
+			{"If older clients matter, declare the revisions",
+				"Put the handshake revisions in `supportedVersions`. Then a client " +
+					"negotiates down on purpose rather than discovering by accident " +
+					"that `initialize` happens to work, and the compatibility is " +
+					"something you can later remove on a schedule."},
+			{"Otherwise remove the handlers",
+				"An endpoint no current client calls still accepts requests. What " +
+					"reaches it is stale software and whoever is enumerating the " +
+					"server, and neither is traffic you are watching."},
+			{"Do not declare what you do not serve",
+				"The reverse is worse than silence: a client that reads " +
+					"`supportedVersions` will negotiate to a revision the server " +
+					"does not implement, and the failure lands on the first real " +
+					"call instead of at discovery."},
+		},
+		Note: "Keeping both generations is legitimate and common. The check " +
+			"passes when the server says so.",
+	},
+
 	// --- net ---------------------------------------------------------------
 
 	"net.dns": {

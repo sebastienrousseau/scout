@@ -123,6 +123,11 @@ func phaseProtocol(ctx context.Context, s *Session) []Finding {
 	var out []Finding
 	pctx := func(label string) context.Context { return telemetry.WithPhase(ctx, "protocol", label) }
 
+	// What the server added, before anything about what it answers: an
+	// advertised extension is interface, and the checks below only exercise
+	// the base protocol.
+	out = append(out, checkExtensions(s))
+
 	live, liveParams := s.liveness()
 	c := s.check("protocol.ping", live)
 	if err := s.Client.Call(pctx(live), live, liveParams, nil); err != nil {
@@ -248,6 +253,10 @@ func phaseProtocol(ctx context.Context, s *Session) []Finding {
 	default:
 		out = append(out, c.fail(Major, "calling a non-existent tool returned success", "return -32602 or an isError result"))
 	}
+
+	// And what it has not removed. Transport-agnostic like the four above,
+	// so it runs over a pipe too.
+	out = append(out, checkDeprecatedFeatures(ctx, s))
 
 	// From here on the probes are about the HTTP binding rather than about
 	// MCP. Over a pipe they are named and skipped: a report that simply
