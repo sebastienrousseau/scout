@@ -50,14 +50,29 @@ Examples:
   scout check https://mcp.example.com/mcp --auth client-credentials \
       --client-id acme --client-secret-env ACME_SECRET --param profile_id=tenant-1
   scout check https://mcp.example.com/mcp --report-dir ./out --verbose
-  scout check --profile prod --output json > report.json`,
-	Args: cobra.MaximumNArgs(1),
+  scout check --profile prod --output json > report.json
+
+Most MCP servers are programs rather than URLs. Point scout at one with
+--stdio and the command after --; scout starts it, diagnoses it, and stops
+it again:
+
+  scout check --stdio -- npx -y @modelcontextprotocol/server-everything
+  scout check --stdio --stdio-env GITHUB_TOKEN -- docker run -i --rm ghcr.io/example/mcp
+
+The server gets a fixed base environment plus whatever --stdio-env names,
+and nothing else: it is a program nobody has audited, and everything else
+you have exported is somebody else's secret.`,
+	// Not MaximumNArgs(1): with --stdio the command to run follows "--",
+	// and the count is whatever that command needs. resolveTarget rejects
+	// the combinations that are genuinely wrong, with a reason.
+	Args: cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runCheck(cmd.Context(), args, nil)
+		return runCheck(cmd, args, nil)
 	},
 }
 
 func init() {
+	checkCmd.Flags().AddFlagSet(targetFlags())
 	checkCmd.Flags().AddFlagSet(credFlags())
 	checkCmd.Flags().AddFlagSet(policyFlags())
 	checkCmd.Flags().AddFlagSet(paceFlags())
@@ -70,8 +85,13 @@ func init() {
 // the live view, the interactive selector, where the bytes go. The run
 // itself belongs to the engine, which is what lets the TUI and the web UI
 // start exactly the same run without reimplementing any of it.
-func runCheck(ctx context.Context, args []string, only []string) error {
-	spec, err := buildSpec(args, only)
+func runCheck(cmd *cobra.Command, args []string, only []string) error {
+	ctx := cmdContext(cmd)
+	target, err := resolveTarget(cmd, args)
+	if err != nil {
+		return err
+	}
+	spec, err := buildSpec(target, only)
 	if err != nil {
 		return err
 	}
@@ -83,7 +103,7 @@ func runCheck(ctx context.Context, args []string, only []string) error {
 		return err
 	}
 
-	diag.Debugf("scout %s → %s", Version, spec.Target.Endpoint)
+	diag.Debugf("scout %s → %s", Version, spec.Target.Describe())
 	diag.Debugf("credentials: %s", cr.Describe())
 	for f, src := range cr.Sources {
 		diag.Debugf("credential %s from %s", f, src)
@@ -98,7 +118,7 @@ func runCheck(ctx context.Context, args []string, only []string) error {
 		tui.Version = Version
 		rec := telemetry.New()
 		items, ok, err := runSelector(ctx, func() ([]tui.Item, error) {
-			return listSelectorItems(ctx, spec.Target.Endpoint, cr, rec, spec.ToolPolicy())
+			return listSelectorItems(ctx, spec.Target, cr, rec, spec.ToolPolicy())
 		})
 		if err != nil {
 			return err
@@ -145,7 +165,7 @@ func runCheck(ctx context.Context, args []string, only []string) error {
 		for _, name := range spec.PhaseNames() {
 			phases = append(phases, tui.Phase{Name: name, Title: probe.PhaseTitle(name)})
 		}
-		runView = tui.NewRunModel(spec.Target.Endpoint, runSubtitle(cr), phases)
+		runView = tui.NewRunModel(spec.Target.Describe(), runSubtitle(cr), phases)
 		runView.Cancel = cancelRun
 		program = newProgram(runView)
 	}
@@ -345,12 +365,34 @@ func termWidth() int {
 
 // listSelectorItems connects with the supplied credentials and lists the
 // tools with their policy class, for the interactive selector.
-func listSelectorItems(ctx context.Context, endpoint string, cr *creds.Credentials, rec *telemetry.Recorder, policy diagnostics.Policy) ([]tui.Item, error) {
+func listSelectorItems(ctx context.Context, target engine.TargetSpec, cr *creds.Credentials, rec *telemetry.Recorder, policy diagnostics.Policy) ([]tui.Item, error) {
+	endpoint := target.Endpoint
 	cfg := scout.Config{Endpoint: endpoint, HTTPClient: &http.Client{Timeout: 60 * time.Second, Transport: rec.Wrap(nil)}, ClientInfo: scout.Implementation{Name: "scout", Version: Version}}
+	// The selector starts its own connection, because it has to list the
+	// tools before the run that would have listed them. Over stdio that
+	// means a second process — briefly, and closed before the run starts
+	// its own. Sharing one would mean the selector holding a server open
+	// while somebody reads a list, which is the longer-lived mistake.
+	if target.Stdio() {
+		cfg = scout.Config{
+			Stdio: &scout.StdioConfig{
+				Command: target.Command, Args: target.Args,
+				Dir: target.Dir, PassEnv: target.PassEnv, Env: target.Env,
+			},
+			ClientInfo: scout.Implementation{Name: "scout", Version: Version},
+		}
+	}
 	cr.Apply(&cfg)
 	client, err := scout.New(cfg)
 	if err != nil {
 		return nil, err
+	}
+	defer func() { _ = client.Close() }()
+	if target.Stdio() {
+		if _, err := client.Connect(ctx); err != nil {
+			return nil, err
+		}
+		return selectorItems(ctx, client, policy)
 	}
 	if cr.Effective() == creds.ModeAuthorizationCode {
 		st, err := (&creds.Store{}).Get(endpoint)
@@ -372,6 +414,13 @@ func listSelectorItems(ctx context.Context, endpoint string, cr *creds.Credentia
 			return nil, errors.New("server requires a user login; run `scout login` first")
 		}
 	}
+	return selectorItems(ctx, client, policy)
+}
+
+// selectorItems lists the catalog as the selector shows it. Shared by both
+// transports, so what the selector offers cannot depend on how the server
+// was reached.
+func selectorItems(ctx context.Context, client *scout.Client, policy diagnostics.Policy) ([]tui.Item, error) {
 	tools, err := client.ListTools(ctx)
 	if err != nil {
 		return nil, err

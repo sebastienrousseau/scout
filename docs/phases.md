@@ -16,6 +16,12 @@ later phase; they are recorded as skipped with the reason.
 Run a subset with `--phases net,discovery,auth` or leave one out with
 `--skip-phases performance`.
 
+A server that is a program rather than a URL runs the same phases, but two
+of them have no subject over a pipe and two are replaced by checks about the
+process instead. [Servers that are programs](stdio.md) has the details, and
+every check a stdio run does not make appears in its report as skipped, by
+id, with the reason.
+
 ## net: Network and TLS
 
 No MCP traffic yet.
@@ -28,6 +34,10 @@ No MCP traffic yet.
 | `net.tls` | the handshake completes and the certificate verifies; scout never skips verification |
 | `net.tls.version` | TLS 1.3, warning on 1.2 |
 | `net.tls.cert` | not expired; warning inside 14 days |
+
+Over stdio there is nothing to resolve, connect to or verify, so this phase
+asks the question those checks were really asking — is the thing on the
+other end there — with `stdio.process` and `stdio.environment` instead.
 
 ## discovery: Authorization discovery
 
@@ -159,3 +169,11 @@ is not something a maintainer can act on and `…<U+202E>nothing…` is.
 |---|---|
 | `resilience.session_reinit` | with the session id replaced by garbage, the client sees a 404, re-initializes, and the next call succeeds |
 | `resilience.token_refresh` | with the cached token invalidated, the next call obtains a fresh one and succeeds |
+
+A pipe has neither a session to lose nor a token to renew — the connection
+*is* the session. What this phase asks over stdio instead is whether the
+process survived the run (`stdio.alive`), whether it kept the transport
+clean (`stdio.stdout_clean`), and what it logged on the way
+(`stdio.stderr`). Those run even when an earlier phase blocked the rest,
+because a server that stopped answering is exactly when they are the
+findings that explain everything else.

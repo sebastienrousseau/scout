@@ -24,6 +24,7 @@ var (
 	serveRate        int
 	serveBurst       int
 	serveTrustProxy  bool
+	serveAllowStdio  bool
 )
 
 var serveCmd = &cobra.Command{
@@ -81,6 +82,7 @@ Examples:
 			RatePerMinute:    serveRate,
 			RateBurst:        serveBurst,
 			TrustProxyHeader: serveTrustProxy,
+			AllowStdio:       serveAllowStdio,
 			Open: func(url string) {
 				if servePublic {
 					fmt.Fprintf(os.Stderr, "\n  scout is serving a public diagnostic at\n\n    %s\n\n", url)
@@ -116,6 +118,7 @@ func init() {
 	serveCmd.Flags().IntVar(&serveRate, "rate", 6, "runs per minute per caller in --public mode")
 	serveCmd.Flags().IntVar(&serveBurst, "burst", 3, "runs a caller may start at once in --public mode")
 	serveCmd.Flags().BoolVar(&serveTrustProxy, "trust-proxy-header", false, "honour X-Forwarded-For for rate limiting (only behind a proxy you control)")
+	serveCmd.Flags().BoolVar(&serveAllowStdio, "allow-stdio", false, "let a run in the browser start a program on this machine instead of fetching a URL (off by default: that is a shell, not a diagnostic)")
 }
 
 // openBrowser is best-effort: failing to open one is not a reason to fail

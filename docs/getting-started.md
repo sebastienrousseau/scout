@@ -40,6 +40,18 @@ export MCP_TOKEN=…
 scout check https://mcp.example.com/mcp --token-env MCP_TOKEN
 ```
 
+Against a server that is a program rather than a URL — which most of them
+are:
+
+```bash
+scout check --stdio -- npx -y @modelcontextprotocol/server-everything stdio
+```
+
+scout starts it, diagnoses it, and stops it again. Everything after `--`
+belongs to the server, including its own flags. See
+[Servers that are programs](stdio.md) for what it is handed and which
+checks apply.
+
 The text report lists the nine phases in order, each finding with its
 status, what was observed and what to do about it, then the catalog,
 execution and performance tables, the score with every deduction, and a
@@ -59,7 +71,9 @@ raw telemetry.
 | `scout version` | print the version |
 
 An endpoint can be replaced by `--profile <name>` when the config file
-names one; see [Configuration](configuration.md).
+names one; see [Configuration](configuration.md). `check`, `connect`, `tools`
+and `call` also accept `--stdio -- <command>` in place of an endpoint; for
+`call` the tool name comes before the `--`.
 
 ## Exit status
 

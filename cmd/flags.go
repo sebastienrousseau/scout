@@ -77,10 +77,38 @@ var (
 	phasesSkip    []string
 )
 
+// target
 var (
-	credOnce, policyOnce, paceOnce, outOnce sync.Once
-	credSet, policySet, paceSet, outSet     *pflag.FlagSet
+	useStdio  bool
+	stdioDir  string
+	stdioEnv  []string
+	stdioOnly []string
 )
+
+var (
+	credOnce, policyOnce, paceOnce, outOnce, targetOnce sync.Once
+	credSet, policySet, paceSet, outSet, targetSet      *pflag.FlagSet
+)
+
+// targetFlags say what to point the run at.
+//
+// A URL is the positional argument. A program is everything after "--",
+// which is the only way a command with its own flags survives the parse:
+// "scout check --stdio -- npx -y server --verbose" hands --verbose to the
+// server, where it belongs, and there is no ambiguity about whose flag it
+// was. It also keeps scout out of the business of splitting a command
+// string, which would mean quoting rules, which would mean a shell.
+func targetFlags() *pflag.FlagSet {
+	targetOnce.Do(func() {
+		fs := pflag.NewFlagSet("target", pflag.ContinueOnError)
+		fs.BoolVar(&useStdio, "stdio", false, "the server is a program to run, given after --, rather than a URL")
+		fs.StringVar(&stdioDir, "stdio-dir", "", "working directory for the server process")
+		fs.StringArrayVar(&stdioEnv, "stdio-env", nil, "forward this environment variable to the server by name (repeatable)")
+		fs.StringArrayVar(&stdioOnly, "stdio-set", nil, "set a variable for the server as NAME=value (repeatable; replaces the forwarded set entirely)")
+		targetSet = fs
+	})
+	return targetSet
+}
 
 func credFlags() *pflag.FlagSet {
 	credOnce.Do(func() {
@@ -180,11 +208,7 @@ func knownFlagNames() map[string]bool {
 // run. It is the only place package-level flag state is read: everything
 // downstream takes the spec, which is what lets the TUI and the web UI
 // drive exactly the run the CLI would have.
-func buildSpec(args []string, onlyPhases []string) (engine.RunSpec, error) {
-	endpoint, err := resolveEndpoint(args)
-	if err != nil {
-		return engine.RunSpec{}, err
-	}
+func buildSpec(target engine.TargetSpec, onlyPhases []string) (engine.RunSpec, error) {
 	overrides, err := parseToolArgs(toolArgs)
 	if err != nil {
 		return engine.RunSpec{}, err
@@ -212,7 +236,7 @@ func buildSpec(args []string, onlyPhases []string) (engine.RunSpec, error) {
 
 	spec := engine.RunSpec{
 		Version: Version,
-		Target:  engine.TargetSpec{Endpoint: endpoint},
+		Target:  target,
 		Creds: engine.CredSpec{
 			Mode: authMode, Token: token, TokenEnv: tokenEnv,
 			Headers: hdrs, Basic: basic,
@@ -306,3 +330,88 @@ func parseToolArgs(items []string) (map[string]map[string]any, error) {
 }
 
 func validOutput(o string) bool { return engine.Format(o).Valid() }
+
+// splitAtDash separates scout's own arguments from the server's.
+//
+// Everything after "--" belongs to the program being run. That is what lets
+// a server have its own flags without scout guessing whose they are, and it
+// is why there is no single-string form: splitting a command string means
+// quoting rules, and quoting rules mean a shell.
+func splitAtDash(cmd *cobra.Command, args []string) (before, after []string) {
+	dash := cmd.ArgsLenAtDash()
+	if dash < 0 || dash > len(args) {
+		return args, nil
+	}
+	return args[:dash], args[dash:]
+}
+
+// stdioTarget builds a target from the words after "--".
+func stdioTarget(after []string) (engine.TargetSpec, error) {
+	if len(after) == 0 {
+		return engine.TargetSpec{}, fmt.Errorf("--stdio needs the command to run, after --, for example:\n\n" +
+			"    scout check --stdio -- npx -y @modelcontextprotocol/server-everything")
+	}
+	t := engine.TargetSpec{Command: after[0], Args: after[1:], Dir: stdioDir, PassEnv: stdioEnv}
+	if len(stdioOnly) > 0 {
+		// An explicit set replaces everything, including the base that lets
+		// a program find its interpreter. That is the point of asking for it
+		// by name: the operator is saying "exactly this".
+		for _, kv := range stdioOnly {
+			if !strings.Contains(kv, "=") {
+				return engine.TargetSpec{}, fmt.Errorf("--stdio-set takes NAME=value; %q has no value. "+
+					"To forward a variable that is already set, use --stdio-env %s", kv, kv)
+			}
+		}
+		t.Env = append([]string{}, stdioOnly...)
+	}
+	return t, nil
+}
+
+// resolveTarget decides what this run is pointed at: a URL, or a program.
+//
+// The two are exclusive and the error says so rather than picking one. A
+// run that silently ignored the endpoint because --stdio was also passed
+// would produce a report about a different server than the one named on the
+// command line, and nothing in that report would reveal it.
+func resolveTarget(cmd *cobra.Command, args []string) (engine.TargetSpec, error) {
+	before, after := splitAtDash(cmd, args)
+	if !useStdio {
+		if len(after) > 0 {
+			return engine.TargetSpec{}, fmt.Errorf("arguments after -- describe a program to run; pass --stdio to run one")
+		}
+		endpoint, err := resolveEndpoint(before)
+		if err != nil {
+			return engine.TargetSpec{}, err
+		}
+		return engine.TargetSpec{Endpoint: endpoint}, nil
+	}
+	if len(before) > 0 {
+		return engine.TargetSpec{}, fmt.Errorf("--stdio runs a program, so %q is not an endpoint to also check; a run has one target", before[0])
+	}
+	return stdioTarget(after)
+}
+
+// callTarget resolves `scout call`'s two operands, which differ by
+// transport: an endpoint and a tool over HTTP, a tool and a command after
+// "--" over stdio.
+func callTarget(cmd *cobra.Command, args []string) (engine.TargetSpec, string, error) {
+	before, after := splitAtDash(cmd, args)
+	if useStdio {
+		if len(before) != 1 {
+			return engine.TargetSpec{}, "", fmt.Errorf("with --stdio, name the tool before -- and the server after it:\n\n" +
+				"    scout call --stdio <tool> -- <command> [args...]")
+		}
+		t, err := stdioTarget(after)
+		if err != nil {
+			return engine.TargetSpec{}, "", err
+		}
+		return t, before[0], nil
+	}
+	if len(after) > 0 {
+		return engine.TargetSpec{}, "", fmt.Errorf("arguments after -- describe a program to run; pass --stdio to run one")
+	}
+	if len(before) != 2 {
+		return engine.TargetSpec{}, "", fmt.Errorf("usage: scout call <endpoint> <tool>, or scout call --stdio <tool> -- <command>")
+	}
+	return engine.TargetSpec{Endpoint: before[0]}, before[1], nil
+}
