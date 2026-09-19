@@ -114,8 +114,24 @@ func TestOpenServerNoCreds(t *testing.T) {
 	if f := fs["discovery.first_contact"]; f.Status != Info || s.RequiresAuth {
 		t.Errorf("open server: %+v", f)
 	}
-	if st := phaseStatus(s, "auth"); st != Skip {
-		t.Errorf("auth phase should be skipped on an open server: %s", st)
+	// The auth phase used to be skipped entirely on an open server, on the
+	// grounds that there were no credentials to check. That reported
+	// "auth: not needed" for a server exposing a destructive tool to
+	// anyone who could reach it, which is the wrong sentence.
+	//
+	// It now carries exactly one finding — what the server serves without
+	// credentials — and nothing else, so an open server is described rather
+	// than passed over.
+	if st := phaseStatus(s, "auth"); st == Skip {
+		t.Error("the auth phase says nothing at all about an open server")
+	}
+	// Two findings, by id rather than by count: what the server serves
+	// without credentials, and that none were supplied because none were
+	// demanded. A count would churn every time the phase gains anything.
+	for _, id := range []string{"auth.unauthenticated_tools", "auth.mode"} {
+		if _, ok := fs[id]; !ok {
+			t.Errorf("the auth phase is missing %s for an open server", id)
+		}
 	}
 	if len(s.Results) != 4 {
 		t.Errorf("Only did not restrict phases: %d", len(s.Results))

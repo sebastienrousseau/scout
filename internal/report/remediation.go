@@ -448,6 +448,39 @@ var remediations = map[string]Remediation{
 			"to a host, because the symptom never names the cause.",
 	},
 
+	"auth.unauthenticated_tools": {
+		Means: "The server answered a tools/list carrying no token, no API key and " +
+			"no basic auth, and the catalogue it returned includes at least one " +
+			"tool that is not declared read-only. By the specification's own " +
+			"default a tool with no annotations is destructive, so anyone who can " +
+			"reach this endpoint can invoke it. This is the most common serious " +
+			"finding in the ecosystem: a measurement study of 7,973 live remote " +
+			"servers found 40.55% exposing tools with no authentication at all.",
+		Steps: []Step{
+			{"Require authorization before the catalogue, not only before the call",
+				"An unauthenticated tools/list discloses what the system can do — " +
+					"tool names and descriptions map your internal capabilities for " +
+					"anyone who asks. Answer 401 with a WWW-Authenticate challenge " +
+					"pointing at your protected-resource metadata, as RFC 9728 " +
+					"describes, and let a client discover how to authenticate rather " +
+					"than discovering what you can do."},
+			{"Check enforcement at the handler, not at the router",
+				"The common shape of this bug is a middleware that protects " +
+					"tools/call and not tools/list, or that protects a path prefix " +
+					"the MCP endpoint does not sit under. The finding names which " +
+					"tools came back, which tells you exactly which handler answered."},
+			{"Annotate honestly while you are there",
+				"Every tool named in this finding lacks readOnlyHint:true. If one " +
+					"of them really is read-only, say so — it will stop being " +
+					"reported here and cautious clients will start being willing to " +
+					"call it. If it is not read-only, the finding is correct and " +
+					"authorization is the fix."},
+		},
+		Note: "On loopback this is a warning rather than a failure, because an open " +
+			"development server is ordinary. It stops being ordinary the moment the " +
+			"endpoint is reachable from anywhere else — including through a tunnel.",
+	},
+
 	"net.tcp": {
 		Means: "The address resolved but the connection was refused or timed out. " +
 			"The server is not listening where DNS says it is, or something between " +

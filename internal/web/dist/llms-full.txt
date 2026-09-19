@@ -1,5 +1,5 @@
 # scout
 
-> A diagnostic for Model Context Protocol servers. Nine phases, 88 checks, every finding tied to the request that produced it. Runs where your credentials already live.
+> A diagnostic for Model Context Protocol servers. Nine phases, 89 checks, every finding tied to the request that produced it. Runs where your credentials already live.
 
 Language: en-GB

@@ -20,54 +20,62 @@ import (
 // quirks are misbehaviours the fake can switch on, one per branch the
 // phases look for.
 type quirks struct {
-	firstContactStatus int    // status for an unauthenticated request (default 401)
-	challenge          string // WWW-Authenticate value; "-" means none
-	garbageStatus      int    // status for a scout-invalid-* token (default 401)
-	garbageNoHeader    bool
-	prmEmptyServers    bool
-	prmResource        string
-	prmMissing         bool
-	asMissing          bool
-	asPKCE             []string // nil = S256
-	asNoPKCE           bool
-	asCIMD             bool
-	asNoRegistration   bool
-	asHTTPIssuer       bool
-	tokenScope         string // scope returned in the token (default: requested)
-	tokenNoExpiry      bool
-	tokenShortExpiry   bool
-	tokenType          string
-	protocolVersion    string
-	serverName         string
-	serverVersion      string
-	noCapabilities     bool
-	noInstructions     bool
-	stateless          bool
-	unknownMethodCode  int  // JSON-RPC code for unknown methods (default -32601)
-	unknownMethodOK    bool // answer unknown methods with a result
-	unknownMethodHTTP  int  // answer unknown methods with this HTTP status
-	wrongID            bool
-	malformedOK        bool
-	invalidParamsOK    bool
-	unknownToolOK      bool
-	lenientAccept      bool
-	getStream          bool
-	bogusSessionOK     bool
-	lenientVersion     bool
-	catalog            string // "", "dupes", "bad", "empty", "nocap", "relative"
-	resourcesFail      bool
-	readFail           bool
-	resourcesEmpty     bool
-	templatesFail      bool
-	promptsFail        bool
-	promptsEmpty       bool
-	toolsFail          bool
-	allToolsError      bool
-	pingFail           bool
-	noRetryAfter       bool
-	burstFail          bool // fail every tools/call after burstFailAfter calls
-	burstFailAfter     int
-	rejectCredentials  bool // 401 for every valid token (credentials rejected at initialize)
+	firstContactStatus int // status for an unauthenticated request (default 401)
+	// open serves every request without credentials, which is what 40.55%
+	// of live remote MCP servers measurably do. firstContactStatus cannot
+	// model it: that one answers 200 with a body that is not a result, for
+	// testing the "200 but not an initialize result" branch.
+	open bool
+	// readOnlyOnly drops the unannotated tool, leaving a catalogue that is
+	// public and harmless.
+	readOnlyOnly      bool
+	challenge         string // WWW-Authenticate value; "-" means none
+	garbageStatus     int    // status for a scout-invalid-* token (default 401)
+	garbageNoHeader   bool
+	prmEmptyServers   bool
+	prmResource       string
+	prmMissing        bool
+	asMissing         bool
+	asPKCE            []string // nil = S256
+	asNoPKCE          bool
+	asCIMD            bool
+	asNoRegistration  bool
+	asHTTPIssuer      bool
+	tokenScope        string // scope returned in the token (default: requested)
+	tokenNoExpiry     bool
+	tokenShortExpiry  bool
+	tokenType         string
+	protocolVersion   string
+	serverName        string
+	serverVersion     string
+	noCapabilities    bool
+	noInstructions    bool
+	stateless         bool
+	unknownMethodCode int  // JSON-RPC code for unknown methods (default -32601)
+	unknownMethodOK   bool // answer unknown methods with a result
+	unknownMethodHTTP int  // answer unknown methods with this HTTP status
+	wrongID           bool
+	malformedOK       bool
+	invalidParamsOK   bool
+	unknownToolOK     bool
+	lenientAccept     bool
+	getStream         bool
+	bogusSessionOK    bool
+	lenientVersion    bool
+	catalog           string // "", "dupes", "bad", "empty", "nocap", "relative"
+	resourcesFail     bool
+	readFail          bool
+	resourcesEmpty    bool
+	templatesFail     bool
+	promptsFail       bool
+	promptsEmpty      bool
+	toolsFail         bool
+	allToolsError     bool
+	pingFail          bool
+	noRetryAfter      bool
+	burstFail         bool // fail every tools/call after burstFailAfter calls
+	burstFailAfter    int
+	rejectCredentials bool // 401 for every valid token (credentials rejected at initialize)
 }
 
 // fakeServer is a protected MCP server with its own authorization server,
@@ -228,7 +236,10 @@ func (f *fakeServer) unauthorized(w http.ResponseWriter, r *http.Request) {
 }
 
 func (f *fakeServer) handle(w http.ResponseWriter, r *http.Request) {
-	if !f.validToken(r) {
+	// An open server serves everything to everyone. The gate has to be here
+	// rather than inside unauthorized(): that one only chooses what to
+	// write, and this one decides whether to answer at all.
+	if !f.q.open && !f.validToken(r) {
 		tok := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 		if !strings.HasPrefix(tok, "scout-invalid-") || f.q.garbageStatus/100 != 2 {
 			f.unauthorized(w, r)
@@ -334,7 +345,9 @@ func (f *fakeServer) handle(w http.ResponseWriter, r *http.Request) {
 			{"name": "get_time", "description": "Returns the current time in ISO 8601 format", "inputSchema": map[string]any{"type": "object"}, "outputSchema": map[string]any{"type": "object", "required": []string{"iso"}, "properties": map[string]any{"iso": map[string]any{"type": "string"}}}, "annotations": map[string]any{"readOnlyHint": yes}},
 			{"name": "search", "description": "Search documents by query string", "inputSchema": map[string]any{"type": "object", "required": []string{"q"}, "properties": map[string]any{"q": map[string]any{"type": "string"}}}, "outputSchema": map[string]any{"type": "object", "required": []string{"hits"}, "properties": map[string]any{"hits": map[string]any{"type": "array"}}}, "annotations": map[string]any{"readOnlyHint": yes}},
 			{"name": "lax", "description": "Accepts anything without validation", "inputSchema": map[string]any{"type": "object", "required": []string{"x"}, "properties": map[string]any{"x": map[string]any{"type": "string"}}}, "annotations": map[string]any{"readOnlyHint": yes}},
-			{"name": "delete_all", "description": "Deletes every document permanently", "inputSchema": map[string]any{"type": "object"}},
+		}
+		if !f.q.readOnlyOnly {
+			tools = append(tools, map[string]any{"name": "delete_all", "description": "Deletes every document permanently", "inputSchema": map[string]any{"type": "object"}})
 		}
 		switch f.q.catalog {
 		case "dupes":
