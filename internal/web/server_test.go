@@ -11,7 +11,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -387,7 +386,12 @@ func TestServeStartsAndStops(t *testing.T) {
 // saying otherwise.
 func TestBrowserCannotStartAProgram(t *testing.T) {
 	s, ts := newTestServer(t)
-	body := `{"target":{"command":"/bin/sh","args":["-c","echo pwned > ` + filepath.Join(t.TempDir(), "proof") + `"]},"phases":{"only":["net"]}}`
+	// No filesystem path in the body: an earlier version put a t.TempDir()
+	// path in there, and on Windows its backslashes are invalid JSON string
+	// escapes — so the body failed to decode and the server answered 400.
+	// The test passed everywhere else and asserted nothing on Windows except
+	// that malformed JSON is rejected.
+	body := `{"target":{"command":"/bin/sh","args":["-c","echo pwned"]},"phases":{"only":["net"]}}`
 	resp := do(t, ts, http.MethodPost, "/api/runs?t="+s.Token(), body, map[string]string{"Content-Type": "application/json"})
 	defer func() { _ = resp.Body.Close() }()
 

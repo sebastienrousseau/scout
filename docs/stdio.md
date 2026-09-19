@@ -41,7 +41,7 @@ A stdio server is a program nobody has audited, running with your user's
 privileges, on the machine where your credentials live. So it is given a
 fixed base environment and nothing else:
 
-```
+```text
 PATH HOME TMPDIR TEMP TMP LANG LC_ALL SystemRoot COMSPEC PATHEXT
 ```
 
