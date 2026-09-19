@@ -115,7 +115,6 @@ func phaseHandshake(ctx context.Context, s *Session) []Finding {
 // answers them the way the JSON-RPC and MCP specifications require.
 func phaseProtocol(ctx context.Context, s *Session) []Finding {
 	var out []Finding
-	tr := s.Client.Transport()
 	pctx := func(label string) context.Context { return telemetry.WithPhase(ctx, "protocol", label) }
 
 	live, liveParams := s.liveness()
@@ -124,6 +123,16 @@ func phaseProtocol(ctx context.Context, s *Session) []Finding {
 		out = append(out, c.fail(Major, err.Error(), "implement ping; clients use it for liveness"))
 	} else {
 		out = append(out, c.pass("ok"))
+	}
+
+	// Everything below sends a deliberately malformed HTTP request: a
+	// truncated body, a header that disagrees with the payload, a session
+	// id the server never issued. They are HTTP-level probes, not protocol
+	// messages, so they have no meaning over a pipe and are skipped rather
+	// than faked.
+	tr, overHTTP := s.Client.HTTP()
+	if !overHTTP {
+		return out
 	}
 
 	c = s.check("protocol.unknown_method", "Unknown method returns -32601")

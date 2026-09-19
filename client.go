@@ -132,7 +132,7 @@ type ConnectResult struct {
 // Client is an MCP client bound to one server.
 type Client struct {
 	cfg  Config
-	tr   *transport.Streamable
+	tr   transport.Conn
 	atr  *auth.Transport
 	http *http.Client // for discovery / token calls: traced + headers, no bearer
 	disc *auth.Discoverer
@@ -249,8 +249,34 @@ func (c *Client) admit(md *auth.ServerMetadata) error {
 // Config returns the configuration the client was built with.
 func (c *Client) Config() Config { return c.cfg }
 
-// Transport exposes the underlying Streamable HTTP transport.
-func (c *Client) Transport() *transport.Streamable { return c.tr }
+// Transport exposes the Streamable HTTP transport.
+//
+// It keeps its concrete type and its name: this is a published API and a
+// client over HTTP is what almost every caller has. A client that is not
+// speaking HTTP returns nil, which is the case HTTP reports without the
+// nil check.
+func (c *Client) Transport() *transport.Streamable {
+	s, _ := c.tr.(*transport.Streamable)
+	return s
+}
+
+// Conn exposes the connection whatever it is — HTTP, or a child process
+// over its pipes. Everything a diagnostic does other than the raw HTTP
+// conformance probes goes through this.
+func (c *Client) Conn() transport.Conn { return c.tr }
+
+// HTTP returns the Streamable HTTP transport, and false when the client is
+// not speaking HTTP.
+//
+// It exists for the conformance probes that send a malformed body or a
+// bogus session header — things that are HTTP requests rather than protocol
+// messages, and have no equivalent over a pipe. Asking by type keeps that
+// asymmetry visible at the call site instead of hiding it behind a method
+// one transport can only fail.
+func (c *Client) HTTP() (*transport.Streamable, bool) {
+	s, ok := c.tr.(*transport.Streamable)
+	return s, ok
+}
 
 // HTTPClient returns the client used for discovery and token requests: it
 // carries tracing and fixed headers but no bearer token.

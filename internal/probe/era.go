@@ -237,7 +237,12 @@ func (s *Session) setupStateless(ctx context.Context) []Finding {
 // confusion the mirroring was meant to remove.
 func (s *Session) checkRoutingHeaders(ctx context.Context) Finding {
 	c := s.check("protocol.routing_headers", "Mirrored routing headers are validated")
-	tr := s.Client.Transport()
+	// The mirrored headers are an HTTP binding; there is nothing to mirror
+	// on a pipe.
+	tr, overHTTP := s.Client.HTTP()
+	if !overHTTP {
+		return c.skip("the routing headers are an HTTP binding")
+	}
 	id := tr.NextID()
 
 	rpc := &transport.Request{JSONRPC: "2.0", ID: &id, Method: "tools/list", Params: json.RawMessage(`{}`)}
