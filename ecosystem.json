@@ -153,14 +153,6 @@
         {
           "file": "styles.styl",
           "reason": "The Stylus source behind styles.css. Vendored at an older theme revision than the compiled CSS beside it, which is why both are declared: reconciling them is upstream work, not a local edit."
-        },
-        {
-          "file": "app.html",
-          "reason": "RESIDUE: a layout no content page uses. Remove; tracked as its own change so the removal can be verified against a site build on its own."
-        },
-        {
-          "file": "app.js",
-          "reason": "RESIDUE: the application's JavaScript, loaded by the marketing site's base.html on a page with no run form. Remove together with that reference."
         }
       ]
     },

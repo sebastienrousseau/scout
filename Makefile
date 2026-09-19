@@ -56,6 +56,14 @@ ICONS = favicon.ico favicon.svg apple-touch-icon.png icon-192.png icon-512.png i
 
 site: web-shell
 	ssg build -f site/ssg.toml
+	@# ssg 0.0.63 fingerprints assets but its syntax-highlight plugin injects
+	@# a link to the unfingerprinted name, so every page with a code block
+	@# asked for /highlight.css and got a 404 — invisibly, because a missing
+	@# stylesheet renders as an unstyled page rather than as an error. Until
+	@# that is fixed upstream the fingerprinted file is also published under
+	@# the name the page actually asks for. ssgcheck's asset invariant is what
+	@# found it and is what will notice if this line stops being needed.
+	@for f in site/dist/highlight.*.css; do 	  test -e "$$f" && cp "$$f" site/dist/highlight.css; 	done
 	mkdir -p site/dist/images && cp -R site/images/. site/dist/images/
 	for f in $(ICONS); do cp brand/$$f site/dist/$$f; done
 	python3 -m mkdocs build --strict --site-dir site/dist/manual

@@ -118,11 +118,19 @@ var publishedCountFiles = []string{
 	// engine reads, and what nobody opens — still said 76.
 	"site/_layouts/base.html",
 	"web/_layouts/app.html",
+	// The comparison table, where the figure is the competitive claim and
+	// where it had drifted furthest: 76 against a source of 92. The old
+	// pattern missed it because the sentence is "76 across 9 phases" with no
+	// word "checks" after the number.
+	"site/_layouts/index.html",
 }
 
-// staleCount matches a quoted figure: "76 checks", or the site's own
-// metric_one_value, which is the headline number with no word after it.
-var staleCount = regexp.MustCompile(`(\d+)\s+checks\b|metric_one_value:\s*"(\d+)"`)
+// staleCount matches a published figure in any of the three shapes the
+// tree uses: "76 checks"; "76 across 9 phases", the comparison table's
+// phrasing, which has no word "checks" after the number and so escaped the
+// pattern for sixteen checks' worth of drift; and the site's own
+// metric_one_value, the headline number with no word after it at all.
+var staleCount = regexp.MustCompile(`(\d+)\s+checks\b|(\d+)\s+across\s+\w+\s+phases\b|metric_one_value:\s*"(\d+)"`)
 
 // verifyPublishedCount fails when any published figure disagrees with the
 // source.
@@ -137,9 +145,13 @@ func verifyPublishedCount(want int) error {
 			return err
 		}
 		for _, m := range staleCount.FindAllStringSubmatch(string(b), -1) {
-			got := m[1]
-			if got == "" {
-				got = m[2]
+			// Whichever alternative matched is the one that is not empty.
+			var got string
+			for _, g := range m[1:] {
+				if g != "" {
+					got = g
+					break
+				}
 			}
 			n, err := strconv.Atoi(got)
 			if err != nil || n == want {
