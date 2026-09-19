@@ -105,6 +105,12 @@ func phaseCatalog(ctx context.Context, s *Session) []Finding {
 		if len(noTitle) > 0 {
 			out = append(out, s.check("catalog.tools.title", "Tools have a human title").info(fmt.Sprintf("%d without title", len(noTitle))))
 		}
+
+		// What the catalogue costs to look at, and whether a model has
+		// anything to reason with once it has. Both are properties the
+		// specification does not require and an agent pays for anyway.
+		out = append(out, checkCatalogueBudget(s)...)
+		out = append(out, checkParameterAmbiguity(s)...)
 	}
 
 	// ---- resources ----
