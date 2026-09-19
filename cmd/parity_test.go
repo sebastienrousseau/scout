@@ -21,6 +21,16 @@ import (
 // other two surfaces cannot have, so adding one fails the build until the
 // field exists.
 var specFields = map[string]string{
+	// target. --stdio itself carries no field of its own: Target.Command is
+	// set or it is not, and a boolean beside it would be a second source of
+	// truth for the same fact. The flag is a parsing instruction — read the
+	// words after -- as a program — which is why it maps to the field those
+	// words land in.
+	"stdio":     "Target.Command",
+	"stdio-dir": "Target.Dir",
+	"stdio-env": "Target.PassEnv",
+	"stdio-set": "Target.Env",
+
 	// credentials
 	"auth":                "Creds.Mode",
 	"token":               "Creds.Token",
@@ -94,7 +104,7 @@ var notRunFlags = map[string]string{
 // runFlagSets are the flag groups that configure a run, as opposed to a
 // subcommand's own behaviour.
 func runFlagSets() []*pflag.FlagSet {
-	return []*pflag.FlagSet{credFlags(), policyFlags(), paceFlags(), outputFlags()}
+	return []*pflag.FlagSet{targetFlags(), credFlags(), policyFlags(), paceFlags(), outputFlags()}
 }
 
 // TestEveryRunFlagHasASpecField is the parity gate. A new flag with no

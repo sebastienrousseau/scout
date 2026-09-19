@@ -5,6 +5,7 @@ package transport
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -90,6 +91,24 @@ type StdioConfig struct {
 	// ShutdownGrace is how long the server has to exit after stdin closes;
 	// zero means DefaultShutdownGrace.
 	ShutdownGrace time.Duration
+	// Observe, when set, is called after every exchange.
+	//
+	// It exists so a pipe can be recorded the way an HTTP exchange is. A
+	// diagnostic whose findings cite "req#4" over HTTP and cite nothing
+	// over stdio is a report that looks thinner for a reason that has
+	// nothing to do with the server under test, and that is the kind of
+	// difference an operator reads as a verdict.
+	Observe func(ctx context.Context, m StdioMessage)
+}
+
+// StdioMessage is one exchange over the pipe.
+type StdioMessage struct {
+	// Sent is the line written, without its newline. Received is the line
+	// read, or nil for a notification and for a call that failed.
+	Sent     []byte
+	Received []byte
+	Duration time.Duration
+	Err      error
 }
 
 // BaseEnv is what a server gets when the caller names nothing.
@@ -141,16 +160,49 @@ type Stdio struct {
 	// JSON lines produces a stream neither peer can parse, and the failure
 	// looks like a protocol bug rather than a concurrency one.
 	writeMu sync.Mutex
-	// callMu serialises whole exchanges. The framing has no way to match a
-	// response to a request other than by id, and reading another call's
-	// reply is worse than waiting for it.
-	callMu sync.Mutex
+
+	// One goroutine reads the pipe and hands each message to whoever is
+	// waiting for it. Callers never touch the reader.
+	//
+	// The obvious design is the other one: each call writes, then reads
+	// until it sees its own id, under a mutex that keeps two calls from
+	// reading each other's replies. It is simpler and it is wrong in three
+	// ways that matter to a diagnostic. A call that times out leaves a
+	// goroutine blocked on a pipe only the process can release, so the
+	// only way out is to kill the server — which turns one slow tool into
+	// a dead run, where the same timeout over HTTP is one finding.
+	// Concurrent calls serialise, so the performance phase measures the
+	// lock rather than the server. And a message with no id — the error a
+	// server returns for a body it could not parse — can never be
+	// matched, so the probe that sends malformed input cannot read the
+	// answer.
+	mu         sync.Mutex
+	waiters    map[int64]chan reply
+	anyWaiters []chan reply
+	// readErr is set once the reader stops, so a later call fails with the
+	// reason rather than waiting for a message that will never come.
+	readErr error
+	// noise counts lines the server wrote that were not JSON-RPC messages,
+	// with the first kept as evidence. Writing anything else to stdout is
+	// a protocol violation — the stream is the wire — and it is the single
+	// most common way a stdio server is broken, because a stray print
+	// statement is enough.
+	noise       int
+	noiseSample string
 
 	stderr   *ringBuffer
 	waitOnce sync.Once
 	waitErr  error
 	done     chan struct{}
 	closed   atomic.Bool
+}
+
+// reply is one message the reader matched to a waiter, or the reason
+// there will not be one.
+type reply struct {
+	resp *Response
+	line []byte
+	err  error
 }
 
 // StartStdio starts the server and returns a connection to it.
@@ -212,12 +264,13 @@ func StartStdio(ctx context.Context, cfg StdioConfig) (*Stdio, error) {
 	cmd.Stdout = stdoutWrite
 
 	s := &Stdio{
-		cfg:    cfg,
-		cmd:    cmd,
-		stdin:  stdinWrite,
-		stdout: bufio.NewReaderSize(stdoutRead, 64<<10),
-		stderr: newRingBuffer(cfg.StderrCap),
-		done:   make(chan struct{}),
+		cfg:     cfg,
+		cmd:     cmd,
+		stdin:   stdinWrite,
+		stdout:  bufio.NewReaderSize(stdoutRead, 64<<10),
+		stderr:  newRingBuffer(cfg.StderrCap),
+		done:    make(chan struct{}),
+		waiters: map[int64]chan reply{},
 	}
 	// A writer rather than StderrPipe: os/exec copies into it on its own
 	// goroutine and Wait joins that goroutine, so by the time done closes
@@ -248,6 +301,9 @@ func StartStdio(ctx context.Context, cfg StdioConfig) (*Stdio, error) {
 		s.waitOnce.Do(func() { s.waitErr = cmd.Wait() })
 		close(s.done)
 	}()
+
+	// One goroutine owns the pipe.
+	go s.read()
 
 	// A context already cancelled at Start means the caller has given up,
 	// and leaving the process behind would be the one outcome this file
@@ -342,10 +398,36 @@ func (s *Stdio) Call(ctx context.Context, method string, params any, result any)
 	if err != nil {
 		return err
 	}
-	resp, err := s.roundTrip(ctx, req)
+	if err := s.Dialect().PrepareBody(req); err != nil {
+		return err
+	}
+	line, err := json.Marshal(req)
 	if err != nil {
 		return err
 	}
+
+	// The waiter is registered before the write, not after. A server can
+	// answer faster than this goroutine is rescheduled, and a reply that
+	// arrives before anybody is listening for it would be counted as
+	// unsolicited and dropped.
+	ch, err := s.expect(id)
+	if err != nil {
+		return err
+	}
+	defer s.forget(id, ch)
+
+	start := time.Now()
+	if err := s.writeLine(ctx, line); err != nil {
+		s.observe(ctx, line, nil, time.Since(start), err)
+		return err
+	}
+	r, err := s.await(ctx, ch)
+	if err != nil {
+		s.observe(ctx, line, nil, time.Since(start), err)
+		return err
+	}
+	s.observe(ctx, line, r.line, time.Since(start), nil)
+	resp := r.resp
 	if resp == nil {
 		return fmt.Errorf("%w: %s (id %d)", ErrNoResponse, method, id)
 	}
@@ -376,88 +458,289 @@ func (s *Stdio) Notify(ctx context.Context, method string, params any) error {
 	if err != nil {
 		return err
 	}
-	return s.writeLine(ctx, line)
+	start := time.Now()
+	err = s.writeLine(ctx, line)
+	s.observe(ctx, line, nil, time.Since(start), err)
+	return err
 }
 
-// roundTrip writes one request and reads until the matching response.
-func (s *Stdio) roundTrip(ctx context.Context, req *Request) (*Response, error) {
-	if err := s.Dialect().PrepareBody(req); err != nil {
-		return nil, err
+// StdioExchange describes one raw message to send, for a conformance probe
+// that needs to send something the normal path would never produce.
+type StdioExchange struct {
+	// Body is sent verbatim, newline appended. It does not have to be
+	// JSON: that is the point of the malformed-input probes.
+	Body []byte
+	// Request, when Body is nil, is marshalled instead.
+	Request *Request
+	// SkipDialect sends Request exactly as given, without the protocol
+	// metadata the active dialect would otherwise add.
+	SkipDialect bool
+	// AnyMessage waits for the next message the server writes rather than
+	// one matching an id.
+	//
+	// It is how the malformed-input probes read their answer: JSON-RPC
+	// says a parse error is reported with a null id, so there is nothing
+	// to match on. The cost is that a notification the server happened to
+	// emit at that moment is taken for the answer — unavoidable with this
+	// framing, and the reason this is opt-in rather than a fallback.
+	AnyMessage bool
+}
+
+// StdioResult is what one raw exchange produced.
+//
+// There is no status code and no header: a pipe has neither, which is why
+// this is a separate type from the HTTP transport's RawResult rather than
+// that one with two fields left at zero for a caller to misread.
+type StdioResult struct {
+	// Line is the message the server wrote, verbatim.
+	Line []byte
+	// Response is set when Line parsed as a JSON-RPC response.
+	Response *Response
+	Duration time.Duration
+}
+
+// Exchange sends one raw message and returns what the server answered.
+//
+// It is the pipe's counterpart to Streamable.Do, and it exists for the same
+// reason: a conformance probe has to be able to send what a client library
+// would refuse to. Unlike Do it cannot lie about transport framing, so the
+// probes that are about HTTP — a missing Accept header, a session id the
+// server never issued — have no form here and are reported as skipped
+// rather than approximated.
+func (s *Stdio) Exchange(ctx context.Context, opts StdioExchange) (*StdioResult, error) {
+	body := opts.Body
+	if body == nil {
+		if opts.Request == nil {
+			return nil, errors.New("transport: exchange needs a Body or a Request")
+		}
+		if !opts.SkipDialect {
+			if err := s.Dialect().PrepareBody(opts.Request); err != nil {
+				return nil, err
+			}
+		}
+		b, err := json.Marshal(opts.Request)
+		if err != nil {
+			return nil, err
+		}
+		body = b
 	}
-	line, err := json.Marshal(req)
+	// A newline inside the body would frame two messages, and the probe
+	// would be measuring something other than what it wrote.
+	if bytes.ContainsAny(body, "\n\r") {
+		return nil, errors.New("transport: a raw stdio message cannot contain a newline")
+	}
+
+	var (
+		ch  chan reply
+		err error
+	)
+	switch {
+	case opts.AnyMessage || opts.Request == nil || opts.Request.ID == nil:
+		ch, err = s.expectAny()
+		defer s.forgetAny(ch)
+	default:
+		ch, err = s.expect(*opts.Request.ID)
+		defer s.forget(*opts.Request.ID, ch)
+	}
 	if err != nil {
 		return nil, err
 	}
 
-	s.callMu.Lock()
-	defer s.callMu.Unlock()
-
-	if err := s.writeLine(ctx, line); err != nil {
+	start := time.Now()
+	if err := s.writeLine(ctx, body); err != nil {
+		s.observe(ctx, body, nil, time.Since(start), err)
 		return nil, err
 	}
-
-	type result struct {
-		resp *Response
-		err  error
+	r, err := s.await(ctx, ch)
+	if err != nil {
+		s.observe(ctx, body, nil, time.Since(start), err)
+		return nil, err
 	}
-	ch := make(chan result, 1)
-	go func() {
-		resp, err := s.readUntil(req.ID)
-		ch <- result{resp, err}
-	}()
+	s.observe(ctx, body, r.line, time.Since(start), nil)
+	return &StdioResult{Line: r.line, Response: r.resp, Duration: time.Since(start)}, nil
+}
 
-	select {
-	case r := <-ch:
-		return r.resp, r.err
-	case <-ctx.Done():
-		// The read goroutine is blocked on a pipe that only the process
-		// closing will release. Ending the process is the only way to free
-		// it, and a caller who has cancelled wants the process gone anyway.
-		_ = s.Close()
-		return nil, ctx.Err()
-	case <-s.done:
-		// Drain a response that arrived just before exit rather than
-		// reporting a crash for a call that was in fact answered.
-		select {
-		case r := <-ch:
-			if r.resp != nil || r.err != nil {
-				return r.resp, r.err
-			}
-		case <-time.After(100 * time.Millisecond):
-		}
-		return nil, s.exitError()
+// Noise reports how many lines the server wrote to stdout that were not
+// JSON-RPC messages, and the first of them.
+//
+// The stream is the wire: the specification says a stdio server must write
+// nothing else there. A stray print statement is the most common way a
+// stdio server is broken, and the symptom — a client that hangs or reports
+// a parse error — never names the cause.
+func (s *Stdio) Noise() (int, string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.noise, s.noiseSample
+}
+
+// observe reports one exchange, if anybody asked.
+func (s *Stdio) observe(ctx context.Context, sent, recv []byte, d time.Duration, err error) {
+	if s.cfg.Observe == nil {
+		return
+	}
+	s.cfg.Observe(ctx, StdioMessage{Sent: sent, Received: recv, Duration: d, Err: err})
+}
+
+// expect registers a waiter for id.
+func (s *Stdio) expect(id int64) (chan reply, error) {
+	ch := make(chan reply, 1)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.readErr != nil {
+		return nil, s.readErr
+	}
+	s.waiters[id] = ch
+	return ch, nil
+}
+
+// expectAny registers a waiter for the next unclaimed message.
+func (s *Stdio) expectAny() (chan reply, error) {
+	ch := make(chan reply, 1)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.readErr != nil {
+		return nil, s.readErr
+	}
+	s.anyWaiters = append(s.anyWaiters, ch)
+	return ch, nil
+}
+
+// forget removes a waiter, so an abandoned call does not leave the reader
+// holding a channel nobody will read.
+func (s *Stdio) forget(id int64, ch chan reply) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.waiters[id] == ch {
+		delete(s.waiters, id)
 	}
 }
 
-// readUntil reads messages until the one answering id, skipping anything
-// else the server sends.
+func (s *Stdio) forgetAny(ch chan reply) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i, w := range s.anyWaiters {
+		if w == ch {
+			s.anyWaiters = append(s.anyWaiters[:i], s.anyWaiters[i+1:]...)
+			return
+		}
+	}
+}
+
+// await blocks until the reply arrives, the caller gives up, or the server
+// exits.
 //
-// A server may interleave notifications and server-initiated requests with
-// responses; the framing offers no other way to tell them apart, so
-// anything that is not this id is read past. It is not discarded silently
-// in spirit — a caller that needs those messages needs a different API —
-// but it must not be mistaken for the answer.
-func (s *Stdio) readUntil(id *int64) (*Response, error) {
+// Giving up does not end the process. That is a deliberate change from the
+// first version of this file, which killed the server on a cancelled call
+// because the read happened inline and there was no other way to free it.
+// A per-call timeout is an ordinary finding about one slow method; making
+// it fatal to the session meant a single slow tool ended the run, which
+// the same timeout over HTTP never does. Custody still holds: the process
+// belongs to Close, and every caller defers one.
+func (s *Stdio) await(ctx context.Context, ch chan reply) (reply, error) {
+	select {
+	case r := <-ch:
+		return r, r.err
+	case <-ctx.Done():
+		return reply{}, ctx.Err()
+	case <-s.done:
+		// Drain a reply that landed just before exit rather than reporting
+		// a crash for a call that was in fact answered.
+		select {
+		case r := <-ch:
+			return r, r.err
+		case <-time.After(100 * time.Millisecond):
+		}
+		return reply{}, s.exitError()
+	}
+}
+
+// read owns the pipe for the life of the connection.
+func (s *Stdio) read() {
 	for {
 		line, err := s.readLine()
 		if err != nil {
-			return nil, err
+			s.failAll(err)
+			return
 		}
-		if len(line) == 0 {
+		if len(strings.TrimSpace(string(line))) == 0 {
 			continue
 		}
 		var resp Response
 		if err := json.Unmarshal(line, &resp); err != nil {
-			return nil, fmt.Errorf("transport: server wrote a line that is not JSON: %w", err)
+			// Not a framing error — the newline already says where the next
+			// message starts — but a protocol violation, and one that
+			// cannot be papered over: a caller waiting for a reply would
+			// wait forever while this reader skipped garbage. Recording it
+			// and ending the connection is what lets the probe report the
+			// cause instead of a timeout.
+			s.note(line)
+			s.failAll(fmt.Errorf("transport: server wrote a line that is not JSON: %w", err))
+			return
 		}
-		if resp.ID == nil {
-			// A notification or a request from the server. Not the answer.
-			continue
+		s.deliver(&resp, line)
+	}
+}
+
+// note records a line that was not a JSON-RPC message.
+func (s *Stdio) note(line []byte) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.noise++
+	if s.noiseSample == "" {
+		s.noiseSample = strings.TrimSpace(string(line))
+	}
+}
+
+// deliver hands a message to its waiter.
+//
+// A message matching an outstanding id goes to that call. Anything else —
+// a notification, a request from the server, an error with a null id —
+// goes to the oldest waiter that asked for whatever came next, and is
+// counted as unsolicited when there is none. It is never mistaken for
+// another call's answer, which is the one outcome that would corrupt a
+// report.
+func (s *Stdio) deliver(resp *Response, line []byte) {
+	s.mu.Lock()
+	var ch chan reply
+	if resp.ID != nil {
+		if w, ok := s.waiters[*resp.ID]; ok {
+			ch = w
+			delete(s.waiters, *resp.ID)
 		}
-		if id != nil && *resp.ID != *id {
-			continue
+	}
+	if ch == nil && len(s.anyWaiters) > 0 {
+		ch = s.anyWaiters[0]
+		s.anyWaiters = s.anyWaiters[1:]
+	}
+	s.mu.Unlock()
+	if ch == nil {
+		return
+	}
+	select {
+	case ch <- reply{resp: resp, line: line}:
+	default:
+	}
+}
+
+// failAll ends every outstanding call with err and refuses new ones.
+func (s *Stdio) failAll(err error) {
+	s.mu.Lock()
+	if s.readErr == nil {
+		s.readErr = err
+	}
+	ws := make([]chan reply, 0, len(s.waiters)+len(s.anyWaiters))
+	for id, ch := range s.waiters {
+		ws = append(ws, ch)
+		delete(s.waiters, id)
+	}
+	ws = append(ws, s.anyWaiters...)
+	s.anyWaiters = nil
+	s.mu.Unlock()
+	for _, ch := range ws {
+		select {
+		case ch <- reply{err: err}:
+		default:
 		}
-		return &resp, nil
 	}
 }
 

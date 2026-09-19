@@ -68,8 +68,11 @@ Need a signing key? Follow
 
 ### Developer Certificate of Origin (DCO)
 
-Every commit must include a `Signed-off-by:` trailer matching the
-commit author. The full text of the DCO is at
+Every commit you author must include a `Signed-off-by:` trailer matching
+the commit author. Merge commits are exempt: a merge introduces no
+authored content, so there is nothing for its author to certify, and
+updating a branch from `main` — which this repository requires before a
+merge — produces one that GitHub wrote rather than you. The full text of the DCO is at
 <https://developercertificate.org>; adding the trailer certifies that
 you agree to it. Enforced by the DCO workflow on every PR.
 

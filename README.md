@@ -31,6 +31,7 @@
 
 - [Install](#install) — mise, Homebrew, Arch, Nix, Go, or from source
 - [Quick Start](#quick-start) — diagnose a server in one command
+- [Servers that are programs](#servers-that-are-programs) — `--stdio`, for a server you run rather than fetch
 
 **Features & Capabilities**
 
@@ -177,6 +178,9 @@ scout check https://mcp.example.com/mcp --auth client-credentials \
 
 # Keep everything: text, Markdown, JSON, NDJSON events and a HAR archive
 scout check https://mcp.example.com/mcp --report-dir ./scout-out
+
+# A server that is a program rather than a URL
+scout check --stdio -- npx -y @modelcontextprotocol/server-everything stdio
 ```
 
 A finished run reads like this:
@@ -258,6 +262,59 @@ Score
 ```
 
 ---
+
+## Servers that are programs
+
+Most MCP servers are not endpoints. They are programs a host starts, talks
+to over a pipe, and is responsible for stopping. Point scout at one with
+`--stdio` and the command after `--`:
+
+```bash
+scout check --stdio -- npx -y @modelcontextprotocol/server-everything stdio
+scout check --stdio -- uvx mcp-server-git --repository .
+scout check --stdio --stdio-env GITHUB_TOKEN -- docker run -i --rm ghcr.io/example/mcp
+```
+
+scout starts the process, runs the same phases against it, and stops it
+again — politely first, by closing its stdin, then by force. It is reaped on
+every path out, including a cancelled run.
+
+Three things are worth knowing before you use it.
+
+**The server is handed almost nothing.** A stdio server is a program nobody
+has audited, running as your user, on the machine where your credentials
+live. It gets `PATH`, `HOME`, `TMPDIR` and the other variables a program
+needs to find its interpreter — and nothing else. Not your cloud
+credentials, not the tokens for three other services, not whatever the
+shell you typed this into happens to export. A server that legitimately
+needs one is given it by name with `--stdio-env GITHUB_TOKEN`, which is how
+you say so out loud. Every run reports what it passed.
+
+**Five checks exist only here, and one of them matters more than the
+rest.** Over stdio, stdout *is* the wire: every byte on it is parsed as
+protocol framing. One startup banner, one `print` left in a handler, one
+progress bar, and the stream is corrupt — and what a host reports is a
+hang, or a parse error naming a line nobody wrote. `stdio.stdout_clean`
+names it and quotes the line. The others cover the process starting, the
+process surviving the run, what it logged on stderr, and what environment
+it was given.
+
+**Two phases and five checks have no subject over a pipe, and every one of
+them is reported as skipped with the reason.** Authorization discovery and
+credentials do not apply: there is no origin to authorize against, so
+`--token` is refused rather than quietly ignored. Four protocol probes are
+about HTTP headers, and `handshake.session` is about a session a pipe does
+not have. A run that silently contained fewer checks would read as a better
+result than it is.
+
+`connect`, `tools` and `call` take `--stdio` too. For `call`, the tool comes
+before `--` and the server after it:
+
+```bash
+scout call --stdio get-sum --arg a=2 --arg b=3 -- npx -y @modelcontextprotocol/server-everything stdio
+```
+
+The full picture is in [the manual](https://scoutmcp.io/manual/stdio/).
 
 ## Features
 
@@ -584,10 +641,23 @@ the run's trace id.
 
 ```bash
 scout check <endpoint>
+scout check --stdio -- <command> [args...]
 ```
 
 - `<endpoint>` — The server's Streamable HTTP URL (Required, unless
-  `--profile` supplies it).
+  `--profile` supplies it, or `--stdio` names a program instead).
+- `<command> [args...]` — With `--stdio`, the program to run as the server.
+  Everything after `--` belongs to it, including its own flags. It is
+  executed as named: there is no shell, so nothing is expanded or split.
+
+### Target Options
+
+| Option | Default | Description |
+| :--- | :--- | :--- |
+| `--stdio` | `false` | The server is a program to run, given after `--`, rather than a URL |
+| `--stdio-dir` | — | Working directory for the server process |
+| `--stdio-env` | — | Forward this environment variable to the server by name (repeatable) |
+| `--stdio-set` | — | Set a variable as `NAME=value` (repeatable; replaces the forwarded set entirely) |
 
 ### Credential Options
 
