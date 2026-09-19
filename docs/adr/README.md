@@ -27,3 +27,5 @@ made on a weaker basis than it appeared.
 | [0003](0003-structural-redaction-at-the-recorder.md) | Secrets are redacted structurally at the recorder, and content types are not trusted | Accepted |
 | [0004](0004-read-only-by-default.md) | Only tools declaring `readOnlyHint` are invoked by default | Accepted |
 | [0005](0005-public-mode-is-the-same-binary.md) | The hosted diagnostic is the same binary, and it accepts no credentials | Accepted |
+| [0006](0006-no-client-telemetry.md) | scout contains no client-side telemetry, and *0 bytes uploaded* is a product guarantee | Accepted |
+| [0007](0007-not-a-gateway.md) | scout measures servers and is never in the data path between an agent and one | Accepted |
