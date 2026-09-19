@@ -8,13 +8,13 @@ description: >-
 
 # The check inventory
 
-scout runs **89 checks** across **9 phases**.
+scout runs **90 checks** across **9 phases**.
 
 5 of them apply only to a server that is a program rather than a URL, and
 replace the ones that have no meaning over a pipe. A run reports every check it
 did not make, by id and with the reason, rather than leaving it out.
 
-88 of those are fixed, and 1 is a family whose id is built at run time —
+89 of those are fixed, and 1 is a family whose id is built at run time —
 one check per value the run encounters, marked `*` below.
 
 This file is generated from the source: every check is created through
@@ -98,7 +98,7 @@ that is what a reader sees in a report.
 | <span id="check-protocol-unknown_tool" data-can-fail="true"></span>`protocol.unknown_tool` | Unknown tool is reported |
 | <span id="check-protocol-version_header" data-can-fail="false"></span>`protocol.version_header` | Bad MCP-Protocol-Version is rejected |
 
-## catalog — 21 checks
+## catalog — 22 checks
 
 | Check | What it looks for |
 |---|---|
@@ -113,6 +113,7 @@ that is what a reader sees in a report.
 | <span id="check-catalog-resources-uris" data-can-fail="true"></span>`catalog.resources.uris` | Resource URIs are absolute |
 | <span id="check-catalog-semantic-ambiguity" data-can-fail="true"></span>`catalog.semantic.ambiguity` | Parameters are described well enough to use |
 | <span id="check-catalog-text-comments" data-can-fail="true"></span>`catalog.text.comments` | Catalog text carries no hidden comments |
+| <span id="check-catalog-text-encoded" data-can-fail="true"></span>`catalog.text.encoded` | Catalog text is written, not encoded |
 | <span id="check-catalog-text-hidden" data-can-fail="true"></span>`catalog.text.hidden` | Catalog text has nothing hidden in it |
 | <span id="check-catalog-text-instructions" data-can-fail="true"></span>`catalog.text.instructions` | Catalog text describes rather than instructs |
 | <span id="check-catalog-text-secret_paths" data-can-fail="true"></span>`catalog.text.secret_paths` | Catalog text names no credential locations |
