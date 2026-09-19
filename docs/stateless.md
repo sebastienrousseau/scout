@@ -118,6 +118,39 @@ Declaring a revision the server does not actually serve is also a warning,
 and the worse of the two: a client that reads the declaration negotiates
 down, and the failure lands on its first real call rather than at discovery.
 
+### A request for client input has to be answerable
+
+The revision removed server-initiated sampling, elicitation and roots and
+replaced them with Multi Round-Trip Requests: a server that needs something
+mid-call answers `resultType: input_required` with a list of client-side
+methods, and the client retries the original call with the answers attached.
+
+scout does not answer one — it has no user to elicit from and no model to
+sample, and inventing either would mean reporting on a conversation it made
+up. What it does is judge the request, and `protocol.mrtr` is that judgement.
+
+An `input_required` that names nothing, or names a method with no correlation
+id, leaves the client with no retry it can construct. The failure that follows
+is the worst kind available: the call does not return an error, it never
+returns at all. The agent waits, and nothing is reported to anyone. That is
+invisible from inside the agent and obvious from here, which is the whole
+reason to measure it.
+
+Two consequences worth stating, because both were wrong in scout once:
+
+- **A tool that answers `input_required` is not failing.** It is implementing
+  the current revision. scout used to count it as a protocol error, which
+  failed the execution phase and took the category score down with it — the
+  same mistake the `ping` check made. It is now reported as a call that needed
+  input and was not exercised further.
+- **A liveness call that answers `input_required` *is* failing.** `ping`
+  exists to be answerable with nothing and nobody present, so a version that
+  needs a user turns every liveness probe into a conversation and monitoring
+  reads the server as down.
+
+The check is observational. scout cannot make a server ask for input, so it
+judges what a run happened to receive and skips, by name, when nothing did.
+
 ### Extensions are enumerated
 
 `server/discover` carries an `extensions` list, and everything on it is

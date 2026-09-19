@@ -85,6 +85,7 @@ MCP specification require.
 
 | Finding | Checks |
 |---|---|
+| `protocol.mrtr` | whether a request for client input can be answered: every `inputRequests` entry has a method and a correlation id. Emitted from the execution phase, where the observations exist |
 | `protocol.extensions` | the extensions `server/discover` advertises, separated into the specification's own and an author's, with their identifiers checked for reverse-DNS shape |
 | `protocol.deprecated_features` | whether a server on `2026-07-28` still answers `initialize` and `ping`, and whether `supportedVersions` says it means to |
 | `protocol.ping` | ping answers |

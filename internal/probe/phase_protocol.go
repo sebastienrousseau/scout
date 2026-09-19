@@ -130,10 +130,22 @@ func phaseProtocol(ctx context.Context, s *Session) []Finding {
 
 	live, liveParams := s.liveness()
 	c := s.check("protocol.ping", live)
-	if err := s.Client.Call(pctx(live), live, liveParams, nil); err != nil {
-		out = append(out, c.fail(Major, err.Error(), "implement ping; clients use it for liveness"))
-	} else {
+	err := s.Client.Call(pctx(live), live, liveParams, nil)
+	ir, needsInput := asInputRequired(err)
+	switch {
+	case err == nil:
 		out = append(out, c.pass("ok"))
+	case needsInput:
+		// Still a failure, and worth saying why in its own words: a liveness
+		// call is the one request that cannot have a conversation attached
+		// to it, because its whole purpose is to be answerable with no state
+		// and no user present.
+		s.MRTR = append(s.MRTR, MRTRObservation{Method: live, Requests: ir.Result.InputRequests})
+		out = append(out, c.fail(Major,
+			fmt.Sprintf("%s answered input_required, asking for %s", live, list(requestedMethods(ir))),
+			"answer "+live+" without requiring anything from the client. It is what a client calls to find out whether the server is alive, so a version of it that needs a user present cannot be used for that — every liveness probe becomes a conversation nobody is there to have"))
+	default:
+		out = append(out, c.fail(Major, err.Error(), "implement ping; clients use it for liveness"))
 	}
 
 	// The four probes below send something a client library would refuse to

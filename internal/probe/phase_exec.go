@@ -33,6 +33,14 @@ type ToolResult struct {
 	SchemaIssues []string       `json:"schema_issues,omitempty"`
 	// NegativeTest is what happened when a required argument was omitted.
 	NegativeTest string `json:"negative_test,omitempty"`
+	// NeedsInput lists the client-side methods the server asked for before
+	// it would finish the call — elicitation/create, sampling/createMessage.
+	//
+	// A distinct outcome from OK, ToolError and ProtoError, because it is
+	// none of them: the server behaved correctly and the call did not
+	// complete. scout has no user to elicit from and no model to sample, so
+	// it reports the request rather than answering it.
+	NeedsInput []string `json:"needs_input,omitempty"`
 }
 
 // ResourceResult records one resources/read.
@@ -65,7 +73,7 @@ func phaseExecution(ctx context.Context, s *Session) []Finding {
 
 	out = append(out, s.check("execution.policy", "Safety policy").info(policyDescribe(s.Opts.Policy)))
 
-	var executed, okCount, toolErr, protoErr, schemaBad, negWeak int
+	var executed, okCount, toolErr, protoErr, schemaBad, negWeak, needsInput int
 	for _, t := range s.Tools {
 		tr := ToolResult{Name: t.Name}
 		d := s.Opts.Policy.Decide(t)
@@ -95,7 +103,18 @@ func phaseExecution(ctx context.Context, s *Session) []Finding {
 		res, err := s.Client.CallTool(cctx, t.Name, tr.Arguments)
 		tr.Duration = Millis(time.Since(start))
 		cancel()
-		switch {
+		switch ir, wantsInput := asInputRequired(err); {
+		case wantsInput:
+			// Not a protocol error. The 2026-07-28 revision replaced
+			// server-initiated sampling and elicitation with this: the
+			// server answers input_required, and the client retries the
+			// call with the answers attached. A tool that does it is
+			// implementing the current revision correctly, and counting it
+			// as a protocol failure told a conformant server it was broken
+			// — the same mistake the ping check made once.
+			needsInput++
+			tr.NeedsInput = requestedMethods(ir)
+			s.MRTR = append(s.MRTR, MRTRObservation{Method: "tools/call " + t.Name, Requests: ir.Result.InputRequests})
 		case err != nil:
 			protoErr++
 			tr.ProtoError = err.Error()
@@ -169,9 +188,19 @@ func phaseExecution(ctx context.Context, s *Session) []Finding {
 		out = append(out, c.warn(fmt.Sprintf("0 of %d tools executed: none permitted by policy", len(s.Tools)), "annotate read-only tools with readOnlyHint, or opt in with --allow-mutations"))
 	default:
 		detail := fmt.Sprintf("%d executed: %d ok, %d tool errors, %d protocol errors", executed, okCount, toolErr, protoErr)
+		if needsInput > 0 {
+			detail += fmt.Sprintf(", %d needing client input", needsInput)
+		}
 		switch {
 		case protoErr > 0:
 			out = append(out, c.fail(Major, detail, "protocol errors and timeouts mean the call never completed"))
+		case needsInput == executed:
+			// Every tool asked for input, so none was exercised. That is a
+			// fact about what a diagnostic can reach, not a defect: there
+			// is no user here to elicit from and no model to sample.
+			out = append(out, c.info(detail+" (every call asked for client input before finishing, which scout reports rather than answers; protocol.mrtr judges the requests)"))
+		case needsInput > 0:
+			out = append(out, c.info(detail+" (the calls needing input were not exercised further)"))
 		case toolErr == executed:
 			out = append(out, c.warn(detail+" (every call returned isError; generated arguments may not suit this server, use --arg to supply real ones)", ""))
 		case toolErr > 0:
@@ -284,6 +313,13 @@ func phaseExecution(ctx context.Context, s *Session) []Finding {
 			out = append(out, c.pass(detail))
 		}
 	}
+
+	// A protocol.* finding emitted from the execution phase, because the
+	// observations it judges only exist once tools have been called. The
+	// same shape as protocol.routing_headers, which the handshake phase
+	// emits for the same reason: the id names the mechanism and the phase
+	// names when it could be measured.
+	out = append(out, checkMRTR(s))
 	return out
 }
 

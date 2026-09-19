@@ -76,6 +76,20 @@ type quirks struct {
 	burstFail         bool // fail every tools/call after burstFailAfter calls
 	burstFailAfter    int
 	rejectCredentials bool // 401 for every valid token (credentials rejected at initialize)
+	// inputRequired makes every tools/call answer input_required, which is
+	// a 2026-07-28 server behaving correctly rather than failing. The
+	// variants below are the shapes that cannot be answered.
+	inputRequired bool
+	// mrtrEmpty says input is required and names no request, so there is no
+	// retry a client can construct.
+	mrtrEmpty bool
+	// mrtrNoID omits the correlation id, so a client cannot say which
+	// answer belongs to which request.
+	mrtrNoID bool
+	// pingNeedsInput answers the liveness call with input_required, which is
+	// a different kind of wrong from a tool doing it: the whole purpose of a
+	// liveness call is to be answerable with nobody present.
+	pingNeedsInput bool
 }
 
 // fakeServer is a protected MCP server with its own authorization server,
@@ -335,6 +349,14 @@ func (f *fakeServer) handle(w http.ResponseWriter, r *http.Request) {
 			rpcErr(-32000, "ping broken")
 			return
 		}
+		if f.q.pingNeedsInput {
+			// A liveness call with a conversation attached to it, which is
+			// the one request that cannot have one.
+			reply(map[string]any{"resultType": "input_required", "inputRequests": []map[string]any{
+				{"id": "q1", "method": "elicitation/create", "params": map[string]any{"message": "are you there?"}},
+			}})
+			return
+		}
 		reply(map[string]any{})
 	case "tools/list":
 		if f.q.toolsFail {
@@ -393,6 +415,21 @@ func (f *fakeServer) handle(w http.ResponseWriter, r *http.Request) {
 		}
 		if f.q.allToolsError {
 			reply(map[string]any{"isError": true, "content": []map[string]any{{"type": "text", "text": "always fails"}}})
+			return
+		}
+		switch {
+		case f.q.mrtrEmpty:
+			reply(map[string]any{"resultType": "input_required", "inputRequests": []map[string]any{}})
+			return
+		case f.q.mrtrNoID:
+			reply(map[string]any{"resultType": "input_required", "inputRequests": []map[string]any{
+				{"method": "elicitation/create", "params": map[string]any{"message": "which account?"}},
+			}})
+			return
+		case f.q.inputRequired:
+			reply(map[string]any{"resultType": "input_required", "inputRequests": []map[string]any{
+				{"id": "q1", "method": "elicitation/create", "params": map[string]any{"message": "which account?"}},
+			}})
 			return
 		}
 		switch p.Name {

@@ -430,6 +430,43 @@ var remediations = map[string]Remediation{
 			"passes when the server says so.",
 	},
 
+	"protocol.mrtr": {
+		Means: "The 2026-07-28 revision removed server-initiated sampling, " +
+			"elicitation and roots, and replaced them with Multi Round-Trip " +
+			"Requests: when a server needs something from the client mid-call " +
+			"it answers `resultType: input_required` with a list of client-side " +
+			"methods to invoke, and the client retries the original call with " +
+			"the answers attached.\n\n" +
+			"That only works if the request can be answered. An `input_required` " +
+			"naming nothing, or naming a method with no correlation id, leaves " +
+			"the client with no retry it can construct — and the failure that " +
+			"follows is the worst kind: the call does not return an error, it " +
+			"simply never completes. The agent waits, and nothing is reported " +
+			"to anyone.\n\n" +
+			"scout does not answer one. It has no user to elicit from and no " +
+			"model to sample, so it reports what was asked for rather than " +
+			"inventing a conversation. That also means this check is " +
+			"observational: it judges the requests a run happened to receive, " +
+			"and skips when none arrived.",
+		Steps: []Step{
+			{"Name every request in inputRequests",
+				"An empty list says \"I need something\" and not what. There is no " +
+					"correct retry for it, so the client either waits forever or " +
+					"guesses."},
+			{"Give each request an id and a method",
+				"The id is how the client says which answer belongs to which " +
+					"request when it retries. A call needing two answers has no " +
+					"correct retry without them, and a call needing one works only " +
+					"by accident."},
+			{"Do not ask on a liveness call",
+				"`ping` exists to be answerable with nothing and nobody present. A " +
+					"version of it that needs a user turns every liveness probe into " +
+					"a conversation, and monitoring reads the server as down."},
+		},
+		Note: "A server that never needs client input is not missing anything. " +
+			"This check skips rather than failing when no call asked.",
+	},
+
 	// --- net ---------------------------------------------------------------
 
 	"net.dns": {
