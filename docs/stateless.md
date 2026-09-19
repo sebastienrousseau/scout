@@ -100,6 +100,43 @@ load balancer.
 
 There is no event stream to open, so `protocol.get_stream` expects `405`.
 
+### What was removed should be gone — or declared
+
+`initialize` and `ping` are not part of this revision. A server that still
+answers them is in one of two situations, and from outside they look
+identical: either it serves both generations deliberately, or it is carrying
+handlers no current client will ever call.
+
+`supportedVersions` in the `server/discover` result is how a server says
+which. `protocol.deprecated_features` reads it before deciding, so declared
+compatibility is a **pass** — scout is not in the business of telling a
+deliberately compatible server to break itself. Undeclared, it is a warning:
+the code is there and nothing tells a client it may be used, so the callers
+left are stale software and whoever is enumerating the endpoint.
+
+Declaring a revision the server does not actually serve is also a warning,
+and the worse of the two: a client that reads the declaration negotiates
+down, and the failure lands on its first real call rather than at discovery.
+
+### Extensions are enumerated
+
+`server/discover` carries an `extensions` list, and everything on it is
+interface. `protocol.extensions` reports what is advertised, separating the
+specification's own `io.modelcontextprotocol/…` extensions from an author's,
+because "this server speaks Tasks" and "this server speaks something only
+its own client knows about" are different facts.
+
+The identifiers are reverse-DNS for the same reason `_meta` keys are: it is
+a global namespace with no registry behind it, and the domain is what stops
+two authors meaning different things by the same word. A bare `billing` is
+reported, and so is the same extension listed twice — a client that
+deduplicates and one that does not will disagree about what the server
+offers, and neither is wrong.
+
+scout does not test an extension's semantics. Naming it is the point: the
+rest of the report describes the base protocol, and an operator should know
+what sits beside it.
+
 ### The error codes
 
 | Code | Meaning | When |

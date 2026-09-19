@@ -8,13 +8,13 @@ description: >-
 
 # The check inventory
 
-scout runs **90 checks** across **9 phases**.
+scout runs **92 checks** across **9 phases**.
 
 5 of them apply only to a server that is a program rather than a URL, and
 replace the ones that have no meaning over a pipe. A run reports every check it
 did not make, by id and with the reason, rather than leaving it out.
 
-89 of those are fixed, and 1 is a family whose id is built at run time —
+91 of those are fixed, and 1 is a family whose id is built at run time —
 one check per value the run encounters, marked `*` below.
 
 This file is generated from the source: every check is created through
@@ -82,12 +82,14 @@ that is what a reader sees in a report.
 | <span id="check-handshake-session" data-can-fail="false"></span>`handshake.session` | Mcp-Session-Id issued |
 | <span id="check-handshake-stateless" data-can-fail="true"></span>`handshake.stateless` | Stateless session setup |
 
-## protocol — 11 checks
+## protocol — 13 checks
 
 | Check | What it looks for |
 |---|---|
 | <span id="check-protocol-accept_header" data-can-fail="false"></span>`protocol.accept_header` | Request without Accept header |
 | <span id="check-protocol-bogus_session" data-can-fail="true"></span>`protocol.bogus_session` | Unknown session id is rejected |
+| <span id="check-protocol-deprecated_features" data-can-fail="true"></span>`protocol.deprecated_features` | Removed mechanisms are gone |
+| <span id="check-protocol-extensions" data-can-fail="true"></span>`protocol.extensions` | Advertised extensions |
 | <span id="check-protocol-get_stream" data-can-fail="true"></span>`protocol.get_stream` | GET on the MCP endpoint |
 | <span id="check-protocol-id_echo" data-can-fail="true"></span>`protocol.id_echo` | Response id matches request id |
 | <span id="check-protocol-invalid_params" data-can-fail="true"></span>`protocol.invalid_params` | tools/call without a name is rejected |

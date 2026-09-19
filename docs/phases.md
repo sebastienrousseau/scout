@@ -85,6 +85,8 @@ MCP specification require.
 
 | Finding | Checks |
 |---|---|
+| `protocol.extensions` | the extensions `server/discover` advertises, separated into the specification's own and an author's, with their identifiers checked for reverse-DNS shape |
+| `protocol.deprecated_features` | whether a server on `2026-07-28` still answers `initialize` and `ping`, and whether `supportedVersions` says it means to |
 | `protocol.ping` | ping answers |
 | `protocol.unknown_method` | an unknown method returns JSON-RPC -32601, not an HTTP error |
 | `protocol.id_echo` | the response id matches the request id and `jsonrpc` is "2.0" |

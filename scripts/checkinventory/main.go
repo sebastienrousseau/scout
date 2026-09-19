@@ -110,6 +110,14 @@ var publishedCountFiles = []string{
 	// after the source said 81, because a rebuild is a thing a person has
 	// to remember.
 	"internal/web/dist/index.html",
+	// The vendored layouts, which is where the figure is actually edited.
+	// Checking only the built output finds the drift and then points at a
+	// generated file, so the next person edits the wrong thing. Both of
+	// these had drifted: the shell's facts row said 90 against a source of
+	// 92, and the site's JSON-LD featureList — which is what a search
+	// engine reads, and what nobody opens — still said 76.
+	"site/_layouts/base.html",
+	"web/_layouts/app.html",
 }
 
 // staleCount matches a quoted figure: "76 checks", or the site's own

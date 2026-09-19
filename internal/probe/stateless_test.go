@@ -28,6 +28,17 @@ type statelessOpts struct {
 	// reference SDKs do; anonymousDiscover answers with no identity at all.
 	metaServerInfo    bool
 	anonymousDiscover bool
+	// serveRemoved keeps answering initialize and ping, which 2026-07-28
+	// removed. Plenty of real servers do, because one binary serves both
+	// generations; the default fake does not, so the conformant case is the
+	// one the other tests run against.
+	serveRemoved bool
+	// supportedVersions and extensions are raw JSON arrays the discover
+	// result declares. Raw, because the point of these tests is what a
+	// server can put on the wire, including shapes Go's own types would
+	// refuse to build.
+	supportedVersions string
+	extensions        string
 }
 
 // statelessFake is a server on the stateless revision that validates what
@@ -105,13 +116,20 @@ func statelessFake(t *testing.T, o statelessOpts) *httptest.Server {
 				fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%s,"error":{"code":-32601,"message":"not implemented"}}`, id)
 				return
 			}
+			var extra string
+			if o.supportedVersions != "" {
+				extra += `,"supportedVersions":` + o.supportedVersions
+			}
+			if o.extensions != "" {
+				extra += `,"extensions":` + o.extensions
+			}
 			switch {
 			case o.metaServerInfo:
-				fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%s,"result":{"resultType":"complete","capabilities":{"tools":{}},"instructions":"A stateless server for tests.","_meta":{"io.modelcontextprotocol/serverInfo":{"name":"stateless-fake","version":"2.0"}}}}`, id)
+				fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%s,"result":{"resultType":"complete","capabilities":{"tools":{}},"instructions":"A stateless server for tests."%s,"_meta":{"io.modelcontextprotocol/serverInfo":{"name":"stateless-fake","version":"2.0"}}}}`, id, extra)
 			case o.anonymousDiscover:
-				fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%s,"result":{"resultType":"complete","capabilities":{"tools":{}},"instructions":"A stateless server for tests."}}`, id)
+				fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%s,"result":{"resultType":"complete","capabilities":{"tools":{}},"instructions":"A stateless server for tests."%s}}`, id, extra)
 			default:
-				fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%s,"result":{"resultType":"complete","serverInfo":{"name":"stateless-fake","version":"2.0"},"capabilities":{"tools":{}},"instructions":"A stateless server for tests."}}`, id)
+				fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%s,"result":{"resultType":"complete","serverInfo":{"name":"stateless-fake","version":"2.0"},"capabilities":{"tools":{}},"instructions":"A stateless server for tests."%s}}`, id, extra)
 			}
 		case "tools/list":
 			mu.Lock()
@@ -139,7 +157,14 @@ func statelessFake(t *testing.T, o statelessOpts) *httptest.Server {
 				return
 			}
 			fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%s,"result":{"resultType":"complete","content":[{"type":"text","text":"ok"}]}}`, id)
-		case "ping":
+		case "initialize", "ping":
+			// Both were removed by this revision. A conformant server on it
+			// answers -32601, which is what the default branch does.
+			if !o.serveRemoved {
+				w.WriteHeader(http.StatusNotFound)
+				fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%s,"error":{"code":-32601,"message":"removed in 2026-07-28"}}`, id)
+				return
+			}
 			fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%s,"result":{"resultType":"complete"}}`, id)
 		default:
 			w.WriteHeader(http.StatusNotFound)

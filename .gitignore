@@ -8,3 +8,6 @@
 *.test
 *.out
 site/dist/
+# mkdocs.yml's site_dir. `mkdocs build` is how the manual is checked
+# locally, and it leaves a full copy of the rendered site here.
+/public/
