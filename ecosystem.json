@@ -113,5 +113,105 @@
       "lockstep": false,
       "rejected_because": "CORS blocks a browser build against most servers. A build target, not a repository."
     }
+  ],
+  "sites": [
+    {
+      "name": "site",
+      "config": "site/ssg.toml",
+      "layouts": "site/_layouts",
+      "output": "site/dist",
+      "embedded": false,
+      "theme": "scout",
+      "upstream": "https://github.com/sebastienrousseau/ssg-themes.github.io",
+      "revision": "e32f60c",
+      "min_ssg_version": "0.0.56",
+      "declared_deltas": [
+        {
+          "file": "base.html",
+          "reason": "Carries the structured data and the print stylesheet hooks the marketing site needs for the sample report."
+        },
+        {
+          "file": "header.html",
+          "reason": "Marketing navigation, which is site content rather than theme structure."
+        },
+        {
+          "file": "footer.html",
+          "reason": "Marketing footer, same reason."
+        },
+        {
+          "file": "styles.css",
+          "reason": "Landing-page sections the content theme does not have: the readout hero, the metric row and the comparison table."
+        },
+        {
+          "file": "index.html",
+          "reason": "The landing page: the readout hero, the metric row, the comparison table and the FAQ. Marketing structure, not theme structure."
+        },
+        {
+          "file": "404.html",
+          "reason": "Points at scoutmcp.io's own sections rather than the theme demo's."
+        },
+        {
+          "file": "styles.styl",
+          "reason": "The Stylus source behind styles.css. Vendored at an older theme revision than the compiled CSS beside it, which is why both are declared: reconciling them is upstream work, not a local edit."
+        },
+        {
+          "file": "app.html",
+          "reason": "RESIDUE: a layout no content page uses. Remove; tracked as its own change so the removal can be verified against a site build on its own."
+        },
+        {
+          "file": "app.js",
+          "reason": "RESIDUE: the application's JavaScript, loaded by the marketing site's base.html on a page with no run form. Remove together with that reference."
+        }
+      ]
+    },
+    {
+      "name": "web-shell",
+      "config": "web/ssg.toml",
+      "layouts": "web/_layouts",
+      "output": "internal/web/dist",
+      "embedded": true,
+      "theme": "scout",
+      "upstream": "https://github.com/sebastienrousseau/ssg-themes.github.io",
+      "revision": "e32f60c",
+      "min_ssg_version": "0.0.56",
+      "declared_deltas": [
+        {
+          "file": "base.html",
+          "reason": "The shell is served from a binary on the operator's machine, so it carries a stricter Content-Security-Policy and drops the analytics and external font hooks the public theme has."
+        },
+        {
+          "file": "header.html",
+          "reason": "Navigation leaves for scoutmcp.io rather than linking local pages that the single-page shell does not have."
+        },
+        {
+          "file": "footer.html",
+          "reason": "States that the run is local and nothing is uploaded, which is a product guarantee rather than a theme concern."
+        },
+        {
+          "file": "styles.css",
+          "reason": "Adds the run form, the panel and the assurance block — application chrome that has no counterpart in a content theme."
+        },
+        {
+          "file": "app.html",
+          "reason": "The application itself. There is no upstream counterpart."
+        },
+        {
+          "file": "app.js",
+          "reason": "The application itself. There is no upstream counterpart."
+        },
+        {
+          "file": "index.html",
+          "reason": "The shell has one page and no index listing, so the layout is reduced to the application mount point."
+        },
+        {
+          "file": "404.html",
+          "reason": "A 404 inside a binary serving one page means the token was wrong, and it says so."
+        },
+        {
+          "file": "styles.styl",
+          "reason": "Same as the site's, and for the same reason."
+        }
+      ]
+    }
   ]
 }

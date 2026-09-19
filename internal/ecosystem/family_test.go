@@ -275,3 +275,172 @@ func TestEveryPlannedRepoHasADistinctBoundary(t *testing.T) {
 		t.Error("no planned repositories have boundaries, so this asserts nothing")
 	}
 }
+
+// --- the ssg surfaces ------------------------------------------------------
+
+func TestSiteManifestIsSelfConsistent(t *testing.T) {
+	if errs := ValidateSites(); len(errs) > 0 {
+		for _, err := range errs {
+			t.Errorf("sites: %v", err)
+		}
+	}
+}
+
+// TestSiteManifestIsTrueOfTheWorkingTree: a manifest claiming a layouts
+// directory or an ssg configuration that is not there would let the gate
+// pass while describing a repository that does not exist.
+func TestSiteManifestIsTrueOfTheWorkingTree(t *testing.T) {
+	root := repoRoot(t)
+	if len(Sites) == 0 {
+		t.Fatal("no sites, so this asserts nothing")
+	}
+	for _, s := range Sites {
+		for _, path := range []string{s.Config, s.Layouts, s.Output} {
+			if _, err := os.Stat(filepath.Join(root, path)); err != nil {
+				t.Errorf("site %s claims %s: %v", s.Name, path, err)
+			}
+		}
+	}
+	for _, d := range ThemeDeltas {
+		s, ok := LookupSite(d.Site)
+		if !ok {
+			t.Errorf("delta %s/%s names no site", d.Site, d.File)
+			continue
+		}
+		if _, err := os.Stat(filepath.Join(root, s.Layouts, d.File)); err != nil {
+			t.Errorf("a delta is declared for %s/%s and the file is not there: %v", d.Site, d.File, err)
+		}
+	}
+}
+
+// TestValidateSitesRefusesAMovingRevision is the one that matters most.
+//
+// "Which design is this?" has to have an answer months later. A branch name
+// answers it with "whichever one it was that day", which is the same as no
+// answer, and it is the easy mistake to make when vendoring.
+func TestValidateSitesRefusesAMovingRevision(t *testing.T) {
+	original := Sites
+	t.Cleanup(func() { Sites = original })
+
+	for _, moving := range []string{"main", "HEAD", "latest", "MAIN"} {
+		Sites = []Site{{
+			Name: "x", Config: "web/ssg.toml", Layouts: "web/_layouts", Output: "internal/web/dist",
+			Theme: "scout", Upstream: "https://example.com", Revision: moving, MinSSG: "0.0.56",
+		}}
+		errs := ValidateSites()
+		if len(errs) == 0 {
+			t.Errorf("revision %q was accepted", moving)
+			continue
+		}
+		if !strings.Contains(errs[0].Error(), "moving target") {
+			t.Errorf("revision %q: %v", moving, errs[0])
+		}
+	}
+}
+
+func TestValidateSitesRefusesAnUnreasonedDelta(t *testing.T) {
+	originalSites, originalDeltas := Sites, ThemeDeltas
+	t.Cleanup(func() { Sites, ThemeDeltas = originalSites, originalDeltas })
+
+	Sites = []Site{{
+		Name: "x", Config: "web/ssg.toml", Layouts: "web/_layouts", Output: "internal/web/dist",
+		Theme: "scout", Upstream: "https://example.com", Revision: "abc1234", MinSSG: "0.0.56",
+	}}
+
+	ThemeDeltas = []ThemeDelta{{Site: "x", File: "base.html"}}
+	if errs := ValidateSites(); len(errs) == 0 {
+		t.Error("a delta with no reason was accepted; that is a fork rather than a patch")
+	} else if !strings.Contains(errs[0].Error(), "no reason") {
+		t.Errorf("unexpected error: %v", errs[0])
+	}
+
+	ThemeDeltas = []ThemeDelta{{Site: "nope", File: "base.html", Reason: "because"}}
+	if errs := ValidateSites(); len(errs) == 0 {
+		t.Error("a delta for a site that does not exist was accepted")
+	}
+}
+
+// TestValidateSitesRefusesAnIncompleteSite walks every required field, so a
+// field added later is covered without anyone editing a list.
+func TestValidateSitesRefusesAnIncompleteSite(t *testing.T) {
+	originalSites, originalDeltas := Sites, ThemeDeltas
+	t.Cleanup(func() { Sites, ThemeDeltas = originalSites, originalDeltas })
+
+	complete := Site{
+		Name: "x", Config: "web/ssg.toml", Layouts: "web/_layouts", Output: "internal/web/dist",
+		Theme: "scout", Upstream: "https://example.com", Revision: "abc1234", MinSSG: "0.0.56",
+	}
+	// The real deltas name the real sites, so they have to go with them.
+	Sites, ThemeDeltas = []Site{complete}, nil
+	if errs := ValidateSites(); len(errs) > 0 {
+		t.Fatalf("the complete fixture was rejected: %v", errs)
+	}
+
+	blank := map[string]func(*Site){
+		"name":            func(s *Site) { s.Name = "" },
+		"config":          func(s *Site) { s.Config = "" },
+		"layouts":         func(s *Site) { s.Layouts = "" },
+		"output":          func(s *Site) { s.Output = "" },
+		"theme":           func(s *Site) { s.Theme = "" },
+		"upstream":        func(s *Site) { s.Upstream = "" },
+		"revision":        func(s *Site) { s.Revision = "" },
+		"min ssg version": func(s *Site) { s.MinSSG = "" },
+	}
+	for field, clear := range blank {
+		t.Run("without a "+field, func(t *testing.T) {
+			broken := complete
+			clear(&broken)
+			Sites = []Site{broken}
+			ThemeDeltas = nil
+			errs := ValidateSites()
+			if len(errs) == 0 {
+				t.Fatalf("a site with no %s was accepted", field)
+			}
+			var joined []string
+			for _, e := range errs {
+				joined = append(joined, e.Error())
+			}
+			want := field
+			if field == "name" {
+				want = "no name"
+			}
+			if !strings.Contains(strings.Join(joined, "; "), want) {
+				t.Errorf("errors do not mention %q: %v", want, joined)
+			}
+		})
+	}
+
+	// And a duplicated site, which would make LookupSite ambiguous.
+	Sites = []Site{complete, complete}
+	ThemeDeltas = nil
+	if errs := ValidateSites(); len(errs) == 0 {
+		t.Error("the same site listed twice was accepted")
+	}
+}
+
+// TestDeltaHelpersAgreeWithTheManifest: ssgcheck reads the manifest only
+// through these, so an accessor that disagreed with ThemeDeltas would make
+// the gate wrong in a way the gate cannot see.
+func TestDeltaHelpersAgreeWithTheManifest(t *testing.T) {
+	var total int
+	for _, s := range Sites {
+		for _, d := range DeltasFor(s.Name) {
+			total++
+			if d.Site != s.Name {
+				t.Errorf("DeltasFor(%q) returned a delta for %q", s.Name, d.Site)
+			}
+			if !DeclaredDelta(d.Site, d.File) {
+				t.Errorf("DeclaredDelta(%q, %q) is false for a declared delta", d.Site, d.File)
+			}
+		}
+	}
+	if total != len(ThemeDeltas) {
+		t.Errorf("DeltasFor accounts for %d of %d deltas", total, len(ThemeDeltas))
+	}
+	if DeclaredDelta("web-shell", "a-file-nobody-vendored.html") {
+		t.Error("DeclaredDelta invented a delta")
+	}
+	if _, ok := LookupSite("no-such-site"); ok {
+		t.Error("LookupSite invented a site")
+	}
+}
