@@ -213,3 +213,40 @@ func TestApproxTokensNamesItsRule(t *testing.T) {
 		t.Error("the rule is not named, so a reader cannot reproduce the number")
 	}
 }
+
+// TestHumanBytesScales: the figure appears in every budget finding, and a
+// catalogue measured in megabytes is exactly the case worth reading clearly.
+func TestHumanBytesScales(t *testing.T) {
+	for _, tc := range []struct {
+		in   int
+		want string
+	}{
+		{0, "0 B"}, {512, "512 B"}, {2048, "2.0 KB"}, {3 << 20, "3.0 MB"},
+	} {
+		if got := humanBytes(tc.in); got != tc.want {
+			t.Errorf("humanBytes(%d) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}
+
+// TestToolWeightFallsBackWhenAToolWillNotMarshal.
+//
+// A tool carrying invalid raw JSON cannot be marshalled, and returning zero
+// for it would understate the catalogue — the one direction a budget must
+// never err in, because it would let the largest tool be the invisible one.
+func TestToolWeightFallsBackWhenAToolWillNotMarshal(t *testing.T) {
+	broken := scout.Tool{
+		Name:        "broken",
+		Description: strings.Repeat("y", 100),
+		InputSchema: json.RawMessage(`{invalid`),
+	}
+	w := toolWeight(broken)
+	if w < 100 {
+		t.Errorf("weight %d understates a tool with a 100-character description", w)
+	}
+	// And it still counts towards the catalogue rather than vanishing.
+	f := only(t, checkCatalogueBudget(catalogue(broken)))
+	if f.Status == Skip {
+		t.Error("an unmarshalable tool removed the catalogue from the budget")
+	}
+}
