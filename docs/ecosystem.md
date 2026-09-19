@@ -85,7 +85,7 @@ table, or when CI would install an ssg older than the theme requires.
 | `web-shell` | scout | `e32f60c` (min ssg 0.0.56) | `web/_layouts` | `internal/web/dist` | yes |
 
 The layouts are vendored so the site builds in CI with nothing but the `ssg`
-binary. 18 file(s) deliberately differ from the theme, each with a recorded
+binary. 16 file(s) deliberately differ from the theme, each with a recorded
 reason — a declared delta is a patch on its way upstream, and an undeclared
 one is a fork nobody decided to make. The list is in
 [`internal/ecosystem/sites.go`](https://github.com/sebastienrousseau/scout/blob/main/internal/ecosystem/sites.go).

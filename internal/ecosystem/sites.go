@@ -164,24 +164,18 @@ var ThemeDeltas = []ThemeDelta{
 		Reason: "Same as the site's, and for the same reason.",
 	},
 
-	// The two below are vendoring residue rather than deltas, and they are
-	// declared as such so the gate does not hide them. site/_layouts/app.html
-	// is a layout no content page uses, and site/_layouts/app.js is loaded by
-	// the marketing site's base.html even though that page has no run form —
-	// so scoutmcp.io currently ships the diagnostic application's JavaScript
-	// to read a landing page. Harmless (the script returns immediately when
-	// the form is absent) and still wrong.
+	// The marketing site once carried two more entries, marked RESIDUE:
+	// app.html, a layout no content page used, and app.js, the diagnostic
+	// application's client half, which base.html loaded on every page of
+	// scoutmcp.io even though no page there has a run form. Both are gone,
+	// and the declaration went with them — TestSiteManifestIsTrueOfTheWorking
+	// Tree is what keeps the two in step, because a delta declared for a file
+	// that is not there fails it.
 	//
-	// Removing them is its own change: REPO-STANDARD is explicit that a
-	// structure cleanup coupled to something else is how cleanups die.
-	{
-		Site: "site", File: "app.html",
-		Reason: "RESIDUE: a layout no content page uses. Remove; tracked as its own change so the removal can be verified against a site build on its own.",
-	},
-	{
-		Site: "site", File: "app.js",
-		Reason: "RESIDUE: the application's JavaScript, loaded by the marketing site's base.html on a page with no run form. Remove together with that reference.",
-	},
+	// The residue is worth remembering for the reason it existed: vendoring a
+	// theme copies whatever the theme ships, and the files nothing references
+	// are the ones nobody notices. Every entry above says why it differs;
+	// anything that cannot say why is residue, not a delta.
 }
 
 // ValidateSites reports every way the site manifest contradicts itself.
