@@ -7,6 +7,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -545,5 +546,96 @@ func TestPerformanceAndResilienceBranches(t *testing.T) {
 	_, fs = run(t, f, &creds.Credentials{Mode: creds.ModeNone}, func(o *Options) { o.Only = []string{"net", "discovery", "auth", "handshake", "resilience"} })
 	if _, ok := fs["resilience.token_refresh"]; ok && fs["resilience.token_refresh"].Status != Skip {
 		t.Errorf("token refresh should not run: %+v", fs["resilience.token_refresh"])
+	}
+}
+
+// TestUnauthenticatedToolsNamesTheBlastRadius is the check that turns the
+// ecosystem's headline number into something an operator can act on.
+//
+// "40% of servers expose tools without authentication" is a statistic.
+// "anyone can call delete_all on yours" is an incident, and it is the same
+// measurement with the catalogue attached.
+func TestUnauthenticatedToolsNamesTheBlastRadius(t *testing.T) {
+	f := newFakeServer(t)
+	// Everything served to everyone: the open server the ecosystem's
+	// headline number is about.
+	f.q.open = true
+	sess, fs := run(t, f, nil, func(o *Options) { o.Only = []string{"net", "discovery", "auth"} })
+
+	got, ok := fs["auth.unauthenticated_tools"]
+	if !ok {
+		t.Fatal("the check did not run against an open server")
+	}
+	// The fake's catalogue has one tool with no annotations, which the
+	// specification treats as destructive by default. It must be named.
+	if !strings.Contains(got.Detail, "delete_all") {
+		t.Errorf("the mutating tool is not named: %s", got.Detail)
+	}
+	// And a read-only tool must not be reported as the danger.
+	if strings.Contains(got.Detail, "not declared read-only: get_time") {
+		t.Errorf("a read-only tool was counted as mutating: %s", got.Detail)
+	}
+
+	// An httptest server is on 127.0.0.1, so this is the loopback case: an
+	// open development server is ordinary, and net.scheme already makes the
+	// same allowance for plain HTTP.
+	if got.Status != Warn || !strings.Contains(got.Detail, "loopback") {
+		t.Errorf("on loopback this should warn and say so: %s %q", got.Status, got.Detail)
+	}
+
+	// The same server reachable from anywhere else is not ordinary. Only
+	// the hostname changes, which is the whole of the distinction.
+	sess.URL = &url.URL{Scheme: "https", Host: "mcp.example.com", Path: "/mcp"}
+	off := checkUnauthenticatedTools(context.Background(), sess)
+	if off.Status != Fail {
+		t.Fatalf("off loopback an exposed destructive tool was %s: %s", off.Status, off.Detail)
+	}
+	if off.Severity != Critical {
+		t.Errorf("severity = %s", off.Severity)
+	}
+	if !strings.Contains(off.Detail, "delete_all") {
+		t.Errorf("the mutating tool is not named off loopback: %s", off.Detail)
+	}
+}
+
+// TestUnauthenticatedToolsWarnsWhenEverythingIsReadOnly: an open catalogue
+// of read-only tools is a disclosure problem rather than an incident, and
+// treating it as critical would make the check noise on every deliberately
+// public server.
+func TestUnauthenticatedToolsWarnsWhenEverythingIsReadOnly(t *testing.T) {
+	f := newFakeServer(t)
+	f.q.open = true
+	f.q.readOnlyOnly = true
+	sess, fs := run(t, f, nil, func(o *Options) { o.Only = []string{"net", "discovery", "auth"} })
+
+	got := fs["auth.unauthenticated_tools"]
+	sess.URL = &url.URL{Scheme: "https", Host: "mcp.example.com", Path: "/mcp"}
+	off := checkUnauthenticatedTools(context.Background(), sess)
+	for _, f := range []Finding{got, off} {
+		if f.Status != Warn {
+			t.Errorf("a read-only open catalogue was %s: %s", f.Status, f.Detail)
+		}
+		if !strings.Contains(f.Detail, "read-only") {
+			t.Errorf("the detail does not say why it is only a warning: %s", f.Detail)
+		}
+	}
+}
+
+// TestUnauthenticatedToolsPassesAProtectedServer: the check must not fire
+// on a server that does require credentials, or it is noise on every
+// correctly configured endpoint.
+func TestUnauthenticatedToolsPassesAProtectedServer(t *testing.T) {
+	f := newFakeServer(t)
+	_, fs := run(t, f, ccCreds(), func(o *Options) { o.Only = []string{"net", "discovery", "auth"} })
+
+	got, ok := fs["auth.unauthenticated_tools"]
+	if !ok {
+		t.Fatal("the check did not run")
+	}
+	if got.Status != Pass {
+		t.Errorf("a protected server was %s: %s", got.Status, got.Detail)
+	}
+	if !strings.Contains(got.Detail, "401") && !strings.Contains(got.Detail, "403") {
+		t.Errorf("the detail does not say what the server answered: %s", got.Detail)
 	}
 }

@@ -266,6 +266,14 @@ func contains(ss []string, s string) bool {
 func phaseAuth(ctx context.Context, s *Session) []Finding {
 	var out []Finding
 	mode := s.Opts.Creds.Effective()
+
+	// First, and before any early return: what the server exposes to
+	// somebody with no credentials at all. It is a question about the
+	// server rather than about what the operator supplied, and the case it
+	// exists for — an open server, no credentials given — is exactly the
+	// one the branch below returns early from.
+	out = append(out, checkUnauthenticatedTools(ctx, s))
+
 	if !s.RequiresAuth {
 		if mode == creds.ModeNone {
 			out = append(out, s.check("auth.mode", "Credentials").skip("open server, no credentials supplied"))

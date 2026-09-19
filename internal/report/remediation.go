@@ -121,6 +121,59 @@ var remediations = map[string]Remediation{
 		},
 	},
 
+	"catalog.budget.tokens": {
+		Means: "Every tool a client can reach is loaded into the model's context " +
+			"before it decides anything, on every call, and it is billed that way. " +
+			"A large catalogue costs money on each request and makes the model " +
+			"choose worse: retrieval degrades as the number of candidates grows, " +
+			"so the twentieth tool does not just cost tokens, it makes the other " +
+			"nineteen harder to pick between.",
+		Steps: []Step{
+			{"Look at the three largest first",
+				"The finding names them. Catalogue weight is almost never evenly " +
+					"spread — a couple of tools with deeply nested schemas usually " +
+					"account for most of it."},
+			{"Cut what is not needed to choose the tool",
+				"A schema has two jobs: helping the model decide whether to call " +
+					"this tool, and validating the call. Only the first is paid for " +
+					"on every request. Deep nesting, exhaustive enums and long " +
+					"examples can often move into the description or into the error " +
+					"the server returns when an argument is wrong."},
+			{"Split the server, or page the catalogue",
+				"A server with ninety tools is usually several servers. Where it " +
+					"genuinely is not, progressive discovery lets a client fetch the " +
+					"catalogue in parts rather than all of it at connection time."},
+		},
+		Note: "The token figure is an estimate — scout counts characters and divides " +
+			"by four, and says so in the finding. The byte count beside it is exact; " +
+			"tokenise that with your own model if you need the precise number.",
+	},
+
+	"catalog.semantic.ambiguity": {
+		Means: "A parameter with a type and no description tells the model nothing " +
+			"about what to put in it. The call is still well-formed, so the " +
+			"protocol is satisfied and nothing fails a conformance check — the " +
+			"model simply guesses, and the failure surfaces later as a wrong " +
+			"answer rather than as an error. A required parameter is the acute " +
+			"case: the model has to supply it.",
+		Steps: []Step{
+			{"Describe every required parameter first",
+				"One sentence saying what the value is and where the caller gets " +
+					"it. `id` is not a description; \"the account id from " +
+					"list_accounts\" is, and it tells the model which other tool to " +
+					"call first."},
+			{"Constrain what you can",
+				"An `enum` removes a whole class of guesses. A `pattern`, a " +
+					"`format`, a numeric bound or a `default` each narrow the space " +
+					"the model is choosing from, and all of them are cheaper than the " +
+					"prose that would otherwise be needed."},
+			{"Add an example where the shape is not obvious",
+				"`examples` on a property costs a few tokens and removes the " +
+					"most common category of malformed call: the right type in the " +
+					"wrong shape."},
+		},
+	},
+
 	"catalog.tools.annotations": {
 		Means: "Annotations are how a tool declares whether calling it is safe. " +
 			"`readOnlyHint` says it only reads; `destructiveHint` says it can " +
@@ -422,6 +475,39 @@ var remediations = map[string]Remediation{
 		},
 		Note: "This is the single most common way a working server appears broken " +
 			"to a host, because the symptom never names the cause.",
+	},
+
+	"auth.unauthenticated_tools": {
+		Means: "The server answered a tools/list carrying no token, no API key and " +
+			"no basic auth, and the catalogue it returned includes at least one " +
+			"tool that is not declared read-only. By the specification's own " +
+			"default a tool with no annotations is destructive, so anyone who can " +
+			"reach this endpoint can invoke it. This is the most common serious " +
+			"finding in the ecosystem: a measurement study of 7,973 live remote " +
+			"servers found 40.55% exposing tools with no authentication at all.",
+		Steps: []Step{
+			{"Require authorization before the catalogue, not only before the call",
+				"An unauthenticated tools/list discloses what the system can do — " +
+					"tool names and descriptions map your internal capabilities for " +
+					"anyone who asks. Answer 401 with a WWW-Authenticate challenge " +
+					"pointing at your protected-resource metadata, as RFC 9728 " +
+					"describes, and let a client discover how to authenticate rather " +
+					"than discovering what you can do."},
+			{"Check enforcement at the handler, not at the router",
+				"The common shape of this bug is a middleware that protects " +
+					"tools/call and not tools/list, or that protects a path prefix " +
+					"the MCP endpoint does not sit under. The finding names which " +
+					"tools came back, which tells you exactly which handler answered."},
+			{"Annotate honestly while you are there",
+				"Every tool named in this finding lacks readOnlyHint:true. If one " +
+					"of them really is read-only, say so — it will stop being " +
+					"reported here and cautious clients will start being willing to " +
+					"call it. If it is not read-only, the finding is correct and " +
+					"authorization is the fix."},
+		},
+		Note: "On loopback this is a warning rather than a failure, because an open " +
+			"development server is ordinary. It stops being ordinary the moment the " +
+			"endpoint is reachable from anywhere else — including through a tunnel.",
 	},
 
 	"net.tcp": {
