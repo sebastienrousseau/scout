@@ -33,11 +33,19 @@ import (
 const (
 	begin = "<!-- BEGIN generated family table — run `make ecosystem`; do not edit by hand -->"
 	end   = "<!-- END generated family table -->"
+
+	// The README carries a shorter version of the same table. It is
+	// generated from the same manifest rather than kept in step by hand:
+	// a family map that disagrees with itself in two files is worse than
+	// one that exists in neither.
+	readmeBegin = "<!-- BEGIN generated readme family table — run `make ecosystem`; do not edit by hand -->"
+	readmeEnd   = "<!-- END generated readme family table -->"
 )
 
 const (
-	docPath  = "docs/ecosystem.md"
-	jsonPath = "ecosystem.json"
+	docPath    = "docs/ecosystem.md"
+	jsonPath   = "ecosystem.json"
+	readmePath = "README.md"
 )
 
 func main() {
@@ -58,7 +66,15 @@ func main() {
 	if err != nil {
 		fail(err)
 	}
-	updated, err := replaceRegion(string(doc), renderTable())
+	updated, err := replaceRegion(string(doc), renderTable(), begin, end, docPath)
+	if err != nil {
+		fail(err)
+	}
+	readme, err := os.ReadFile(readmePath)
+	if err != nil {
+		fail(err)
+	}
+	updatedReadme, err := replaceRegion(string(readme), renderReadmeTable(), readmeBegin, readmeEnd, readmePath)
 	if err != nil {
 		fail(err)
 	}
@@ -72,6 +88,9 @@ func main() {
 		if updated != string(doc) {
 			stale = append(stale, docPath)
 		}
+		if updatedReadme != string(readme) {
+			stale = append(stale, readmePath)
+		}
 		if committed, err := os.ReadFile(jsonPath); err != nil || !bytes.Equal(committed, manifest) {
 			stale = append(stale, jsonPath)
 		}
@@ -84,6 +103,9 @@ func main() {
 	}
 
 	if err := os.WriteFile(docPath, []byte(updated), 0o644); err != nil { //nolint:gosec // documentation, not a secret
+		fail(err)
+	}
+	if err := os.WriteFile(readmePath, []byte(updatedReadme), 0o644); err != nil { //nolint:gosec // documentation, not a secret
 		fail(err)
 	}
 	if err := os.WriteFile(jsonPath, manifest, 0o644); err != nil { //nolint:gosec // a published manifest
@@ -102,13 +124,32 @@ func fail(err error) {
 }
 
 // replaceRegion swaps the generated region for body, leaving the prose alone.
-func replaceRegion(doc, body string) (string, error) {
-	i := strings.Index(doc, begin)
-	j := strings.Index(doc, end)
+func replaceRegion(doc, body, from, to, path string) (string, error) {
+	i := strings.Index(doc, from)
+	j := strings.Index(doc, to)
 	if i < 0 || j < 0 || j < i {
-		return "", fmt.Errorf("%s has no generated region; it needs the BEGIN and END markers", docPath)
+		return "", fmt.Errorf("%s has no generated region; it needs the BEGIN and END markers", path)
 	}
-	return doc[:i+len(begin)] + "\n\n" + body + "\n" + doc[j:], nil
+	return doc[:i+len(from)] + "\n\n" + body + "\n" + doc[j:], nil
+}
+
+// renderReadmeTable is the one-glance version: every repository, its status,
+// its licence and what it owns. The manual carries the reasoning; a README
+// that carried all of it would bury the install instructions.
+func renderReadmeTable() string {
+	var b strings.Builder
+	b.WriteString("| Repository | Status | Licence | What it owns |\n|---|---|---|---|\n")
+	for _, r := range ecosystem.Family {
+		if r.Status == ecosystem.Rejected {
+			continue
+		}
+		name := "`" + r.Name + "`"
+		if r.Name == "scout" {
+			name = "**`" + r.Name + "`**"
+		}
+		fmt.Fprintf(&b, "| %s | %s | %s | %s |\n", name, r.Status, r.Licence, r.Role)
+	}
+	return tidyMarkdown(b.String())
 }
 
 // renderTable writes the three tables the manual carries: what exists, what
