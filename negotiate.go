@@ -48,12 +48,43 @@ type Negotiation struct {
 // DiscoverResult is what server/discover returned. The RPC is optional in
 // the 2026-07-28 revision, so its absence is not a failure.
 type DiscoverResult struct {
-	ResultType   string             `json:"resultType,omitempty"`
-	ServerInfo   Implementation     `json:"serverInfo"`
+	ResultType string `json:"resultType,omitempty"`
+	// ServerInfo is the server's identity. The 2026-07-28 revision carries
+	// it in the result's _meta under the reserved
+	// io.modelcontextprotocol/serverInfo key, which is where the reference
+	// SDKs write it; UnmarshalJSON lifts it from there when the top-level
+	// field is absent, so callers read one place.
+	ServerInfo   Implementation     `json:"serverInfo,omitempty"`
 	Capabilities ServerCapabilities `json:"capabilities"`
 	Instructions string             `json:"instructions,omitempty"`
+	// SupportedVersions lists the protocol revisions the server speaks.
+	SupportedVersions []string `json:"supportedVersions,omitempty"`
 	// Extensions the server advertises, by reverse-DNS identifier.
 	Extensions []string `json:"extensions,omitempty"`
+	// Meta is the result's _meta, kept raw so reserved keys scout does not
+	// model are still visible in the report.
+	Meta map[string]json.RawMessage `json:"_meta,omitempty"`
+}
+
+// UnmarshalJSON decodes a server/discover result and settles where the
+// identity came from. A top-level serverInfo wins when present; otherwise
+// the reserved _meta key supplies it. A malformed _meta entry is an error,
+// not a silent blank: a server that put something there meant it.
+func (d *DiscoverResult) UnmarshalJSON(b []byte) error {
+	type plain DiscoverResult
+	var p plain
+	if err := json.Unmarshal(b, &p); err != nil {
+		return err
+	}
+	if p.ServerInfo.Name == "" {
+		if raw, ok := p.Meta[transport.MetaServerInfo]; ok {
+			if err := json.Unmarshal(raw, &p.ServerInfo); err != nil {
+				return fmt.Errorf("decoding _meta %s: %w", transport.MetaServerInfo, err)
+			}
+		}
+	}
+	*d = DiscoverResult(p)
+	return nil
 }
 
 // StatelessVersions are the stateless revisions scout offers, newest first.

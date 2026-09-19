@@ -267,12 +267,51 @@ func phaseOf(id string) string {
 	return "other"
 }
 
+// phases are the nine diagnostic steps, in the order they run.
+//
+// It is the same list as probe.Phases, duplicated because this generator
+// parses the source rather than importing it — and because it carries a
+// build tag, it cannot have a test of its own. What guards the duplication
+// is probe's TestInventoryGroupsAreRealPhases, which reads the page this
+// writes and fails when a group here is not a phase there.
+var phases = []string{"net", "discovery", "auth", "handshake", "protocol", "catalog", "execution", "performance", "resilience"}
+
+// transportGroups are id prefixes that are not phase names.
+//
+// A stdio check runs inside an existing phase — connectivity or resilience
+// — and has no phase of its own. Its id names the transport instead,
+// because that is the first thing a reader of the report needs to know
+// about it. Counting such a group as a tenth phase would make the figure
+// this page publishes disagree with the nine phases scout runs, which is
+// precisely the drift this generator exists to prevent.
+var transportGroups = map[string]string{
+	"stdio": "These run only when the server is a program rather than a URL. " +
+		"They belong to the connectivity and resilience phases, not to a phase of their own: " +
+		"a pipe has no name to resolve and no session to lose, so they take the place of the checks that do.",
+}
+
 func phaseCount(es []entry) int {
 	seen := map[string]bool{}
 	for _, e := range es {
-		seen[phaseOf(e.ID)] = true
+		p := phaseOf(e.ID)
+		if _, isTransport := transportGroups[p]; isTransport {
+			continue
+		}
+		seen[p] = true
 	}
 	return len(seen)
+}
+
+// transportCount counts the checks that belong to a transport group rather
+// than to a phase.
+func transportCount(es []entry) int {
+	n := 0
+	for _, e := range es {
+		if _, ok := transportGroups[phaseOf(e.ID)]; ok {
+			n++
+		}
+	}
+	return n
 }
 
 func render(es []entry) []byte {
@@ -295,6 +334,11 @@ func render(es []entry) []byte {
 		}
 	}
 	fmt.Fprintf(&b, "scout runs **%d checks** across **%d phases**.\n\n", len(es), phaseCount(es))
+	if n := transportCount(es); n > 0 {
+		fmt.Fprintf(&b, "%d of them apply only to a server that is a program rather than a URL, and\n"+
+			"replace the ones that have no meaning over a pipe. A run reports every check it\n"+
+			"did not make, by id and with the reason, rather than leaving it out.\n\n", n)
+	}
 	if families > 0 {
 		fmt.Fprintf(&b, "%d of those are fixed, and %d is a family whose id is built at run time —\n"+
 			"one check per value the run encounters, marked `*` below.\n\n", fixed, families)
@@ -306,7 +350,11 @@ func render(es []entry) []byte {
 	b.WriteString("several ways and report the same id. The count is of distinct ids, because\n")
 	b.WriteString("that is what a reader sees in a report.\n\n")
 
-	order := []string{"net", "discovery", "auth", "handshake", "protocol", "catalog", "execution", "performance", "resilience"}
+	order := append([]string{}, phases...)
+	for p := range transportGroups {
+		order = append(order, p)
+	}
+	sort.Strings(order[len(phases):])
 	grouped := map[string][]entry{}
 	for _, e := range es {
 		p := phaseOf(e.ID)
@@ -333,6 +381,9 @@ func render(es []entry) []byte {
 			continue
 		}
 		fmt.Fprintf(&b, "## %s — %d checks\n\n", p, len(in))
+		if note, ok := transportGroups[p]; ok {
+			b.WriteString(note + "\n\n")
+		}
 		b.WriteString("| Check | What it looks for |\n|---|---|\n")
 		for _, e := range in {
 			title := e.Title

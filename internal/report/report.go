@@ -7,6 +7,7 @@ package report
 
 import (
 	"fmt"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -79,6 +80,16 @@ func (r *Report) AttachGuidance() {
 // consumer can pin a major version and keep reading.
 //
 // 1: initial published format. Every *_ms field holds milliseconds.
+//
+// The stdio transport tested that rule and did not break it, which is worth
+// recording because the argument goes the other way at first glance.
+// `target.endpoint` holds a command line for a stdio run, and a consumer
+// that parsed it as a URL would fail — but no v1 consumer has ever been
+// handed a stdio report, because scout could not produce one, and every
+// report it can produce for an existing run is unchanged. `target.transport`
+// is the added field that says which kind it is holding. Bumping to 2 would
+// have made every pinned consumer reject HTTP reports that did not change,
+// which is a real break in exchange for a hypothetical one.
 const SchemaVersion = 1
 
 // Meta identifies the scout build and the report format.
@@ -90,9 +101,49 @@ type Meta struct {
 
 // Target is the server under test (secrets stripped).
 type Target struct {
+	// Endpoint is the URL, or over stdio the command line that was run.
+	// Every rendering names the target through this field, so it is filled
+	// either way rather than left empty for one transport.
 	Endpoint string `json:"endpoint"`
 	Host     string `json:"host"`
 	Scheme   string `json:"scheme"`
+	// Transport is "http" or "stdio". A consumer comparing two reports has
+	// to be able to tell which kind of run it is reading: the two do not
+	// contain the same checks, and the difference is not the server's.
+	Transport string `json:"transport,omitempty"`
+	// Command is the program and its arguments, when the transport is
+	// stdio. Kept as a list so a consumer can re-run it without guessing
+	// how it was quoted.
+	Command []string `json:"command,omitempty"`
+}
+
+// URI renders the target as something a machine consumer can treat as a
+// location.
+//
+// SARIF wants a URI, and over stdio there is no URL — the target is a
+// command line, which is not one. A tool that put "npx -y thing" in a URI
+// field would be handing a consumer a value it has to guess about, so this
+// makes the shape explicit with a scheme and escapes the rest.
+func (t Target) URI() string {
+	if t.Transport != "stdio" {
+		return t.Endpoint
+	}
+	u := url.URL{Scheme: "stdio", Opaque: url.PathEscape(t.Endpoint)}
+	return u.String()
+}
+
+// Key is the short, stable identifier for the target, used where a
+// consumer groups findings across runs.
+//
+// For HTTP that is the host. For stdio it has to be the command: the host
+// is empty, and using it would give every stdio server on a machine the
+// same identity — so two nights' runs against two different servers would
+// merge into one alert.
+func (t Target) Key() string {
+	if t.Transport == "stdio" {
+		return t.Endpoint
+	}
+	return t.Host
 }
 
 // AuthSummary is the credential and discovery summary.
@@ -159,11 +210,40 @@ type Counts struct {
 	Info int `json:"info"`
 }
 
+// targetOf describes what was diagnosed.
+//
+// A stdio run has no host, no scheme and no URL, so the fields that would
+// be empty are left empty and the command takes the place of the endpoint —
+// every rendering already names the target that way, and a report whose
+// header says nothing would be worse than one that says which program ran.
+func targetOf(s *probe.Session) Target {
+	red := s.Opts.Recorder.Redactor
+	if st := s.Opts.Stdio; st != nil {
+		cmd := append([]string{st.Command}, st.Args...)
+		for i, a := range cmd {
+			// An argument is a place a secret lives: --api-key=… is
+			// ordinary, and the report is the one place it must not be.
+			cmd[i] = red.String(a)
+		}
+		return Target{
+			Endpoint:  strings.Join(cmd, " "),
+			Scheme:    "stdio",
+			Transport: "stdio",
+			Command:   cmd,
+		}
+	}
+	t := Target{Endpoint: red.URL(s.Opts.Endpoint), Transport: "http"}
+	if s.URL != nil {
+		t.Host, t.Scheme = s.URL.Host, s.URL.Scheme
+	}
+	return t
+}
+
 // Build assembles a report from a finished session.
 func Build(s *probe.Session, version string, includeEvents bool) *Report {
 	r := &Report{
 		Scout:    Meta{Version: version, SchemaVersion: SchemaVersion},
-		Target:   Target{Endpoint: s.Opts.Recorder.Redactor.URL(s.Opts.Endpoint), Host: s.URL.Host, Scheme: s.URL.Scheme},
+		Target:   targetOf(s),
 		Started:  s.Started,
 		Duration: probe.Millis(time.Since(s.Started)),
 		TraceID:  s.TraceID,

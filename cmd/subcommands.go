@@ -17,26 +17,28 @@ import (
 	"github.com/sebastienrousseau/scout"
 	"github.com/sebastienrousseau/scout/internal/creds"
 	"github.com/sebastienrousseau/scout/internal/diag"
+	"github.com/sebastienrousseau/scout/internal/engine"
 	"github.com/sebastienrousseau/scout/internal/telemetry"
 	"github.com/sebastienrousseau/scout/internal/tui"
+	"github.com/sebastienrousseau/scout/transport"
 	"github.com/spf13/cobra"
 )
 
 var connectCmd = &cobra.Command{
 	Use:   "connect <endpoint>",
 	Short: "Run only the connection phases: net, discovery, auth, handshake.",
-	Args:  cobra.MaximumNArgs(1),
+	Args:  cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runCheck(cmdContext(cmd), args, []string{"net", "discovery", "auth", "handshake"})
+		return runCheck(cmd, args, []string{"net", "discovery", "auth", "handshake"})
 	},
 }
 
 var toolsCmd = &cobra.Command{
 	Use:   "tools <endpoint>",
 	Short: "Connect and audit the catalog without invoking anything.",
-	Args:  cobra.MaximumNArgs(1),
+	Args:  cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runCheck(cmdContext(cmd), args, []string{"net", "discovery", "auth", "handshake", "catalog"})
+		return runCheck(cmd, args, []string{"net", "discovery", "auth", "handshake", "catalog"})
 	},
 }
 
@@ -52,9 +54,20 @@ var callCmd = &cobra.Command{
 from --arg field=value (repeatable, JSON parsed when possible) or --json.
 
   scout call https://mcp.example.com/mcp search --arg q=invoices --arg limit=5
-  scout call https://mcp.example.com/mcp get_time --json '{}' --output json`,
-	Args: cobra.ExactArgs(2),
+  scout call https://mcp.example.com/mcp get_time --json '{}' --output json
+
+With --stdio the server is a program, given after --, and the one positional
+argument left is the tool to call:
+
+  scout call --stdio get-sum --arg a=2 --arg b=3 -- npx -y @modelcontextprotocol/server-everything stdio`,
+	// Not ExactArgs(2): with --stdio the endpoint is replaced by a command
+	// after --, so what is left before it is the tool name alone.
+	Args: cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		target, tool, err := callTarget(cmd, args)
+		if err != nil {
+			return err
+		}
 		cr, err := buildCreds()
 		if err != nil {
 			return err
@@ -72,12 +85,16 @@ from --arg field=value (repeatable, JSON parsed when possible) or --json.
 			}
 			argsMap[k] = jsonOrString(v)
 		}
-		client, rec, err := connectWithCreds(cmd, args[0], cr)
+		client, rec, err := connectWithCreds(cmd, target, cr)
 		if err != nil {
 			return err
 		}
+		// Over stdio this owns a process. It is closed on every path out,
+		// including the error paths below, which is why the defer is here
+		// rather than after the call.
+		defer func() { _ = client.Close() }()
 		t0 := time.Now()
-		res, err := client.CallTool(telemetry.WithPhase(cmdContext(cmd), "call", args[1]), args[1], argsMap)
+		res, err := client.CallTool(telemetry.WithPhase(cmdContext(cmd), "call", tool), tool, argsMap)
 		d := time.Since(t0)
 		if err != nil {
 			return err
@@ -85,13 +102,13 @@ from --arg field=value (repeatable, JSON parsed when possible) or --json.
 		if output == "json" {
 			enc := json.NewEncoder(os.Stdout)
 			enc.SetIndent("", "  ")
-			return enc.Encode(map[string]any{"tool": args[1], "arguments": argsMap, "duration_ms": float64(d) / 1e6, "result": res, "telemetry": rec.Summary()})
+			return enc.Encode(map[string]any{"tool": tool, "arguments": argsMap, "duration_ms": float64(d) / 1e6, "result": res, "telemetry": rec.Summary()})
 		}
 		status := "ok"
 		if res.IsError {
 			status = "isError"
 		}
-		fmt.Printf("%s %s in %s\n", args[1], status, d.Round(time.Millisecond))
+		fmt.Printf("%s %s in %s\n", tool, status, d.Round(time.Millisecond))
 		for _, c := range res.Content {
 			switch c.Type {
 			case "text":
@@ -238,10 +255,12 @@ var versionCmd = &cobra.Command{
 
 func init() {
 	for _, c := range []*cobra.Command{connectCmd, toolsCmd} {
+		c.Flags().AddFlagSet(targetFlags())
 		c.Flags().AddFlagSet(credFlags())
 		c.Flags().AddFlagSet(outputFlags())
 		c.Flags().AddFlagSet(paceFlags())
 	}
+	callCmd.Flags().AddFlagSet(targetFlags())
 	callCmd.Flags().AddFlagSet(credFlags())
 	callCmd.Flags().StringVar(&output, "output", "text", "output format: text or json")
 	callCmd.Flags().StringVar(&callArgsJSON, "json", "", "arguments as a JSON object")
@@ -251,10 +270,31 @@ func init() {
 
 // connectWithCreds builds a recorded client and connects, resuming a stored
 // user token when the mode is authorization-code.
-func connectWithCreds(cmd *cobra.Command, endpoint string, cr *creds.Credentials) (*scout.Client, *telemetry.Recorder, error) {
+func connectWithCreds(cmd *cobra.Command, target engine.TargetSpec, cr *creds.Credentials) (*scout.Client, *telemetry.Recorder, error) {
 	rec := telemetry.New()
 	for _, s := range cr.Secrets() {
 		rec.Redactor.Add(s)
+	}
+	endpoint := target.Endpoint
+	if target.Stdio() {
+		client, err := scout.NewStdio(cmdContext(cmd), scout.Config{
+			Stdio: &scout.StdioConfig{
+				Command: target.Command, Args: target.Args,
+				Dir: target.Dir, PassEnv: target.PassEnv, Env: target.Env,
+				Observe: func(ctx context.Context, m transport.StdioMessage) {
+					rec.RecordPipe(ctx, target.Describe(), m.Sent, m.Received, m.Duration, m.Err)
+				},
+			},
+			ClientInfo: scout.Implementation{Name: "scout", Version: Version},
+		})
+		if err != nil {
+			return nil, nil, err
+		}
+		if _, err := client.Connect(cmdContext(cmd)); err != nil {
+			_ = client.Close()
+			return nil, nil, err
+		}
+		return client, rec, nil
 	}
 	cfg := scout.Config{Endpoint: endpoint, HTTPClient: &http.Client{Timeout: 60 * time.Second, Transport: rec.Wrap(nil)}, ClientInfo: scout.Implementation{Name: "scout", Version: Version}}
 	cr.Apply(&cfg)

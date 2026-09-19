@@ -51,7 +51,7 @@ func SARIF(w io.Writer, r *Report, version string) error {
 				Message:   sarifMessage{Text: sarifText(f)},
 				Locations: []sarifLocation{{
 					PhysicalLocation: sarifPhysical{
-						ArtifactLocation: sarifArtifact{URI: r.Target.Endpoint},
+						ArtifactLocation: sarifArtifact{URI: r.Target.URI()},
 					},
 					LogicalLocations: []sarifLogical{{
 						Name:               f.Phase,
@@ -63,7 +63,7 @@ func SARIF(w io.Writer, r *Report, version string) error {
 				// across runs, which is what lets a consumer track one alert
 				// rather than opening a new one every night.
 				PartialFingerprints: map[string]string{
-					"scoutCheckId/v1": f.ID + "@" + r.Target.Host,
+					"scoutCheckId/v1": f.ID + "@" + r.Target.Key(),
 				},
 			})
 		}

@@ -35,6 +35,28 @@ func summarize(name string, s *Session, pr PhaseResult) string {
 		}
 		return ""
 	}
+	// A stdio run's first and last phases look at a process rather than at
+	// a network, so their summaries describe one. Falling through to the
+	// HTTP wording produced "Reachable, plain HTTP on this machine" for a
+	// server that was never reached over anything.
+	if s.overStdio() {
+		switch name {
+		case "net":
+			if f, ok := by["stdio.process"]; ok && f.Status == Fail {
+				return "The server exited before it was asked anything"
+			}
+			return "Running as a child process"
+		case "resilience":
+			if f, ok := by["stdio.alive"]; ok && f.Status == Fail {
+				return "The server died during the run"
+			}
+			if f, ok := by["stdio.stdout_clean"]; ok && f.Status == Fail {
+				return "Writes to stdout that are not MCP messages"
+			}
+			return "Survived the run with a clean transport"
+		}
+	}
+
 	switch name {
 	case "net":
 		if f, ok := by["net.dns"]; ok && f.Status == Fail {

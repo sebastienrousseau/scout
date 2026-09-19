@@ -192,9 +192,15 @@ func accumulate(s *Summary, e Event) {
 	}
 	s.BytesSent += e.RequestBytes
 	s.BytesReceived += e.ResponseBytes
+	// A status code is an HTTP thing. A pipe has none, and bucketing every
+	// stdio message under "error" made a clean run's summary read as a
+	// hundred failures.
 	key := "error"
-	if e.Status > 0 {
+	switch {
+	case e.Status > 0:
 		key = fmt.Sprintf("%dxx", e.Status/100)
+	case e.Error == "":
+		key = "ok"
 	}
 	s.ByStatus[key]++
 	if e.Phase != "" {
@@ -269,6 +275,69 @@ func (r *Recorder) add(e Event) {
 	if sink != nil {
 		sink(e)
 	}
+}
+
+// PipeMethod is the Event.Method of an exchange that was not HTTP.
+//
+// It is not an HTTP verb on purpose. A reader who sees POST beside a
+// stdio: URL will assume a request was made over the network, and every
+// derived rendering — the HAR, the trace, the summary — would carry that
+// assumption forward.
+const PipeMethod = "PIPE"
+
+// RecordPipe records one message exchange over a pipe.
+//
+// A pipe has no status code, no headers, no connection and no DNS, so this
+// fills what it does have and leaves the rest zero. It exists because the
+// alternative is a stdio run whose findings cite no evidence at all, while
+// the same findings over HTTP cite "req#7" — a report that reads as
+// thinner for a reason that has nothing to do with the server.
+//
+// target names what is on the other end (the command scout ran). It is put
+// through the redactor because a command line is a place secrets live:
+// "--api-key=..." in an argument is ordinary, and it must not reach a
+// report.
+func (r *Recorder) RecordPipe(ctx context.Context, target string, sent, received []byte, d time.Duration, err error) {
+	red := r.Redactor
+	ev := Event{
+		Time:          time.Now().Add(-d),
+		TraceID:       trace.FromContext(ctx),
+		Method:        PipeMethod,
+		URL:           "stdio:" + red.String(target),
+		RequestBytes:  int64(len(sent)),
+		ResponseBytes: int64(len(received)),
+		ContentType:   "application/jsonl",
+		Timings:       Timings{Total: d, TTFB: d},
+		// A pipe is one connection for the life of the run, so every
+		// exchange after the first reuses it. Saying otherwise would make
+		// the summary count a new connection per message.
+		ReusedConn: true,
+	}
+	if pl, ok := ctx.Value(phaseKey{}).(phaseLabel); ok {
+		ev.Phase, ev.Label = pl.phase, pl.label
+	}
+	if err != nil {
+		ev.Error = red.String(err.Error())
+	}
+	if len(sent) > 0 {
+		ev.RPC = rpcFromBody(sent)
+		if r.CaptureBodies {
+			ev.RequestBody = r.captureBody("application/json", sent, int64(len(sent)))
+		}
+	}
+	if len(received) > 0 {
+		if r.CaptureBodies {
+			ev.ResponseBody = r.captureBody("application/json", received, int64(len(received)))
+		} else if looksJSON(received) {
+			_ = red.JSON(received) // register issued secrets
+		}
+		if ev.RPC != nil {
+			if code, msg, ok := rpcErrorFromBody(received); ok {
+				ev.RPC.ErrorCode, ev.RPC.ErrorMessage = code, msg
+			}
+		}
+	}
+	r.add(ev)
 }
 
 type roundTripper struct {

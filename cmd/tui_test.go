@@ -13,6 +13,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/sebastienrousseau/scout/internal/creds"
+	"github.com/sebastienrousseau/scout/internal/engine"
 	"github.com/sebastienrousseau/scout/internal/telemetry"
 	"github.com/sebastienrousseau/scout/internal/tui"
 )
@@ -105,13 +106,13 @@ func TestListSelectorItems(t *testing.T) {
 	f.mu.Lock()
 	f.tokens["tok-valid"] = true
 	f.mu.Unlock()
-	items, err := listSelectorItems(context.Background(), f.srv.URL+"/mcp", cr, rec, buildPolicy())
+	items, err := listSelectorItems(context.Background(), engine.TargetSpec{Endpoint: f.srv.URL + "/mcp"}, cr, rec, buildPolicy())
 	if err != nil || len(items) == 0 {
 		t.Fatalf("items %v err %v", items, err)
 	}
 	// authorization-code without a stored token
 	cr = &creds.Credentials{Mode: creds.ModeAuthorizationCode}
-	if _, err := listSelectorItems(context.Background(), f.srv.URL+"/mcp", cr, rec, buildPolicy()); err == nil || !strings.Contains(err.Error(), "scout login") {
+	if _, err := listSelectorItems(context.Background(), engine.TargetSpec{Endpoint: f.srv.URL + "/mcp"}, cr, rec, buildPolicy()); err == nil || !strings.Contains(err.Error(), "scout login") {
 		t.Errorf("want login hint, got %v", err)
 	}
 	// authorization-code with a stored token
@@ -122,16 +123,16 @@ func TestListSelectorItems(t *testing.T) {
 	if err := st.Put(creds.StoredToken{Endpoint: f.srv.URL + "/mcp", AccessToken: "stored", TokenURL: f.srv.URL + "/as/token", ClientID: "c"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := listSelectorItems(context.Background(), f.srv.URL+"/mcp", cr, rec, buildPolicy()); err != nil {
+	if _, err := listSelectorItems(context.Background(), engine.TargetSpec{Endpoint: f.srv.URL + "/mcp"}, cr, rec, buildPolicy()); err != nil {
 		t.Errorf("stored token: %v", err)
 	}
 	// no credentials against a protected server
 	cr = &creds.Credentials{Mode: creds.ModeNone}
-	if _, err := listSelectorItems(context.Background(), f.srv.URL+"/mcp", cr, rec, buildPolicy()); err == nil {
+	if _, err := listSelectorItems(context.Background(), engine.TargetSpec{Endpoint: f.srv.URL + "/mcp"}, cr, rec, buildPolicy()); err == nil {
 		t.Error("protected server without credentials must fail")
 	}
 	// bad endpoint
-	if _, err := listSelectorItems(context.Background(), "::", cr, rec, buildPolicy()); err == nil {
+	if _, err := listSelectorItems(context.Background(), engine.TargetSpec{Endpoint: "::"}, cr, rec, buildPolicy()); err == nil {
 		t.Error("bad endpoint must fail")
 	}
 	_ = os.Getenv

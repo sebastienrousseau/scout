@@ -102,10 +102,16 @@ func phaseHandshake(ctx context.Context, s *Session) []Finding {
 	}
 
 	c = s.check("handshake.session", "Mcp-Session-Id issued")
-	if sid := s.Client.Transport().SessionID(); sid != "" {
+	switch {
+	case s.overStdio():
+		// Not an absence to report as a finding about the server: the
+		// connection is the session over a pipe, so there is no id for a
+		// correct server to issue.
+		out = append(out, c.skip("sessions are an HTTP binding; over stdio the connection is the session"))
+	case s.Client.Conn().SessionID() != "":
 		s.SessionID = true
 		out = append(out, c.pass("session id present"))
-	} else {
+	default:
 		out = append(out, c.info("stateless server (no session id)"))
 	}
 	return out
@@ -125,77 +131,104 @@ func phaseProtocol(ctx context.Context, s *Session) []Finding {
 		out = append(out, c.pass("ok"))
 	}
 
-	// Everything below sends a deliberately malformed HTTP request: a
-	// truncated body, a header that disagrees with the payload, a session
-	// id the server never issued. They are HTTP-level probes, not protocol
-	// messages, so they have no meaning over a pipe and are skipped rather
-	// than faked.
-	tr, overHTTP := s.Client.HTTP()
-	if !overHTTP {
-		return out
+	// The four probes below send something a client library would refuse to
+	// build: an unknown method, a request whose id must come back, a
+	// truncated body, a call with its required parameter missing. None of
+	// them is about HTTP, so all four run over a pipe too — which is why
+	// they go through rawExchange rather than straight to the HTTP
+	// transport. The ones that genuinely are about HTTP come after, and say
+	// so when they cannot run.
+	// One deadline per probe, not one for the block. A server that ignores
+	// a message it could not parse answers with silence, and silence has to
+	// be bounded — but sharing one budget across four probes would make the
+	// first slow answer eat the other three, and they would report the
+	// server as unresponsive when it was the clock.
+	raw := func(label string, send rawSend) (rawReply, error) {
+		rctx, cancel := s.stdioDeadline(telemetry.WithPhase(ctx, "protocol", label))
+		defer cancel()
+		return s.rawExchange(rctx, send)
 	}
 
 	c = s.check("protocol.unknown_method", "Unknown method returns -32601")
-	id := tr.NextID()
-	raw, err := tr.Do(pctx("unknown method"), transport.RawOptions{Request: &transport.Request{JSONRPC: "2.0", ID: &id, Method: "scout/does_not_exist"}})
+	id := s.nextID()
+	rep, err := raw("unknown method", rawSend{Request: &transport.Request{JSONRPC: "2.0", ID: &id, Method: "scout/does_not_exist"}})
 	switch {
 	case err != nil:
 		out = append(out, c.warn("request failed: "+err.Error(), ""))
-	case raw.Response != nil && raw.Response.Error != nil && raw.Response.Error.Code == -32601:
+	case rep.Response != nil && rep.Response.Error != nil && rep.Response.Error.Code == -32601:
 		out = append(out, c.pass("-32601 Method not found"))
-	case raw.Response != nil && raw.Response.Error != nil:
-		out = append(out, c.warn(fmt.Sprintf("error code %d (%s); -32601 expected", raw.Response.Error.Code, raw.Response.Error.Message), "use -32601 for unknown methods"))
-	case raw.Status >= 400:
-		out = append(out, c.warn(fmt.Sprintf("HTTP %d instead of a JSON-RPC error", raw.Status), "answer 200 with a JSON-RPC error object"))
+	case rep.Response != nil && rep.Response.Error != nil:
+		out = append(out, c.warn(fmt.Sprintf("error code %d (%s); -32601 expected", rep.Response.Error.Code, rep.Response.Error.Message), "use -32601 for unknown methods"))
+	case rep.HTTP && rep.Status >= 400:
+		out = append(out, c.warn(fmt.Sprintf("HTTP %d instead of a JSON-RPC error", rep.Status), "answer 200 with a JSON-RPC error object"))
 	default:
 		out = append(out, c.fail(Minor, "no error returned for an unknown method", "return -32601"))
 	}
 
 	c = s.check("protocol.id_echo", "Response id matches request id")
-	id = tr.NextID()
-	raw, err = tr.Do(pctx("id echo"), transport.RawOptions{Request: &transport.Request{JSONRPC: "2.0", ID: &id, Method: live, Params: liveJSON(liveParams)}})
+	id = s.nextID()
+	// AnyMessage, because the whole question is whether the id comes back
+	// right. Matching the reply by id — which is how every other call on a
+	// pipe finds its answer — would drop a mismatched one and report that
+	// the server never answered.
+	rep, err = raw("id echo", rawSend{
+		Request:    &transport.Request{JSONRPC: "2.0", ID: &id, Method: live, Params: liveJSON(liveParams)},
+		AnyMessage: true,
+	})
 	switch {
 	case err != nil:
 		out = append(out, c.warn("request failed: "+err.Error(), ""))
-	case raw.Response == nil:
-		out = append(out, c.fail(Major, fmt.Sprintf("HTTP %d, body is not a JSON-RPC response: %s", raw.Status, truncate(string(raw.Body), 120)), ""))
-	case raw.Response.ID == nil || *raw.Response.ID != id:
-		out = append(out, c.fail(Major, fmt.Sprintf("sent id %d, got %v", id, raw.Response.ID), "echo the request id"))
-	case raw.Response.JSONRPC != "2.0":
+	case rep.Response == nil:
+		out = append(out, c.fail(Major, fmt.Sprintf("the answer is not a JSON-RPC response: %s", truncate(string(rep.Body), 120)), ""))
+	case rep.Response.ID == nil || *rep.Response.ID != id:
+		out = append(out, c.fail(Major, fmt.Sprintf("sent id %d, got %v", id, rep.Response.ID), "echo the request id"))
+	case rep.Response.JSONRPC != "2.0":
 		out = append(out, c.warn(`jsonrpc field is not "2.0"`, "set jsonrpc: \"2.0\""))
 	default:
 		out = append(out, c.pass("id echoed, jsonrpc 2.0"))
 	}
 
 	c = s.check("protocol.malformed_json", "Malformed JSON is rejected")
-	raw, err = tr.Do(pctx("malformed json"), transport.RawOptions{Body: []byte(`{"jsonrpc":"2.0","id":1,"method":`)})
+	rep, err = raw("malformed json", rawSend{Body: []byte(`{"jsonrpc":"2.0","id":1,"method":`)})
 	switch {
 	case err != nil:
-		out = append(out, c.warn("request failed: "+err.Error(), ""))
-	case raw.Status == http.StatusBadRequest:
+		// Over a pipe, silence is the common answer and it is a finding:
+		// JSON-RPC requires a parse error to be reported, and a host whose
+		// call never returns cannot tell a slow server from a lost one.
+		if s.overStdio() {
+			out = append(out, c.fail(Minor, "no answer to a truncated message: "+err.Error(),
+				"answer a body that does not parse with -32700 and a null id, rather than ignoring it"))
+		} else {
+			out = append(out, c.warn("request failed: "+err.Error(), ""))
+		}
+	case rep.HTTP && rep.Status == http.StatusBadRequest:
 		out = append(out, c.pass("HTTP 400"))
-	case raw.Response != nil && raw.Response.Error != nil && raw.Response.Error.Code == -32700:
+	case rep.Response != nil && rep.Response.Error != nil && rep.Response.Error.Code == -32700:
 		out = append(out, c.pass("-32700 Parse error"))
-	case raw.Status/100 == 2:
-		out = append(out, c.fail(Minor, fmt.Sprintf("HTTP %d for a truncated body", raw.Status), "return 400 or -32700"))
+	case rep.Response != nil && rep.Response.Error != nil:
+		out = append(out, c.warn(fmt.Sprintf("error %d rather than -32700", rep.Response.Error.Code), "use -32700 for a body that does not parse"))
+	case rep.HTTP && rep.Status/100 == 2:
+		out = append(out, c.fail(Minor, fmt.Sprintf("HTTP %d for a truncated body", rep.Status), "return 400 or -32700"))
+	case rep.HTTP:
+		out = append(out, c.info(fmt.Sprintf("HTTP %d", rep.Status)))
 	default:
-		out = append(out, c.info(fmt.Sprintf("HTTP %d", raw.Status)))
+		out = append(out, c.fail(Minor, "a truncated message drew a reply that was not an error: "+truncate(string(rep.Body), 120), "return -32700"))
 	}
 
 	c = s.check("protocol.invalid_params", "tools/call without a name is rejected")
-	id = tr.NextID()
-	raw, err = tr.Do(pctx("invalid params"), transport.RawOptions{Request: &transport.Request{JSONRPC: "2.0", ID: &id, Method: "tools/call", Params: json.RawMessage(`{}`)}})
+	id = s.nextID()
+	rep, err = raw("invalid params", rawSend{Request: &transport.Request{JSONRPC: "2.0", ID: &id, Method: "tools/call", Params: json.RawMessage(`{}`)}})
 	switch {
 	case err != nil:
 		out = append(out, c.warn("request failed: "+err.Error(), ""))
-	case raw.Response != nil && raw.Response.Error != nil:
-		if raw.Response.Error.Code == -32602 {
+	case rep.Response != nil && rep.Response.Error != nil:
+		if rep.Response.Error.Code == -32602 {
 			out = append(out, c.pass("-32602 Invalid params"))
 		} else {
-			out = append(out, c.info(fmt.Sprintf("error %d: %s", raw.Response.Error.Code, raw.Response.Error.Message)))
+			out = append(out, c.info(fmt.Sprintf("error %d: %s", rep.Response.Error.Code, rep.Response.Error.Message)))
 		}
-	case raw.Status >= 400:
-		out = append(out, c.info(fmt.Sprintf("HTTP %d", raw.Status)))
+	case rep.HTTP && rep.Status >= 400:
+		out = append(out, c.info(fmt.Sprintf("HTTP %d", rep.Status)))
 	default:
 		out = append(out, c.fail(Minor, "a tools/call with no name succeeded", "validate params and return -32602"))
 	}
@@ -216,18 +249,26 @@ func phaseProtocol(ctx context.Context, s *Session) []Finding {
 		out = append(out, c.fail(Major, "calling a non-existent tool returned success", "return -32602 or an isError result"))
 	}
 
+	// From here on the probes are about the HTTP binding rather than about
+	// MCP. Over a pipe they are named and skipped: a report that simply
+	// contained four fewer checks would read as a better result.
+	tr, overHTTP := s.Client.HTTP()
+	if !overHTTP {
+		return append(out, s.skipHTTPOnly()...)
+	}
+
 	c = s.check("protocol.accept_header", "Request without Accept header")
 	id = tr.NextID()
-	raw, err = tr.Do(pctx("no accept"), transport.RawOptions{Request: &transport.Request{JSONRPC: "2.0", ID: &id, Method: live, Params: liveJSON(liveParams)}, Headers: map[string]string{"Accept": ""}})
+	hrep, err := tr.Do(pctx("no accept"), transport.RawOptions{Request: &transport.Request{JSONRPC: "2.0", ID: &id, Method: live, Params: liveJSON(liveParams)}, Headers: map[string]string{"Accept": ""}})
 	switch {
 	case err != nil:
 		out = append(out, c.info("request failed: "+err.Error()))
-	case raw.Status == http.StatusNotAcceptable:
+	case hrep.Status == http.StatusNotAcceptable:
 		out = append(out, c.info("406: server insists on Accept (spec-strict)"))
-	case raw.Status/100 == 2:
+	case hrep.Status/100 == 2:
 		out = append(out, c.info("accepted without Accept header (lenient)"))
 	default:
-		out = append(out, c.info(fmt.Sprintf("HTTP %d", raw.Status)))
+		out = append(out, c.info(fmt.Sprintf("HTTP %d", hrep.Status)))
 	}
 
 	// What a GET should do depends on the generation. The handshake
@@ -235,55 +276,55 @@ func phaseProtocol(ctx context.Context, s *Session) []Finding {
 	// stateless revision removed it, and a server that still serves one is
 	// carrying a mechanism no current client will use.
 	c = s.check("protocol.get_stream", "GET on the MCP endpoint")
-	raw, err = tr.Do(pctx("GET stream"), transport.RawOptions{HTTPMethod: http.MethodGet, Headers: map[string]string{"Accept": "text/event-stream"}, SkipDialect: true})
+	hrep, err = tr.Do(pctx("GET stream"), transport.RawOptions{HTTPMethod: http.MethodGet, Headers: map[string]string{"Accept": "text/event-stream"}, SkipDialect: true})
 	switch {
 	case err != nil:
 		out = append(out, c.info("GET failed: "+truncate(err.Error(), 100)))
-	case s.Stateless() && raw.Status == http.StatusMethodNotAllowed:
+	case s.Stateless() && hrep.Status == http.StatusMethodNotAllowed:
 		out = append(out, c.pass("405, as this revision requires"))
-	case s.Stateless() && raw.Status/100 == 2 && raw.ContentType == "text/event-stream":
+	case s.Stateless() && hrep.Status/100 == 2 && hrep.ContentType == "text/event-stream":
 		out = append(out, c.warn("a GET still opens an event stream, which "+scout.StatelessVersions[0]+" removed",
 			"answer 405 to GET: server-initiated streams were replaced by subscriptions/listen, and a client on this revision will never open one this way"))
 	case s.Stateless():
-		out = append(out, c.info(fmt.Sprintf("HTTP %d %s (this revision expects 405)", raw.Status, raw.ContentType)))
-	case raw.Status == http.StatusMethodNotAllowed:
+		out = append(out, c.info(fmt.Sprintf("HTTP %d %s (this revision expects 405)", hrep.Status, hrep.ContentType)))
+	case hrep.Status == http.StatusMethodNotAllowed:
 		out = append(out, c.info("405: no server-initiated stream (allowed by spec)"))
-	case raw.Status/100 == 2 && raw.ContentType == "text/event-stream":
+	case hrep.Status/100 == 2 && hrep.ContentType == "text/event-stream":
 		out = append(out, c.pass("text/event-stream"))
 	default:
-		out = append(out, c.info(fmt.Sprintf("HTTP %d %s", raw.Status, raw.ContentType)))
+		out = append(out, c.info(fmt.Sprintf("HTTP %d %s", hrep.Status, hrep.ContentType)))
 	}
 
 	if s.SessionID {
 		c = s.check("protocol.bogus_session", "Unknown session id is rejected")
 		id = tr.NextID()
-		raw, err = tr.Do(pctx("bogus session"), transport.RawOptions{Request: &transport.Request{JSONRPC: "2.0", ID: &id, Method: live, Params: liveJSON(liveParams)}, Headers: map[string]string{transport.HeaderSessionID: "scout-bogus-" + s.TraceID[:8]}})
+		hrep, err = tr.Do(pctx("bogus session"), transport.RawOptions{Request: &transport.Request{JSONRPC: "2.0", ID: &id, Method: live, Params: liveJSON(liveParams)}, Headers: map[string]string{transport.HeaderSessionID: "scout-bogus-" + s.TraceID[:8]}})
 		switch {
 		case err != nil:
 			out = append(out, c.info("request failed: "+err.Error()))
-		case raw.Status == http.StatusNotFound:
+		case hrep.Status == http.StatusNotFound:
 			out = append(out, c.pass("404"))
-		case raw.Status == http.StatusBadRequest:
+		case hrep.Status == http.StatusBadRequest:
 			out = append(out, c.pass("400"))
-		case raw.Status/100 == 2:
+		case hrep.Status/100 == 2:
 			out = append(out, c.warn("server answered a request carrying a session id it never issued", "reject unknown session ids with 404"))
 		default:
-			out = append(out, c.info(fmt.Sprintf("HTTP %d", raw.Status)))
+			out = append(out, c.info(fmt.Sprintf("HTTP %d", hrep.Status)))
 		}
 	}
 
 	c = s.check("protocol.version_header", "Bad MCP-Protocol-Version is rejected")
 	id = tr.NextID()
-	raw, err = tr.Do(pctx("bad version"), transport.RawOptions{Request: &transport.Request{JSONRPC: "2.0", ID: &id, Method: live, Params: liveJSON(liveParams)}, Headers: map[string]string{transport.HeaderProtocolVersion: "1999-01-01"}})
+	hrep, err = tr.Do(pctx("bad version"), transport.RawOptions{Request: &transport.Request{JSONRPC: "2.0", ID: &id, Method: live, Params: liveJSON(liveParams)}, Headers: map[string]string{transport.HeaderProtocolVersion: "1999-01-01"}})
 	switch {
 	case err != nil:
 		out = append(out, c.info("request failed: "+err.Error()))
-	case raw.Status == http.StatusBadRequest:
+	case hrep.Status == http.StatusBadRequest:
 		out = append(out, c.pass("400"))
-	case raw.Status/100 == 2:
+	case hrep.Status/100 == 2:
 		out = append(out, c.info("accepted (server does not validate the header)"))
 	default:
-		out = append(out, c.info(fmt.Sprintf("HTTP %d", raw.Status)))
+		out = append(out, c.info(fmt.Sprintf("HTTP %d", hrep.Status)))
 	}
 	return out
 }
