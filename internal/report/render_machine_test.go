@@ -320,3 +320,82 @@ func equal(a, b []string) bool {
 	}
 	return true
 }
+
+// TestSARIFLocatesAStdioTarget: the two machine formats identify a target,
+// and over stdio there is no host and no URL to identify it with.
+//
+// The fingerprint is the part that matters. It is what lets a consumer track
+// one alert across nightly runs instead of opening a new one each time — and
+// it was built from Target.Host, which is empty for every stdio run. Two
+// different servers on one machine would have produced identical
+// fingerprints and merged into one alert.
+func TestSARIFLocatesAStdioTarget(t *testing.T) {
+	mk := func(cmd ...string) *Report {
+		r := guidedReport()
+		r.Target = Target{
+			Endpoint:  strings.Join(cmd, " "),
+			Scheme:    "stdio",
+			Transport: "stdio",
+			Command:   cmd,
+		}
+		return r
+	}
+
+	var a, b bytes.Buffer
+	if err := SARIF(&a, mk("npx", "-y", "server-one"), "t"); err != nil {
+		t.Fatal(err)
+	}
+	if err := SARIF(&b, mk("npx", "-y", "server-two"), "t"); err != nil {
+		t.Fatal(err)
+	}
+
+	var doc struct {
+		Runs []struct {
+			Results []struct {
+				Locations []struct {
+					PhysicalLocation struct {
+						ArtifactLocation struct {
+							URI string `json:"uri"`
+						} `json:"artifactLocation"`
+					} `json:"physicalLocation"`
+				} `json:"locations"`
+				PartialFingerprints map[string]string `json:"partialFingerprints"`
+			} `json:"results"`
+		} `json:"runs"`
+	}
+	if err := json.Unmarshal(a.Bytes(), &doc); err != nil {
+		t.Fatalf("SARIF is not valid JSON: %v", err)
+	}
+	if len(doc.Runs) == 0 || len(doc.Runs[0].Results) == 0 {
+		t.Fatal("no results")
+	}
+	res := doc.Runs[0].Results[0]
+
+	uri := res.Locations[0].PhysicalLocation.ArtifactLocation.URI
+	if !strings.HasPrefix(uri, "stdio:") {
+		t.Errorf("artifact URI %q does not say what kind of location it is", uri)
+	}
+	if strings.ContainsAny(uri, " ") {
+		t.Errorf("artifact URI %q contains a space, so it is not a URI", uri)
+	}
+
+	fp := res.PartialFingerprints["scoutCheckId/v1"]
+	if strings.HasSuffix(fp, "@") {
+		t.Errorf("fingerprint %q identifies no target; every stdio run would share it", fp)
+	}
+
+	// And the two servers must not collide.
+	var other struct {
+		Runs []struct {
+			Results []struct {
+				PartialFingerprints map[string]string `json:"partialFingerprints"`
+			} `json:"results"`
+		} `json:"runs"`
+	}
+	if err := json.Unmarshal(b.Bytes(), &other); err != nil {
+		t.Fatal(err)
+	}
+	if got := other.Runs[0].Results[0].PartialFingerprints["scoutCheckId/v1"]; got == fp {
+		t.Errorf("two different stdio servers produced the same fingerprint %q", got)
+	}
+}

@@ -125,6 +125,10 @@ func htmlVerdict(r *Report) (string, string) {
 
 func htmlAuthLine(r *Report) string {
 	switch {
+	// A child process has no address, so it is neither open nor protected:
+	// whoever can run the command is who can use it.
+	case r.Target.Transport == "stdio":
+		return "local process"
 	case !r.Auth.Reached:
 		return "not reached"
 	case !r.Auth.Required:

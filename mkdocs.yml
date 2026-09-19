@@ -62,6 +62,7 @@ nav:
   - Getting started: getting-started.md
   - Credentials: credentials.md
   - The nine phases: phases.md
+  - Servers that are programs: stdio.md
   - Every check: checks.md
   - The stateless revision: stateless.md
   - Reports and telemetry: reports.md

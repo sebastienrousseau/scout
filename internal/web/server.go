@@ -69,6 +69,20 @@ type Options struct {
 	// it when a proxy you control is in front, because otherwise a caller
 	// can mint a fresh identity per request.
 	TrustProxyHeader bool
+
+	// AllowStdio permits a posted run to name a program to execute instead
+	// of a URL to fetch. Off by default, and it stays off in Public mode
+	// whatever this says.
+	//
+	// The engine can diagnose a stdio server, and the CLI does. Reaching
+	// that through an HTTP request is a different capability: "diagnose the
+	// URL in this field" and "run this command on the machine scout is
+	// running on" are not the same permission, and a listener that accepts
+	// the second is a remote shell with a report attached. The token in the
+	// URL bar is not a credential anyone should be able to trade for that,
+	// so this is an explicit, separate decision by whoever started the
+	// process.
+	AllowStdio bool
 }
 
 // DefaultMaxRuns is how many finished runs are kept.
@@ -298,6 +312,17 @@ func (s *Server) startRun(w http.ResponseWriter, r *http.Request) {
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
 	if err := dec.Decode(&spec); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "the request body is not a run specification: " + err.Error()})
+		return
+	}
+	// A spec naming a program is refused before anything else looks at it.
+	// Public mode never permits one; a local server permits it only when
+	// the operator said so when starting the process.
+	if spec.Target.Stdio() && (s.opts.Public || !s.opts.AllowStdio) {
+		writeJSON(w, http.StatusForbidden, map[string]string{
+			"error": "this server diagnoses endpoints, not programs. Running a command is a different " +
+				"permission from fetching a URL, and it is not one an HTTP request can claim here: " +
+				"use the command line — scout check --stdio -- <command> — or start the server with --allow-stdio.",
+		})
 		return
 	}
 	if s.opts.Public {

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/sebastienrousseau/scout"
 	"github.com/sebastienrousseau/scout/diagnostics"
 	"github.com/sebastienrousseau/scout/internal/creds"
 	"github.com/sebastienrousseau/scout/internal/probe"
@@ -110,6 +111,19 @@ func (s RunSpec) probeOptions(cr *creds.Credentials, rec *telemetry.Recorder, si
 		Only: s.Phases.Only,
 		Skip: s.Phases.Skip,
 	}
+	if s.Target.Stdio() {
+		opts.Endpoint = ""
+		opts.Stdio = &scout.StdioConfig{
+			Command: s.Target.Command,
+			Args:    s.Target.Args,
+			Dir:     s.Target.Dir,
+			Env:     s.Target.Env,
+			PassEnv: s.Target.PassEnv,
+		}
+		// Nothing over a pipe goes through an http.Client, and leaving one
+		// here would suggest otherwise to the next reader.
+		opts.HTTPClient = nil
+	}
 	if sink == nil {
 		return opts
 	}
@@ -183,5 +197,5 @@ func contains(ss []string, s string) bool {
 
 // String renders the spec's target for a log line, without secrets.
 func (s RunSpec) String() string {
-	return fmt.Sprintf("scout run %s (%s)", s.Target.Endpoint, s.Creds.Mode)
+	return fmt.Sprintf("scout run %s (%s)", s.Target.Describe(), s.Creds.Mode)
 }

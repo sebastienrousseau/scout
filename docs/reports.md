@@ -50,7 +50,10 @@ Anything that shows only alerts filters on `level`, at no cost.
 **The location is the endpoint**, as an absolute URI. There is no file to
 point at: scout tests a running server, not a checkout. A tool that invents
 a repository path so its results look like source findings is lying about
-where the problem is.
+where the problem is. For a [stdio server](stdio.md) there is no URL either,
+so the location is `stdio:` followed by the escaped command line, and the
+fingerprint that lets a consumer track one alert across runs is built from
+that command rather than from a hostname it does not have.
 
 Each rule carries the check's `helpUri`, which is its `doc_url` — so an
 alert in code scanning links to what the check asserts.
@@ -59,6 +62,33 @@ The JUnit mapping has one decision that surprises people: **a warning
 becomes a `<failure>`**, typed `warning`. JUnit has no third state, and
 reporting a deviation as a pass is how a warning stops being read. Filter on
 the `type` attribute if you want to gate only on real failures.
+
+## Which server a report is about
+
+`target` says what was diagnosed, and a consumer that reads more than one
+report has to look at `transport` before `endpoint`:
+
+```json
+{ "target": { "endpoint": "https://mcp.example.com/mcp", "host": "mcp.example.com",
+              "scheme": "https", "transport": "http" } }
+```
+
+```json
+{ "target": { "endpoint": "npx -y server-everything stdio", "host": "", "scheme": "stdio",
+              "transport": "stdio", "command": ["npx", "-y", "server-everything", "stdio"] } }
+```
+
+`endpoint` is the target as scout was given it, which for a stdio run is a
+command line rather than a URL — `transport` is how you tell, and `command`
+carries the argument list unjoined so it can be re-run without guessing how
+it was quoted. `schema_version` is unchanged at 1: nothing was removed, and
+no report of a kind that existed before reads differently.
+
+The two kinds of run do not contain the same checks. A stdio report carries
+five that an HTTP one cannot make and reports several of the HTTP ones as
+skipped, each with its reason — so comparing two scores across transports
+compares different batteries. [Servers that are programs](stdio.md) lists
+which.
 
 ## Traces and structured logs
 
