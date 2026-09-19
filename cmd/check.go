@@ -205,7 +205,7 @@ func runCheck(ctx context.Context, args []string, only []string) error {
 	}
 
 	if spec.Output.ReportDir != "" {
-		if _, err := res.WriteDir(spec.Output.ReportDir, Version); err != nil {
+		if _, err := res.WriteDir(spec, Version); err != nil {
 			return err
 		}
 		diag.Infof("saved the full report and telemetry to %s", spec.Output.ReportDir)

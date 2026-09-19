@@ -71,6 +71,13 @@ site: web-shell
 web-shell:
 	ssg build -f web/ssg.toml
 	for f in $(ICONS); do cp brand/$$f internal/web/dist/$$f; done
+	@# ssg empties its output directory before writing, so a run that dies
+	@# partway leaves the embed with nothing in it — and the only thing that
+	@# notices is `go build`, several steps later, complaining about a
+	@# pattern that matches no files. Assert here, where the cause is.
+	@test -s internal/web/dist/index.html || { \
+	  echo "web-shell: internal/web/dist is empty; ssg wiped it and did not finish" >&2; exit 1; }
+	@echo "web-shell: $$(find internal/web/dist -type f | wc -l | tr -d ' ') files embedded"
 
 checks:
 	go run ./scripts/checkinventory/main.go

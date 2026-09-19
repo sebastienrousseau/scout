@@ -38,6 +38,40 @@ type Report struct {
 	Telemetry telemetry.Summary `json:"telemetry"`
 	Events    []telemetry.Event `json:"events,omitempty"`
 	Files     []string          `json:"files,omitempty"`
+	// Guidance is the remediation for each check id present in this
+	// report, filled only when the caller asked for it.
+	//
+	// A dictionary rather than a field on every finding, because the prose
+	// is per-check and not per-occurrence: a catalog with forty poisoned
+	// descriptions produces forty findings and one entry here. A consumer
+	// joins on the finding's `id`.
+	Guidance map[string]Remediation `json:"guidance,omitempty"`
+}
+
+// AttachGuidance fills Guidance with the remediation for every check that
+// produced a finding in this report.
+//
+// Only the ids actually present: a report about one server should not carry
+// advice about checks that server passed, let alone all sixty-five.
+func (r *Report) AttachGuidance() {
+	if r == nil {
+		return
+	}
+	g := map[string]Remediation{}
+	for _, p := range r.Phases {
+		for _, f := range p.Findings {
+			if f.Status != probe.Fail && f.Status != probe.Warn {
+				continue
+			}
+			if rem, ok := RemediationFor(f.ID); ok {
+				g[f.ID] = rem
+			}
+		}
+	}
+	if len(g) == 0 {
+		return
+	}
+	r.Guidance = g
 }
 
 // SchemaVersion is the version of the JSON report format. It changes when a

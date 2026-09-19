@@ -211,3 +211,57 @@ func TestMarkdownCarriesGuidance(t *testing.T) {
 		}
 	}
 }
+
+// TestAttachGuidanceIsScopedToThisReport: a report about one server should
+// carry advice about that server, not the whole catalogue.
+func TestAttachGuidanceIsScopedToThisReport(t *testing.T) {
+	r := guidedReport()
+	// A passing check with guidance written for it, which must not appear.
+	r.Phases = append(r.Phases, probe.PhaseResult{
+		Name: "net", Title: "Network", Status: probe.Pass,
+		Findings: []probe.Finding{{
+			ID: "net.tls", Phase: "net", Title: "TLS", Status: probe.Pass,
+		}},
+	})
+
+	if r.Guidance != nil {
+		t.Fatal("guidance present before it was asked for")
+	}
+	r.AttachGuidance()
+
+	if _, ok := r.Guidance["protocol.malformed_json"]; !ok {
+		t.Error("the failing check's guidance is missing")
+	}
+	if _, ok := r.Guidance["net.tls"]; ok {
+		t.Error("a passing check contributed guidance; the report is about what went wrong")
+	}
+	if len(r.Guidance) != 1 {
+		t.Errorf("guidance has %d entries, want 1", len(r.Guidance))
+	}
+}
+
+// TestAttachGuidanceDeduplicates is the reason this is a dictionary rather
+// than a field on every finding.
+func TestAttachGuidanceDeduplicates(t *testing.T) {
+	r := guidedReport()
+	same := r.Phases[0].Findings[0]
+	for range 40 {
+		r.Phases[0].Findings = append(r.Phases[0].Findings, same)
+	}
+	r.AttachGuidance()
+	if len(r.Guidance) != 1 {
+		t.Errorf("41 findings of one check produced %d entries, want 1", len(r.Guidance))
+	}
+}
+
+// TestGuidanceAbsentWhenNothingFailed keeps a clean report clean.
+func TestGuidanceAbsentWhenNothingFailed(t *testing.T) {
+	r := &Report{Phases: []probe.PhaseResult{{
+		Name: "net", Status: probe.Pass,
+		Findings: []probe.Finding{{ID: "net.tls", Status: probe.Pass}},
+	}}}
+	r.AttachGuidance()
+	if r.Guidance != nil {
+		t.Errorf("a passing report carried %d guidance entries", len(r.Guidance))
+	}
+}

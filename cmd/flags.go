@@ -68,6 +68,7 @@ var (
 	reportDir     string
 	captureBodies bool
 	withEvents    bool
+	withGuidance  bool
 	verbose       bool
 	noColor       bool
 	otlpEndpoint  string
@@ -147,6 +148,7 @@ func outputFlags() *pflag.FlagSet {
 		fs.StringVar(&reportDir, "report-dir", "", "write report.{txt,md,json}, telemetry.ndjson and telemetry.har here")
 		fs.BoolVar(&captureBodies, "capture-bodies", false, "record request/response bodies in telemetry (redacted, capped)")
 		fs.BoolVar(&withEvents, "events", false, "embed every telemetry event in JSON output")
+		fs.BoolVar(&withGuidance, "guidance", false, "embed remediation for each finding in JSON output, keyed by check id")
 		fs.BoolVarP(&verbose, "verbose", "v", false, "show evidence references and full info findings")
 		fs.BoolVar(&noColor, "no-color", false, "disable ANSI colour")
 		fs.StringVar(&otlpEndpoint, "otlp-endpoint", "", "export the finished run as OpenTelemetry traces to this OTLP/HTTP collector")
@@ -233,7 +235,7 @@ func buildSpec(args []string, onlyPhases []string) (engine.RunSpec, error) {
 		Phases: engine.PhaseSpec{Only: phases, Skip: phasesSkip},
 		Output: engine.OutputSpec{
 			Format: engine.Format(output), ReportDir: reportDir,
-			CaptureBodies: captureBodies, WithEvents: withEvents,
+			CaptureBodies: captureBodies, WithEvents: withEvents, WithGuidance: withGuidance,
 			Verbose: verbose, NoColor: noColor, Interactive: interactive,
 			OTLPEndpoint: otlpEndpoint, OTLPHeaders: otlpHeaders,
 		},

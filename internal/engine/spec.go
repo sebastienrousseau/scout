@@ -164,6 +164,12 @@ type OutputSpec struct {
 	CaptureBodies bool `json:"capture_bodies,omitempty"`
 	// WithEvents embeds every telemetry event in the JSON report.
 	WithEvents bool `json:"with_events,omitempty"`
+	// WithGuidance embeds the remediation for each check that produced a
+	// finding, as a dictionary keyed by check id. Off by default because
+	// most consumers have doc_url and want the report small; on for the
+	// ones that have to explain a finding somewhere scout cannot reach,
+	// like a bot writing a pull request comment.
+	WithGuidance bool `json:"with_guidance,omitempty"`
 	// Verbose shows evidence references and info findings.
 	Verbose bool `json:"verbose,omitempty"`
 	// NoColor disables ANSI colour in the text rendering.

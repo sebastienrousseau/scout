@@ -28,6 +28,9 @@ func (r *Result) Render(w io.Writer, spec RunSpec, termWidth int) error {
 		if !spec.Output.WithEvents && spec.Output.ReportDir == "" {
 			rep.Events = nil
 		}
+		if spec.Output.WithGuidance {
+			rep.AttachGuidance()
+		}
 		enc := json.NewEncoder(w)
 		enc.SetIndent("", "  ")
 		return enc.Encode(rep)
@@ -59,10 +62,11 @@ func (r *Result) Render(w io.Writer, spec RunSpec, termWidth int) error {
 // files on the report. Every format is written, because a report directory
 // is what somebody hands to another person and they should not have had to
 // guess which rendering that person can open.
-func (r *Result) WriteDir(dir, version string) ([]string, error) {
+func (r *Result) WriteDir(spec RunSpec, version string) ([]string, error) {
 	if r.Report == nil {
 		return nil, nil
 	}
+	dir := spec.Output.ReportDir
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return nil, err
 	}
@@ -82,6 +86,9 @@ func (r *Result) WriteDir(dir, version string) ([]string, error) {
 	}
 
 	full := *r.Report
+	if spec.Output.WithGuidance {
+		full.AttachGuidance()
+	}
 	if r.Recorder != nil {
 		full.Events = r.Recorder.Events()
 	}
