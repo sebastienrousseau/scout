@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/sebastienrousseau/scout/auth"
+	"github.com/sebastienrousseau/scout/transport"
 )
 
 func TestConnectWithoutAuth(t *testing.T) {
@@ -191,5 +192,34 @@ func TestToolHintDefaults(t *testing.T) {
 	}
 	if (Tool{Annotations: &ToolAnnotations{DestructiveHint: &no}}).IsDestructive() {
 		t.Error("explicit destructiveHint=false honoured")
+	}
+}
+
+// TestHTTPReportsTheTransport covers the seam the protocol phase depends on.
+//
+// A client built for an endpoint is speaking HTTP, and the conformance
+// probes that send a malformed body need the concrete transport to do it.
+// When that stops being true — a client over a pipe — they have to skip
+// rather than crash, and the only thing standing between those two
+// outcomes is this returning false.
+func TestHTTPReportsTheTransport(t *testing.T) {
+	f := newFakeStack(t)
+	c, err := New(Config{Endpoint: f.srv.URL + "/mcp", HTTPClient: f.srv.Client()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tr, ok := c.HTTP()
+	if !ok {
+		t.Fatal("a client built for an endpoint does not report an HTTP transport")
+	}
+	if tr == nil {
+		t.Fatal("HTTP reported true and returned nil")
+	}
+	// The three accessors are one connection seen three ways.
+	if c.Transport() != tr {
+		t.Error("Transport() and HTTP() disagree about the connection")
+	}
+	if c.Conn() != transport.Conn(tr) {
+		t.Error("Conn() and HTTP() disagree about the connection")
 	}
 }
