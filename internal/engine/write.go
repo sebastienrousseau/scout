@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/sebastienrousseau/scout/internal/attest"
 	"github.com/sebastienrousseau/scout/internal/report"
 	"github.com/sebastienrousseau/scout/internal/telemetry"
 )
@@ -43,6 +44,8 @@ func (r *Result) Render(w io.Writer, spec RunSpec, termWidth int) error {
 		return report.SARIF(w, r.Report, r.Report.Scout.Version)
 	case FormatJUnit:
 		return report.JUnit(w, r.Report)
+	case FormatAttestation:
+		return renderAttestation(w, r.Report)
 	case FormatNDJSON:
 		// The events already streamed; this is the closing record.
 		rep := *r.Report
@@ -111,6 +114,10 @@ func (r *Result) WriteDir(spec RunSpec, version string) ([]string, error) {
 		}},
 		{"report.sarif", func(w io.Writer) error { return report.SARIF(w, r.Report, version) }},
 		{"report.junit.xml", func(w io.Writer) error { return report.JUnit(w, r.Report) }},
+		// The statement goes in the directory too, because the directory is
+		// what somebody hands to another person — and the attestation is the
+		// only file in it a machine can act on without reading prose.
+		{"attestation.json", func(w io.Writer) error { return renderAttestation(w, r.Report) }},
 		{"telemetry.ndjson", func(w io.Writer) error { return r.recorder().WriteNDJSON(w) }},
 		{"telemetry.har", func(w io.Writer) error { return r.recorder().WriteHAR(w, version) }},
 	}
@@ -121,6 +128,20 @@ func (r *Result) WriteDir(spec RunSpec, version string) ([]string, error) {
 	}
 	r.Report.Files = files
 	return files, nil
+}
+
+// renderAttestation writes the in-toto statement for a finished report.
+func renderAttestation(w io.Writer, r *report.Report) error {
+	st, err := attest.From(r)
+	if err != nil {
+		return err
+	}
+	b, err := st.Marshal()
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(append(b, '\n'))
+	return err
 }
 
 // recorder is nil-safe so WriteDir works for a result assembled by hand.

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/spf13/cobra"
 )
 
 func TestRenderHelp(t *testing.T) {
@@ -48,3 +49,55 @@ func TestRenderHelp(t *testing.T) {
 }
 
 var ansiRE = regexp.MustCompile("\x1b\\[[0-9;]*m")
+
+// Help text becomes a manpage, and groff rejects a byte above 127 as an
+// invalid input character. That gate lives in CI and needs groff; this one
+// needs nothing, so the em dash that looks right in a terminal fails here
+// rather than after a push.
+//
+// Runtime strings are exempt: only Short and Long are rendered by
+// scripts/gen_docs.go.
+func TestHelpTextIsASCII(t *testing.T) {
+	var walk func(*cobra.Command)
+	walk = func(c *cobra.Command) {
+		for _, f := range []struct{ what, text string }{
+			{"Short", c.Short},
+			{"Long", c.Long},
+			{"Example", c.Example},
+		} {
+			for i, r := range f.text {
+				if r > 127 {
+					t.Errorf("%s %s contains %q at byte %d: groff reads it as an invalid input character.\n"+
+						"Use ASCII in help text; an em dash or a typographic quote fails the manpage build.",
+						c.CommandPath(), f.what, r, i)
+					break
+				}
+			}
+		}
+		for _, sub := range c.Commands() {
+			walk(sub)
+		}
+	}
+	walk(rootCmd)
+}
+
+// Every flag's usage string ends up in the manpage too.
+func TestFlagUsageIsASCII(t *testing.T) {
+	var walk func(*cobra.Command)
+	walk = func(c *cobra.Command) {
+		check := func(f *pflagFlag) {
+			for _, r := range f.Usage {
+				if r > 127 {
+					t.Errorf("%s --%s usage contains %q: groff reads it as an invalid input character", c.CommandPath(), f.Name, r)
+					return
+				}
+			}
+		}
+		c.Flags().VisitAll(check)
+		c.PersistentFlags().VisitAll(check)
+		for _, sub := range c.Commands() {
+			walk(sub)
+		}
+	}
+	walk(rootCmd)
+}

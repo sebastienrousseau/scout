@@ -172,7 +172,7 @@ func outputFlags() *pflag.FlagSet {
 	outOnce.Do(func() {
 		fs := pflag.NewFlagSet("output", pflag.ContinueOnError)
 		fs.BoolVarP(&interactive, "interactive", "i", false, "pick the tools to exercise in an interactive selector before the run")
-		fs.StringVar(&output, "output", "text", "output format: text, json, md, ndjson, html, sarif, junit")
+		fs.StringVar(&output, "output", "text", "output format: text, json, md, ndjson, html, sarif, junit, attestation")
 		fs.StringVar(&reportDir, "report-dir", "", "write report.{txt,md,json}, telemetry.ndjson and telemetry.har here")
 		fs.BoolVar(&captureBodies, "capture-bodies", false, "record request/response bodies in telemetry (redacted, capped)")
 		fs.BoolVar(&withEvents, "events", false, "embed every telemetry event in JSON output")

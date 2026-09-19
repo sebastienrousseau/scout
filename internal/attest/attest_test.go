@@ -191,11 +191,20 @@ func TestValidateRefuses(t *testing.T) {
 		mutate func(*Statement)
 		want   string
 	}{
-		"a foreign envelope":        {func(s *Statement) { s.Type = "https://example.com/Statement/v1" }, "_type"},
-		"a foreign predicate":       {func(s *Statement) { s.PredicateType = "https://example.com/other" }, "predicateType"},
-		"no subject":                {func(s *Statement) { s.Subject = nil }, "about nothing"},
-		"two subjects":              {func(s *Statement) { s.Subject = append(s.Subject, s.Subject[0]) }, "one server"},
-		"a nameless subject":        {func(s *Statement) { s.Subject[0].Name = "" }, "no name"},
+		"a foreign envelope":  {func(s *Statement) { s.Type = "https://example.com/Statement/v1" }, "_type"},
+		"a foreign predicate": {func(s *Statement) { s.PredicateType = "https://example.com/other" }, "predicateType"},
+		"no subject":          {func(s *Statement) { s.Subject = nil }, "about nothing"},
+		"two subjects":        {func(s *Statement) { s.Subject = append(s.Subject, s.Subject[0]) }, "one server"},
+		"a nameless subject":  {func(s *Statement) { s.Subject[0].Name = "" }, "no name"},
+		// The name is the only part of a statement most consumers display:
+		// in-toto tooling shows subject[0].name, not the predicate. Left
+		// unchecked it could name one server while the predicate described
+		// another, and the digest — taken over the predicate's target —
+		// would still recompute. That is a lie that survives verification.
+		"a subject renamed to another server": {
+			func(s *Statement) { s.Subject[0].Name = "https://trustworthy.example.com/mcp" },
+			"but the predicate is about",
+		},
 		"no digest":                 {func(s *Statement) { s.Subject[0].Digest = nil }, "no sha256"},
 		"a mislabelled digest":      {func(s *Statement) { s.Predicate.SubjectKind = "artifact" }, "subjectKind"},
 		"no endpoint":               {func(s *Statement) { s.Predicate.Target.Endpoint = "" }, "no endpoint"},

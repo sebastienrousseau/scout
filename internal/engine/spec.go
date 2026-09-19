@@ -174,10 +174,17 @@ const (
 	// the shape a specific reader will not accept a substitute for.
 	FormatSARIF Format = "sarif"
 	FormatJUnit Format = "junit"
+	// FormatAttestation is not a report. Every other format here is the
+	// findings arranged for a particular reader; this one is a claim about
+	// the server, in the in-toto envelope a supply-chain pipeline already
+	// verifies, and it is meant to be signed and handed to a machine that
+	// was not present when the run happened. `scout verify` is the other
+	// half of it.
+	FormatAttestation Format = "attestation"
 )
 
 // Formats lists every valid output format.
-var Formats = []Format{FormatText, FormatJSON, FormatMD, FormatNDJSON, FormatHTML, FormatSARIF, FormatJUnit}
+var Formats = []Format{FormatText, FormatJSON, FormatMD, FormatNDJSON, FormatHTML, FormatSARIF, FormatJUnit, FormatAttestation}
 
 // Valid reports whether f is a format scout can render.
 func (f Format) Valid() bool {

@@ -45,8 +45,18 @@ func (s *Statement) Validate() error {
 	switch len(s.Subject) {
 	case 1:
 		sub := s.Subject[0]
-		if strings.TrimSpace(sub.Name) == "" {
+		want := strings.TrimSpace(s.Predicate.Target.Endpoint)
+		switch {
+		case strings.TrimSpace(sub.Name) == "":
 			note("the subject has no name")
+		case strings.TrimSpace(sub.Name) != want:
+			// The name is the only part of a statement most consumers
+			// display: in-toto tooling shows subject[0].name, not the
+			// predicate. Checking the digest alone left it free to say one
+			// server while the predicate described another, and the digest
+			// would still recompute — a lie that survives verification is
+			// worse than one that fails it.
+			note("the subject is named %q but the predicate is about %q", sub.Name, want)
 		}
 		got := sub.Digest["sha256"]
 		switch {

@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/sebastienrousseau/scout/trace"
 )
@@ -128,5 +129,50 @@ func TestRedactor(t *testing.T) {
 	}
 	if got := r.Header("Content-Type", "application/json"); got != "application/json" {
 		t.Errorf("plain header = %q", got)
+	}
+}
+
+// A report scout writes must be a report scout can read. Timings had only a
+// marshaller, so the struct tags decided how it was read back and `json`
+// tried to put 0.169625 into a time.Duration — every saved report that
+// carried telemetry events was write-only, and nothing noticed until
+// `scout attest` tried to read one.
+func TestTimingsRoundTrip(t *testing.T) {
+	in := Timings{
+		DNS:     1234 * time.Microsecond,
+		Connect: 169*time.Microsecond + 625*time.Nanosecond,
+		TLS:     0,
+		TTFB:    12 * time.Millisecond,
+		Total:   1500 * time.Microsecond,
+	}
+	b, err := json.Marshal(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The wire form is what a consumer reads, so assert it too: a
+	// round-trip through a changed encoding would still pass on its own.
+	if !strings.Contains(string(b), `"ttfb_ms":12`) {
+		t.Errorf("milliseconds are not on the wire: %s", b)
+	}
+
+	var out Timings
+	if err := json.Unmarshal(b, &out); err != nil {
+		t.Fatalf("scout cannot read what scout wrote: %v\n%s", err, b)
+	}
+	// Microsecond tolerance: the wire carries fractional milliseconds as a
+	// float64, so the nanosecond is not expected to survive.
+	for _, c := range []struct {
+		name      string
+		want, got time.Duration
+	}{
+		{"dns", in.DNS, out.DNS},
+		{"connect", in.Connect, out.Connect},
+		{"tls", in.TLS, out.TLS},
+		{"ttfb", in.TTFB, out.TTFB},
+		{"total", in.Total, out.Total},
+	} {
+		if d := c.got - c.want; d > time.Microsecond || d < -time.Microsecond {
+			t.Errorf("%s: %v came back as %v", c.name, c.want, c.got)
+		}
 	}
 }

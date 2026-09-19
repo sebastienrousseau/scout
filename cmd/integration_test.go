@@ -38,6 +38,8 @@ func resetAll() {
 	callArgsJSON, callArgs = "", nil
 	redirectPort, tokenAuthMethod = 8976, ""
 	logLevel = "info"
+	verifyEndpoint, verifyTransport, verifyRequire = "", "http", nil
+	verifyMaxFail, verifyMinScore, verifyOutput = 0, 0.0, "text"
 	// cobra remembers Changed between runs, and the help flag keeps its
 	// value, so a --help run would turn every later run into help output.
 	reset := func(f *pflagFlag) {
@@ -140,6 +142,9 @@ func TestCheckJSONMdNdjsonAndReportDir(t *testing.T) {
 	wantFiles := []string{
 		"report.json", "report.md", "report.html", "report.txt",
 		"report.sarif", "report.junit.xml",
+		// Not a report: the in-toto claim, which is the only file in the
+		// directory a machine can act on without reading prose.
+		"attestation.json",
 		"telemetry.ndjson", "telemetry.har",
 	}
 	for _, name := range wantFiles {

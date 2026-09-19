@@ -40,6 +40,26 @@ func (t Timings) MarshalJSON() ([]byte, error) {
 	return json.Marshal(map[string]float64{"dns_ms": ms(t.DNS), "connect_ms": ms(t.Connect), "tls_ms": ms(t.TLS), "ttfb_ms": ms(t.TTFB), "total_ms": ms(t.Total)})
 }
 
+// UnmarshalJSON reads those milliseconds back.
+//
+// Without this the struct tags win and `json` tries to read 0.169625 into a
+// time.Duration, which is an integer — so a report scout wrote could not be
+// read by scout. That is not a theoretical asymmetry: `scout attest` reads a
+// saved report, and every report with telemetry events in it was unreadable
+// until this existed.
+func (t *Timings) UnmarshalJSON(b []byte) error {
+	var raw map[string]float64
+	if err := json.Unmarshal(b, &raw); err != nil {
+		return err
+	}
+	dur := func(key string) time.Duration {
+		return time.Duration(raw[key] * float64(time.Millisecond))
+	}
+	t.DNS, t.Connect = dur("dns_ms"), dur("connect_ms")
+	t.TLS, t.TTFB, t.Total = dur("tls_ms"), dur("ttfb_ms"), dur("total_ms")
+	return nil
+}
+
 // TLSInfo describes the negotiated TLS session.
 type TLSInfo struct {
 	Version      string    `json:"version"`

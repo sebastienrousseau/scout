@@ -249,6 +249,8 @@ One binary, one base command, and every operation is a subcommand of it:
 | `scout tools <endpoint>` | Connect and audit the tool, resource and prompt catalog without invoking anything |
 | `scout call <endpoint> <tool>` | Invoke one tool with `--arg field=value` or `--json` and time it |
 | `scout login <endpoint>` | Authorize as a user in the browser (PKCE) and store the token for later runs |
+| `scout attest [report.json]` | Turn a saved report into an in-toto attestation, for signing in a later job |
+| `scout verify <attestation.json>` | Check an attestation offline and gate on what it says |
 | `scout config init` | Write a commented configuration file listing every setting |
 
 The exit status is 0 when nothing failed, 2 when any finding failed, and 1
@@ -658,6 +660,26 @@ carries the check's documentation link — and `--output junit` is JUnit XML,
 so a run lands beside the unit tests in your CI panel. Neither is richer
 than `json`; each is the same findings in the shape one reader insists on.
 
+`--output attestation` is not a report at all. It is an in-toto statement — a
+claim about the server in the envelope a supply-chain pipeline already
+verifies, meant to be signed and handed to a machine that was not present
+when the run happened. It states what it was judged against, carries a
+verdict for every check rather than only the failures, and verifies offline,
+because a gateway must never have to call scout to trust something scout
+produced.
+
+```sh
+scout check "$URL" --output json > report.json   # where the credentials are
+scout attest report.json > attestation.json      # where the identity is
+scout verify attestation.json --endpoint "$URL" --require auth.unauthenticated_tools --max-fail 0
+```
+
+`scout verify` answers whether the statement can be believed; the gates are
+what turn that into approval, and each is opt-in. Exit 0 means every gate
+met, 2 means the evidence is good and the answer is no, and 1 means the
+evidence is unusable — a gateway should treat the last two as different
+incidents. See [Reports and telemetry](https://scoutmcp.io/manual/reports/#attestations).
+
 `--report-dir DIR` writes all of them plus:
 
 - `telemetry.ndjson`, one line per request: phase, label, method, URL,
@@ -798,8 +820,8 @@ them off unless you know why you are turning one on; see
 | Option | Short | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `--interactive` | `-i` | off | Pick the tools to exercise in the selector before the run |
-| `--output` | — | `text` | Output format: `text`, `json`, `md`, `ndjson`, `html`, `sarif`, `junit` |
-| `--report-dir` | — | — | Write `report.{txt,md,json,html,sarif,junit.xml}`, `telemetry.ndjson` and `telemetry.har` here |
+| `--output` | — | `text` | Output format: `text`, `json`, `md`, `ndjson`, `html`, `sarif`, `junit`, `attestation` |
+| `--report-dir` | — | — | Write `report.{txt,md,json,html,sarif,junit.xml}`, `attestation.json`, `telemetry.ndjson` and `telemetry.har` here |
 | `--otlp-endpoint` | — | — | Export the finished run as OpenTelemetry traces to an OTLP/HTTP collector |
 | `--otlp-header` | — | — | Extra header on the OTLP export, `Name: value` (repeatable) |
 | `--log-format` | — | `human` | Diagnostic format on stderr: `human` or `json` |
