@@ -208,7 +208,35 @@ func (s *Session) setupStateless(ctx context.Context) []Finding {
 	})
 
 	c := s.check("handshake.server_info", "Server identifies itself")
-	if d := s.Era.Discovered; d != nil && d.ServerInfo.Name != "" {
+	d := s.Era.Discovered
+	switch {
+	case d == nil:
+		// The specification is explicit that every server MUST implement
+		// server/discover: it is the only way a client on this revision
+		// learns a server's identity, capabilities and supported versions.
+		s.Init = &scout.InitializeResult{ProtocolVersion: scout.StatelessVersions[0]}
+		out = append(out, c.fail(Major, "the server does not implement server/discover",
+			"implement server/discover. "+scout.StatelessVersions[0]+" requires it: with initialize gone it is the only way a client learns your identity, capabilities and which protocol versions you support"))
+	case d.ServerInfo.Name == "":
+		// It answered, so its capabilities and instructions are real and
+		// the catalog must be judged against them. Only the identity is
+		// missing, and that is a smaller defect than the RPC itself.
+		s.Init = &scout.InitializeResult{
+			ProtocolVersion: scout.StatelessVersions[0],
+			Capabilities:    d.Capabilities,
+			Instructions:    d.Instructions,
+		}
+		out = append(out, c.fail(Minor, "server/discover answered without a server identity",
+			"put name and version in the result's _meta under "+transport.MetaServerInfo+"; that is where "+scout.StatelessVersions[0]+" carries serverInfo, and without it a client cannot say which server it reached"))
+	case d.ServerInfo.Version == "":
+		s.Init = &scout.InitializeResult{
+			ProtocolVersion: scout.StatelessVersions[0],
+			ServerInfo:      d.ServerInfo,
+			Capabilities:    d.Capabilities,
+			Instructions:    d.Instructions,
+		}
+		out = append(out, c.warn(d.ServerInfo.Name+" via server/discover, but serverInfo.version is empty", "set version so clients can report it"))
+	default:
 		s.Init = &scout.InitializeResult{
 			ProtocolVersion: scout.StatelessVersions[0],
 			ServerInfo:      d.ServerInfo,
@@ -216,13 +244,6 @@ func (s *Session) setupStateless(ctx context.Context) []Finding {
 			Instructions:    d.Instructions,
 		}
 		out = append(out, c.pass(fmt.Sprintf("%s %s via server/discover", d.ServerInfo.Name, d.ServerInfo.Version)))
-	} else {
-		// The specification is explicit that every server MUST implement
-		// server/discover: it is the only way a client on this revision
-		// learns a server's identity, capabilities and supported versions.
-		s.Init = &scout.InitializeResult{ProtocolVersion: scout.StatelessVersions[0]}
-		out = append(out, c.fail(Major, "the server does not implement server/discover",
-			"implement server/discover. "+scout.StatelessVersions[0]+" requires it: with initialize gone it is the only way a client learns your identity, capabilities and which protocol versions you support"))
 	}
 
 	out = append(out, s.checkRoutingHeaders(ctx))

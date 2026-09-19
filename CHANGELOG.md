@@ -129,6 +129,18 @@ project announces that a change felt big.
   "across 10 phases" while scout ran nine, which is the drift a generated
   page exists to prevent — and a new test fails when a group in the
   inventory is neither a phase nor a recorded exception.
+||||||| 042e8d6
+Nothing yet.
+
+### Fixed
+
+- `server/discover` results that carry the server's identity in `_meta`
+  under `io.modelcontextprotocol/serverInfo`, where the 2026-07-28 revision
+  and the reference SDKs put it, are now read. Such servers were reported as
+  not implementing `server/discover`, and because the answer was discarded
+  every capability they declared was then reported as undeclared by the
+  catalog phase (#49). A discover answer with no identity anywhere is its
+  own, smaller finding, and its capabilities are kept.
 
 ## [0.0.2] — 2026-09-18
 

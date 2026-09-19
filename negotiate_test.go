@@ -83,6 +83,10 @@ func statelessServer(t *testing.T, opts statelessOpts) *httptest.Server {
 		}
 		switch req.Method {
 		case "server/discover":
+			if opts.metaServerInfo {
+				fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%s,"result":{"resultType":"complete","capabilities":{"tools":{}},"supportedVersions":["2026-07-28"],"instructions":"hi","_meta":{"io.modelcontextprotocol/serverInfo":{"name":"stateless-demo","version":"2.0"}}}}`, id)
+				return
+			}
 			fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%s,"result":{"resultType":"complete","serverInfo":{"name":"stateless-demo","version":"2.0"},"capabilities":{"tools":{}},"instructions":"hi"}}`, id)
 		case "tools/list":
 			fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%s,"result":{"resultType":"complete","tools":[{"name":"t","description":"d","inputSchema":{"type":"object"}}]}}`, id)
@@ -97,6 +101,9 @@ func statelessServer(t *testing.T, opts statelessOpts) *httptest.Server {
 type statelessOpts struct {
 	version    string
 	noDiscover bool
+	// metaServerInfo answers server/discover the way the 2026-07-28
+	// reference SDKs do: identity in _meta, not at the top level.
+	metaServerInfo bool
 }
 
 func newClient(t *testing.T, srv *httptest.Server) *Client {
@@ -134,6 +141,57 @@ func TestNegotiateStateless(t *testing.T) {
 	}
 	if len(tools) != 1 || tools[0].Name != "t" {
 		t.Errorf("tools = %+v", tools)
+	}
+}
+
+// The 2026-07-28 revision carries serverInfo in the discover result's _meta
+// under a reserved key, and that is where the reference SDKs put it. A
+// server that does so has identified itself; reading only the top-level
+// field would call it anonymous and disbelieve every capability it declared.
+func TestNegotiateReadsServerInfoFromMeta(t *testing.T) {
+	srv := statelessServer(t, statelessOpts{version: transport.V20260728, metaServerInfo: true})
+	c := newClient(t, srv)
+	n, err := c.Negotiate(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n.Era != EraStateless || n.Discovered == nil {
+		t.Fatalf("era = %v, discovered = %+v (%s)", n.Era, n.Discovered, n.Reason)
+	}
+	if got := n.Discovered.ServerInfo; got.Name != "stateless-demo" || got.Version != "2.0" {
+		t.Errorf("serverInfo = %+v, want it lifted from _meta", got)
+	}
+	if n.Discovered.Capabilities.Tools == nil {
+		t.Errorf("capabilities were not kept: %+v", n.Discovered.Capabilities)
+	}
+	if got := n.Discovered.SupportedVersions; len(got) != 1 || got[0] != transport.V20260728 {
+		t.Errorf("supportedVersions = %v", got)
+	}
+}
+
+func TestDiscoverResultUnmarshal(t *testing.T) {
+	cases := []struct {
+		name, in string
+		want     Implementation
+		wantErr  bool
+	}{
+		{"top level", `{"serverInfo":{"name":"a","version":"1"}}`, Implementation{Name: "a", Version: "1"}, false},
+		{"meta", `{"_meta":{"io.modelcontextprotocol/serverInfo":{"name":"b","version":"2"}}}`, Implementation{Name: "b", Version: "2"}, false},
+		{"top level wins", `{"serverInfo":{"name":"a","version":"1"},"_meta":{"io.modelcontextprotocol/serverInfo":{"name":"b","version":"2"}}}`, Implementation{Name: "a", Version: "1"}, false},
+		{"neither", `{"capabilities":{}}`, Implementation{}, false},
+		{"malformed meta", `{"_meta":{"io.modelcontextprotocol/serverInfo":"nope"}}`, Implementation{}, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var d DiscoverResult
+			err := json.Unmarshal([]byte(tc.in), &d)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("err = %v, wantErr %v", err, tc.wantErr)
+			}
+			if !tc.wantErr && d.ServerInfo != tc.want {
+				t.Errorf("serverInfo = %+v, want %+v", d.ServerInfo, tc.want)
+			}
+		})
 	}
 }
 

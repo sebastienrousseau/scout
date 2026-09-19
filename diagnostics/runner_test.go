@@ -64,7 +64,31 @@ func fakeMCP(t *testing.T, calls map[string]int, traceIDs *[]string) *httptest.S
 				}
 				reply(scout.CallToolResult{Content: []scout.Content{{Type: "text", Text: "ok"}}, StructuredContent: json.RawMessage(`{"hits":"not-an-array"}`)})
 			case "slow":
-				time.Sleep(120 * time.Millisecond)
+				// A second, not the 120ms this used to be.
+				//
+				// The assertion downstream is that `slow` is reported as a
+				// latency outlier, and an outlier is defined relatively: at
+				// least OutlierFactor times the median. The other three tools
+				// reply immediately, so on an idle machine 120ms was a wide
+				// margin over a near-zero median.
+				//
+				// Under load it is not. Running the whole module's tests with
+				// -race saturates the machine, the three "immediate" calls
+				// take 80ms of scheduler noise each, and the recorded failure
+				// was exactly that:
+				//
+				//	outliers = [] (latency {Count:4 P50:81.572458ms
+				//	                        P95:162.845667ms Max:162.845667ms})
+				//
+				// 162ms against a median of 81ms is not three times anything,
+				// so the rule was right and the fixture was wrong. A second
+				// gives the signal room to dominate the noise: even if the
+				// fast calls take 300ms, the gap still clears the factor.
+				//
+				// The rule itself is unit-tested deterministically elsewhere;
+				// what this test is for is that the runner plumbs a detected
+				// outlier through to the report.
+				time.Sleep(time.Second)
 				reply(scout.CallToolResult{Content: []scout.Content{{Type: "text", Text: "zzz"}}})
 			case "broken":
 				w.WriteHeader(500)
@@ -89,7 +113,12 @@ func TestRunnerEndToEnd(t *testing.T) {
 	if _, err := c.Connect(ctx); err != nil {
 		t.Fatal(err)
 	}
-	r := diagnostics.NewRunner(diagnostics.Options{RequestsPerSecond: -1, OutlierFloor: 50 * time.Millisecond, OutlierFactor: 3})
+	// The production floor, not a lowered one. With a 50ms floor any call
+	// that caught a scheduler hiccup qualified as an outlier: a run under
+	// -race reported `broken took 112.9ms (p50 29.3ms)` alongside the
+	// intended one. 500ms is high enough that noise cannot reach it and low
+	// enough that the fixture's deliberate second clears it easily.
+	r := diagnostics.NewRunner(diagnostics.Options{RequestsPerSecond: -1, OutlierFloor: 500 * time.Millisecond, OutlierFactor: 3})
 	rep, err := r.Run(ctx, c)
 	if err != nil {
 		t.Fatal(err)
@@ -114,13 +143,28 @@ func TestRunnerEndToEnd(t *testing.T) {
 	if len(rep.SchemaMismatches) != 1 || !strings.HasPrefix(rep.SchemaMismatches[0], "search:") {
 		t.Errorf("schema mismatches = %v", rep.SchemaMismatches)
 	}
-	if len(rep.Outliers) != 1 || !strings.HasPrefix(rep.Outliers[0], "slow ") {
-		t.Errorf("outliers = %v (latency %+v)", rep.Outliers, rep.Latency)
+	// That `slow` is reported, not that it is the only one reported.
+	//
+	// An outlier is defined relative to the median, so on a loaded machine
+	// any call can cross the factor and the count becomes a measurement of
+	// the test runner rather than of the code under test. What this test is
+	// for is that a detected outlier reaches the report, named. The rule
+	// itself is unit-tested deterministically in diagnostics_test.go and
+	// more_test.go.
+	var sawSlow bool
+	for _, o := range rep.Outliers {
+		if strings.HasPrefix(o, "slow ") {
+			sawSlow = true
+		}
+	}
+	if !sawSlow {
+		t.Errorf("the deliberately slow tool was not reported as an outlier: %v (latency %+v)",
+			rep.Outliers, rep.Latency)
 	}
 	if len(rep.MissingSchemas) != 3 || len(rep.Unannotated) != 1 {
 		t.Errorf("missing schemas = %v unannotated = %v", rep.MissingSchemas, rep.Unannotated)
 	}
-	if rep.Latency.Count != 4 || rep.Latency.Max < 120*time.Millisecond {
+	if rep.Latency.Count != 4 || rep.Latency.Max < time.Second {
 		t.Errorf("latency = %+v", rep.Latency)
 	}
 	// 100 - 12.5 (1/4 failed) - 5 (schema) - 1 (unannotated) - 3 (missing schemas) = 78.5
