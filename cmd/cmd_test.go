@@ -6,12 +6,16 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/sebastienrousseau/scout/internal/creds"
+	"github.com/sebastienrousseau/scout/internal/engine"
+	"github.com/spf13/cobra"
 )
 
 func resetFlags() {
@@ -19,6 +23,8 @@ func resetFlags() {
 	headers, params, toolArgs = nil, nil, nil
 	clientMetadataURL, scope, tokenURL, authURL, resource = "", "", "", "", ""
 	endpointFromProfile, configPath, profileName = "", "", ""
+	useStdio, stdioDir = false, ""
+	stdioEnv, stdioOnly = nil, nil
 }
 
 func TestParseToolArgs(t *testing.T) {
@@ -121,4 +127,139 @@ func TestVersionCommand(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = json.Valid // keep import
+}
+
+// TestResolveTarget covers the operand grammar, which is the part of this
+// feature a user meets first and the part most likely to be got wrong.
+//
+// Cobra's ArgsLenAtDash is what separates scout's arguments from the
+// server's, and it is only correct if the flag set has actually parsed the
+// line — so these drive a real command rather than calling the resolver with
+// a hand-built slice.
+func TestResolveTarget(t *testing.T) {
+	cases := []struct {
+		name    string
+		argv    []string
+		want    engine.TargetSpec
+		wantErr string
+	}{
+		{
+			name: "a URL is the positional",
+			argv: []string{"https://mcp.example.com/mcp"},
+			want: engine.TargetSpec{Endpoint: "https://mcp.example.com/mcp"},
+		},
+		{
+			name: "a command after --",
+			argv: []string{"--stdio", "--", "npx", "-y", "server", "--its-own-flag"},
+			want: engine.TargetSpec{Command: "npx", Args: []string{"-y", "server", "--its-own-flag"}},
+		},
+		{
+			name:    "both a URL and a command is one target too many",
+			argv:    []string{"--stdio", "https://mcp.example.com/mcp", "--", "npx", "server"},
+			wantErr: "one target",
+		},
+		{
+			name:    "--stdio with nothing to run",
+			argv:    []string{"--stdio"},
+			wantErr: "needs the command to run",
+		},
+		{
+			name:    "a command without --stdio",
+			argv:    []string{"--", "npx", "server"},
+			wantErr: "pass --stdio",
+		},
+		{
+			name: "forwarded variables are named, not inherited",
+			argv: []string{"--stdio", "--stdio-env", "GITHUB_TOKEN", "--stdio-dir", "/tmp", "--", "server"},
+			want: engine.TargetSpec{Command: "server", Args: []string{}, Dir: "/tmp", PassEnv: []string{"GITHUB_TOKEN"}},
+		},
+		{
+			name:    "--stdio-set without a value",
+			argv:    []string{"--stdio", "--stdio-set", "GITHUB_TOKEN", "--", "server"},
+			wantErr: "has no value",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			resetAll()
+			var got engine.TargetSpec
+			var gotErr error
+			cmd := &cobra.Command{
+				Use:  "probe",
+				Args: cobra.ArbitraryArgs,
+				RunE: func(c *cobra.Command, args []string) error {
+					got, gotErr = resolveTarget(c, args)
+					return nil
+				},
+			}
+			cmd.Flags().AddFlagSet(targetFlags())
+			cmd.SetArgs(tc.argv)
+			cmd.SetOut(io.Discard)
+			cmd.SetErr(io.Discard)
+			if err := cmd.Execute(); err != nil {
+				t.Fatalf("parse: %v", err)
+			}
+
+			if tc.wantErr != "" {
+				if gotErr == nil {
+					t.Fatalf("no error; got target %+v", got)
+				}
+				if !strings.Contains(gotErr.Error(), tc.wantErr) {
+					t.Errorf("error %q does not mention %q", gotErr, tc.wantErr)
+				}
+				return
+			}
+			if gotErr != nil {
+				t.Fatalf("resolveTarget: %v", gotErr)
+			}
+			if got.Endpoint != tc.want.Endpoint || got.Command != tc.want.Command ||
+				got.Dir != tc.want.Dir ||
+				!slices.Equal(got.Args, tc.want.Args) || !slices.Equal(got.PassEnv, tc.want.PassEnv) {
+				t.Errorf("got %+v, want %+v", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestCallTargetSplitsToolFromCommand: `call` has two operands and they swap
+// places between transports, which is exactly the sort of grammar that ships
+// broken.
+func TestCallTargetSplitsToolFromCommand(t *testing.T) {
+	run := func(argv ...string) (engine.TargetSpec, string, error) {
+		resetAll()
+		var target engine.TargetSpec
+		var tool string
+		var err error
+		cmd := &cobra.Command{Use: "call", Args: cobra.ArbitraryArgs,
+			RunE: func(c *cobra.Command, args []string) error {
+				target, tool, err = callTarget(c, args)
+				return nil
+			}}
+		cmd.Flags().AddFlagSet(targetFlags())
+		cmd.SetArgs(argv)
+		cmd.SetOut(io.Discard)
+		cmd.SetErr(io.Discard)
+		if e := cmd.Execute(); e != nil {
+			t.Fatalf("parse: %v", e)
+		}
+		return target, tool, err
+	}
+
+	target, tool, err := run("https://mcp.example.com/mcp", "search")
+	if err != nil || target.Endpoint != "https://mcp.example.com/mcp" || tool != "search" {
+		t.Errorf("HTTP form: %+v %q %v", target, tool, err)
+	}
+
+	target, tool, err = run("--stdio", "get-sum", "--", "npx", "-y", "server")
+	if err != nil || target.Command != "npx" || tool != "get-sum" {
+		t.Errorf("stdio form: %+v %q %v", target, tool, err)
+	}
+
+	if _, _, err = run("--stdio", "--", "npx", "server"); err == nil {
+		t.Error("a stdio call with no tool named was accepted")
+	}
+	if _, _, err = run("https://mcp.example.com/mcp"); err == nil {
+		t.Error("a call with no tool named was accepted")
+	}
 }

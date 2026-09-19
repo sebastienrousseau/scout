@@ -280,8 +280,14 @@ func scoreStyle(score float64) lipgloss.Style {
 
 func serverLine(r *Report) string {
 	if r.Server != nil {
+		// "open, no sign-in" is a statement about who can reach the server,
+		// and over a pipe nobody can: it has no address. Saying it anyway
+		// would read as a reassurance scout never established.
 		auth := "open, no sign-in"
-		if r.Auth.Required {
+		switch {
+		case r.Target.Transport == "stdio":
+			auth = "local process"
+		case r.Auth.Required:
 			auth = "requires sign-in"
 		}
 		return fmt.Sprintf("%s %s · MCP %s · %s", r.Server.Name, r.Server.Version, r.Server.Protocol, auth)

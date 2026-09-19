@@ -15,7 +15,132 @@ project announces that a change felt big.
 
 ## [Unreleased]
 
+### Added
+
+- **`scout check --stdio -- <command>`.** The stdio transport that shipped
+  in 0.0.2 was unreachable from the CLI, which meant scout could not
+  diagnose most MCP servers: most of them are programs a host starts, not
+  URLs it fetches. Now it can.
+
+  ```bash
+  scout check --stdio -- npx -y @modelcontextprotocol/server-everything stdio
+  scout check --stdio --stdio-env GITHUB_TOKEN -- docker run -i --rm ghcr.io/example/mcp
+  ```
+
+  `connect`, `tools` and `call` take it too; for `call`, which has two
+  operands, the tool comes before `--` and the server after it.
+
+  Everything after `--` belongs to the server, including its own flags.
+  There is no `--stdio-command "npx -y thing"` form, because splitting a
+  command string means quoting rules and quoting rules mean a shell. The
+  process is started when the run starts and reaped when it ends, on every
+  path out. `--stdio-env NAME` forwards one variable by name, `--stdio-set
+  NAME=value` replaces the environment outright, `--stdio-dir` sets the
+  working directory. Credentials are refused rather than ignored: a pipe has
+  no origin to authorize against, and silently dropping a `--token` would
+  produce a report that reads as a test of an authenticated server.
+
+- **Five checks that only a child-process run can make.** `stdio.process`
+  (it started and is still running), `stdio.environment` (what scout handed
+  it), `stdio.alive` (it survived the run), `stdio.stderr` (what it logged),
+  and `stdio.stdout_clean`.
+
+  The last one is the one that earns its place. Over stdio, stdout *is* the
+  wire: every byte on it is parsed as protocol framing. One startup banner,
+  one `print` left in a handler, one progress bar, and the stream is corrupt
+  — and what a host reports is a hang, or a parse error naming a line nobody
+  wrote. It never names the cause. This does, and quotes the line.
+
+  These run even when an earlier phase blocked the rest of the run, because
+  a blocked run is exactly when "the process exited" is the finding that
+  explains all the others.
+
+- **Every check a stdio run cannot make is reported as skipped, by id, with
+  the reason.** Two phases — authorization discovery and credentials — plus
+  `protocol.accept_header`, `protocol.get_stream`,
+  `protocol.bogus_session`, `protocol.version_header` and
+  `handshake.session`. None is left out.
+
+  This is the part that took the most care. A run that silently contained
+  fewer checks than the documentation promises reads as a better result than
+  it is, and nothing downstream could detect the difference. `doc_url` still
+  resolves for each of them, so a reader can see what was not done and why
+  it could not be.
+
+- **The four protocol probes that are not about HTTP now run over a pipe
+  too.** An unknown method, a mismatched response id, a truncated body and
+  a `tools/call` with no name are JSON-RPC questions. Skipping them over
+  stdio would have been laziness dressed as honesty, so `transport.Stdio`
+  gained `Exchange` — the pipe's counterpart to `Streamable.Do` — for a
+  probe that has to send what a client library would refuse to build.
+
+- **`transport.StdioConfig.Observe`** reports every exchange, and the probe
+  layer wires it to the recorder through `telemetry.Recorder.RecordPipe`. A
+  stdio finding cites `req#7` the way an HTTP one does; without it the
+  evidence section of a stdio report was empty, and the report read as less
+  rigorous for a reason that had nothing to do with the server.
+
+### Changed
+
+- **A timed-out call no longer kills a stdio server.** This is a behaviour
+  change from 0.0.2, where it did — the read happened inline under a lock,
+  so killing the process was the only way to free a goroutine blocked on a
+  descriptor. It meant one slow tool ended a whole run, while the same
+  timeout over HTTP costs a single finding.
+
+  The connection now has one reader that matches replies to requests by id.
+  An abandoned call is abandoned, the late reply is discarded rather than
+  handed to whoever asks next, and concurrent calls are concurrent — which
+  is also what lets the performance phase measure the server rather than
+  scout's own mutex. Custody did not move: `Close` still owns the process,
+  and every caller defers one.
+
+- **A line on stdout that is not a JSON-RPC message ends the connection and
+  is recorded.** It was already fatal to the call in flight; what is new is
+  that the line is kept, so the report can name the cause instead of a
+  timeout.
+
+- **`Report.Target` carries `transport` and, for a stdio run, `command`.** A
+  consumer comparing two reports has to be able to tell which kind of run it
+  is reading: they do not contain the same checks, and the difference is not
+  the server's. The command is redacted like any other field — an
+  `--api-key=…` in an argument is ordinary, and a report is the one place it
+  must not be.
+
+- **`scout serve` refuses a run that names a program** unless started with
+  `--allow-stdio`, and always refuses one in `--public` mode. The engine can
+  do it and the CLI does, but "diagnose the URL in this field" and "run this
+  command on the machine scout is running on" are not the same permission,
+  and the token in the page's URL is not a credential anybody should be able
+  to trade for the second.
+
+- **`scout.New` starts a process when `Config.Stdio` is set**, and the
+  client gained `Close`, `Stdio()` and `NewStdio(ctx, cfg)`. A pipe cannot
+  exist before the process on the other end of it, so this is the one
+  configuration where `New` does something a context belongs on.
+
+- **A finding's detail is collapsed to one line.** Some of what goes into
+  one comes from the server, and a validation library that returns a
+  pretty-printed array put its newlines straight through the terminal
+  layout, the Markdown table and the JUnit message.
+
+- **The published check count is 86**, five of which are the stdio ones. The
+  generator no longer counts `stdio.*` as a tenth phase — it briefly said
+  "across 10 phases" while scout ran nine, which is the drift a generated
+  page exists to prevent — and a new test fails when a group in the
+  inventory is neither a phase nor a recorded exception.
+||||||| 042e8d6
 Nothing yet.
+
+### Fixed
+
+- `server/discover` results that carry the server's identity in `_meta`
+  under `io.modelcontextprotocol/serverInfo`, where the 2026-07-28 revision
+  and the reference SDKs put it, are now read. Such servers were reported as
+  not implementing `server/discover`, and because the answer was discarded
+  every capability they declared was then reported as undeclared by the
+  catalog phase (#49). A discover answer with no identity anywhere is its
+  own, smaller finding, and its capabilities are kept.
 
 ## [0.0.2] — 2026-09-18
 

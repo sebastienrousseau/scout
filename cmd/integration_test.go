@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/sebastienrousseau/scout/internal/diag"
+	"github.com/sebastienrousseau/scout/internal/engine"
 )
 
 // resetAll restores every package-level flag variable and command state.
@@ -590,7 +591,7 @@ func TestCurrentTokenNilForStatic(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c, _, err := connectWithCreds(rootCmd, f.srv.URL+"/mcp", cr)
+	c, _, err := connectWithCreds(rootCmd, engine.TargetSpec{Endpoint: f.srv.URL + "/mcp"}, cr)
 	if err != nil {
 		t.Fatal(err)
 	}

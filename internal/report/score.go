@@ -9,6 +9,40 @@ import (
 	"github.com/sebastienrousseau/scout/internal/probe"
 )
 
+// RubricVersion is the version of the scoring rubric.
+//
+// It exists because a score is only comparable to another score computed the
+// same way. "82/100" in a report from 2027 and "82/100" from 2029 are the
+// same number about possibly different things, and an attestation that
+// carries the total without the rubric behind it is publishing a figure
+// nothing can be compared to.
+//
+// Increment it when the weights change, when a category is added or removed,
+// or when the deduction model changes — anything that would move a score
+// without the server moving. Never increment it for a new check inside an
+// existing category: that is the rubric working, not changing.
+//
+// 1: six weighted categories — connectivity 10, authorization 20, protocol
+// 20, catalog 15, execution 20, performance 15 — scored over the phases each
+// names, with unassessed categories excluded from the weighting rather than
+// counted as zero.
+const RubricVersion = "1"
+
+// CheckInventoryVersion is the version of the check catalogue the ids in a
+// report belong to.
+//
+// It follows the same rule as SchemaVersion, for the same reason: increment it
+// when an id is renamed, removed, or changes what it asserts, and never when
+// one is added. A consumer holding an attestation from two years ago needs to
+// know whether `catalog.tools.output_schema` still means what it meant then,
+// and the generated inventory cannot tell it that on its own — docs/checks.md
+// describes the current catalogue, not the one the statement was written
+// against.
+//
+// 1: the catalogue as generated from the call sites, ids in the
+// <phase>.<check> form with auth.source.* as the one computed family.
+const CheckInventoryVersion = "1"
+
 // Category groups phases for scoring.
 type Category struct {
 	Name       string   `json:"name"`

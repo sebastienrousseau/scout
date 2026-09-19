@@ -373,3 +373,82 @@ func TestServeStartsAndStops(t *testing.T) {
 		t.Error("the server did not shut down")
 	}
 }
+
+// TestBrowserCannotStartAProgram is the guard that matters most in this
+// file.
+//
+// The engine can diagnose a stdio server, and RunSpec carries the command
+// because the parity contract says a capability lives on the spec or no
+// surface can have it. That is the right place for it and the wrong thing
+// to expose over HTTP: a POST that names a program is a remote shell, and
+// the token in the page URL is not a credential anyone should be able to
+// trade for one. It is refused unless the operator started the process
+// saying otherwise.
+func TestBrowserCannotStartAProgram(t *testing.T) {
+	s, ts := newTestServer(t)
+	// No filesystem path in the body: an earlier version put a t.TempDir()
+	// path in there, and on Windows its backslashes are invalid JSON string
+	// escapes — so the body failed to decode and the server answered 400.
+	// The test passed everywhere else and asserted nothing on Windows except
+	// that malformed JSON is rejected.
+	body := `{"target":{"command":"/bin/sh","args":["-c","echo pwned"]},"phases":{"only":["net"]}}`
+	resp := do(t, ts, http.MethodPost, "/api/runs?t="+s.Token(), body, map[string]string{"Content-Type": "application/json"})
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("posting a command returned %d, want 403", resp.StatusCode)
+	}
+	var out map[string]string
+	_ = json.NewDecoder(resp.Body).Decode(&out)
+	if !strings.Contains(out["error"], "--allow-stdio") {
+		t.Errorf("the refusal should say how to permit it deliberately: %q", out["error"])
+	}
+}
+
+// TestAllowStdioIsWhatPermitsIt: the flag has to actually be the thing that
+// changes the answer, or the test above is asserting a constant.
+func TestAllowStdioIsWhatPermitsIt(t *testing.T) {
+	s, err := New(Options{Version: "test", AllowStdio: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ts := httptest.NewServer(s)
+	t.Cleanup(ts.Close)
+
+	// A command that is a server for exactly one message, so the run gets
+	// past the process check and stops on its own.
+	body := `{"target":{"command":"/bin/sh","args":["-c","read -r l; printf '{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{}}\\n'"]},"phases":{"only":["net"]},"pacing":{"rps":0}}`
+	resp := do(t, ts, http.MethodPost, "/api/runs?t="+s.Token(), body, map[string]string{"Content-Type": "application/json"})
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusAccepted && resp.StatusCode != http.StatusOK {
+		var out map[string]string
+		_ = json.NewDecoder(resp.Body).Decode(&out)
+		t.Fatalf("--allow-stdio did not permit a stdio run: %d %q", resp.StatusCode, out["error"])
+	}
+}
+
+// TestPublicModeNeverRunsAProgram: --public and --allow-stdio together must
+// not add up to an open shell. Public mode is reached from the internet by
+// definition, and the two flags being independent is exactly how a
+// misconfiguration like that gets written.
+func TestPublicModeNeverRunsAProgram(t *testing.T) {
+	spy := newSpyServer(t)
+	list := &Allowlist{origins: map[string]string{}}
+	o, err := originKey(spy.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	list.origins[o] = "fixture"
+	s, err := New(Options{Version: "test", Public: true, Allowed: list, AllowStdio: true, RatePerMinute: 600, RateBurst: 100})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ts := httptest.NewServer(s)
+	t.Cleanup(ts.Close)
+
+	resp := postRun(t, ts, `{"target":{"command":"/bin/sh","args":["-c","exit 0"]},"phases":{"only":["net"]}}`)
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("a public server with --allow-stdio ran a program: %d", resp.StatusCode)
+	}
+}
