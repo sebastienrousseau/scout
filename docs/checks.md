@@ -8,13 +8,13 @@ description: >-
 
 # The check inventory
 
-scout runs **86 checks** across **9 phases**.
+scout runs **87 checks** across **9 phases**.
 
 5 of them apply only to a server that is a program rather than a URL, and
 replace the ones that have no meaning over a pipe. A run reports every check it
 did not make, by id and with the reason, rather than leaving it out.
 
-85 of those are fixed, and 1 is a family whose id is built at run time —
+86 of those are fixed, and 1 is a family whose id is built at run time —
 one check per value the run encounters, marked `*` below.
 
 This file is generated from the source: every check is created through
@@ -55,7 +55,7 @@ that is what a reader sees in a report.
 | <span id="check-discovery-prm-resource" data-can-fail="true"></span>`discovery.prm.resource` | PRM resource matches endpoint |
 | <span id="check-discovery-registration" data-can-fail="true"></span>`discovery.registration` | Client registration path |
 
-## auth — 8 checks
+## auth — 9 checks
 
 | Check | What it looks for |
 |---|---|
@@ -67,6 +67,7 @@ that is what a reader sees in a report.
 | <span id="check-auth-token-expiry" data-can-fail="true"></span>`auth.token.expiry` | Token lifetime |
 | <span id="check-auth-token-scope" data-can-fail="true"></span>`auth.token.scope` | Granted scope covers requested scope |
 | <span id="check-auth-token-type" data-can-fail="true"></span>`auth.token.type` | Token type |
+| <span id="check-auth-unauthenticated_tools" data-can-fail="true"></span>`auth.unauthenticated_tools` | Tools reachable without credentials |
 
 ## handshake — 8 checks
 
