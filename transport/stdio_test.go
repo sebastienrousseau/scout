@@ -272,31 +272,95 @@ func TestStdioCloseIsIdempotent(t *testing.T) {
 	}
 }
 
-// TestStdioCancelledContextEndsTheProcess: a caller who gives up must not
-// leave a server behind.
-func TestStdioCancelledContextEndsTheProcess(t *testing.T) {
+// TestStdioCancelledCallKeepsTheSession: one call giving up is a finding
+// about that call, not the end of the connection.
+//
+// This assertion is the reverse of the one it replaces, which required a
+// cancelled call to end the process. That was true of the first design,
+// where the read happened inline and killing the server was the only way
+// to free a goroutine blocked on the pipe — and it made a single slow
+// method fatal to a whole run, while the same timeout over HTTP costs one
+// finding. Custody did not move: Close still owns the process, which the
+// second half of this test insists on.
+func TestStdioCancelledCallKeepsTheSession(t *testing.T) {
 	requireShell(t)
-	s := start(t, transport.StdioConfig{Command: script(t, `while :; do sleep 0.05; done`)})
+	// Answers the second request and ignores the first, so the timeout is
+	// about one method rather than a server that is simply dead.
+	s := start(t, transport.StdioConfig{Command: script(t, `
+first=1
+while IFS= read -r line; do
+  if [ -n "$first" ]; then first=; continue; fi
+  id=$(printf '%s' "$line" | sed -n 's/.*"id":\([0-9]*\).*/\1/p')
+  printf '{"jsonrpc":"2.0","id":%s,"result":{"ok":true}}\n' "$id"
+done
+`)})
 	pid := s.PID()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	if err := s.Call(ctx, "slow/method", nil, nil); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Call = %v, want a deadline error", err)
+	}
+	if exited, _ := s.Exited(); exited {
+		t.Fatal("a cancelled call killed the server")
+	}
+
+	// The connection is still usable, which is the whole point: the run
+	// continues and reports the slow method rather than reporting nothing.
+	var got struct {
+		OK bool `json:"ok"`
+	}
+	if err := s.Call(context.Background(), "tools/list", nil, &got); err != nil {
+		t.Fatalf("the connection did not survive the timeout: %v", err)
+	}
+	if !got.OK {
+		t.Errorf("second call returned %+v", got)
+	}
+
+	// Custody is Close's, and it is not optional.
+	if err := s.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	if alive(pid) {
+		t.Errorf("process %d survived Close", pid)
+	}
+}
+
+// TestStdioTimedOutCallDoesNotPoisonTheNextOne: the abandoned reply must
+// not be handed to whoever calls next.
+//
+// This is the failure the id-matching reader exists to prevent. A server
+// that answers late writes its reply after the caller has gone; if the
+// next call read "the next message" it would decode the previous call's
+// result and report it as its own, and the report would be wrong in a way
+// nothing downstream could detect.
+func TestStdioTimedOutCallDoesNotPoisonTheNextOne(t *testing.T) {
+	requireShell(t)
+	s := start(t, transport.StdioConfig{Command: script(t, `
+while IFS= read -r line; do
+  id=$(printf '%s' "$line" | sed -n 's/.*"id":\([0-9]*\).*/\1/p')
+  m=$(printf '%s' "$line" | sed -n 's/.*"method":"\([^"]*\)".*/\1/p')
+  case "$m" in
+    slow/method) sleep 0.6 ;;
+  esac
+  printf '{"jsonrpc":"2.0","id":%s,"result":{"method":"%s"}}\n' "$id" "$m"
+done
+`)})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
-	err := s.Call(ctx, "tools/list", nil, nil)
-	if !errors.Is(err, context.DeadlineExceeded) {
+	if err := s.Call(ctx, "slow/method", nil, nil); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("Call = %v, want a deadline error", err)
 	}
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		if exited, _ := s.Exited(); exited {
-			break
-		}
-		time.Sleep(20 * time.Millisecond)
+
+	var got struct {
+		Method string `json:"method"`
 	}
-	if exited, _ := s.Exited(); !exited {
-		t.Fatal("the process outlived a cancelled call")
+	if err := s.Call(context.Background(), "tools/list", nil, &got); err != nil {
+		t.Fatalf("Call: %v", err)
 	}
-	if alive(pid) {
-		t.Errorf("process %d survived cancellation", pid)
+	if got.Method != "tools/list" {
+		t.Errorf("the next call got the abandoned reply: %+v", got)
 	}
 }
 
@@ -544,5 +608,131 @@ exit 7
 	}
 	if exited, _ := s.Exited(); !exited {
 		t.Error("the process was not reaped")
+	}
+}
+
+// TestStdioExchangeSendsARawMessage: the conformance probes need to send a
+// request the client API would never construct.
+func TestStdioExchangeSendsARawMessage(t *testing.T) {
+	requireShell(t)
+	s := start(t, transport.StdioConfig{Command: script(t, `
+while IFS= read -r line; do
+  id=$(printf '%s' "$line" | sed -n 's/.*"id":\([0-9]*\).*/\1/p')
+  printf '{"jsonrpc":"2.0","id":%s,"error":{"code":-32601,"message":"no"}}\n' "$id"
+done
+`)})
+	id := s.NextID()
+	res, err := s.Exchange(context.Background(), transport.StdioExchange{
+		Request: &transport.Request{JSONRPC: "2.0", ID: &id, Method: "scout/does_not_exist"},
+	})
+	if err != nil {
+		t.Fatalf("Exchange: %v", err)
+	}
+	if res.Response == nil || res.Response.Error == nil {
+		t.Fatalf("no error object in %s", res.Line)
+	}
+	if res.Response.Error.Code != -32601 {
+		t.Errorf("code = %d", res.Response.Error.Code)
+	}
+	if res.Response.ID == nil || *res.Response.ID != id {
+		t.Errorf("id = %v, want %d", res.Response.ID, id)
+	}
+}
+
+// TestStdioExchangeReadsANullIDError: a parse error has no id to match.
+//
+// JSON-RPC requires a parse error to be reported with a null id — there is
+// nothing to echo, because nothing parsed. A body-only exchange therefore
+// waits for whatever comes next by construction, without being asked: an
+// id-matching reader could never see this reply, and the probe that sends
+// malformed input would report a timeout instead of the answer it got.
+func TestStdioExchangeReadsANullIDError(t *testing.T) {
+	requireShell(t)
+	s := start(t, transport.StdioConfig{Command: script(t, `
+while IFS= read -r line; do
+  printf '{"jsonrpc":"2.0","id":null,"error":{"code":-32700,"message":"parse error"}}\n'
+done
+`)})
+	res, err := s.Exchange(context.Background(), transport.StdioExchange{
+		Body:       []byte(`{"jsonrpc":"2.0","id":1,"method":`),
+		AnyMessage: true,
+	})
+	if err != nil {
+		t.Fatalf("Exchange: %v", err)
+	}
+	if res.Response == nil || res.Response.Error == nil {
+		t.Fatalf("no error object in %q", res.Line)
+	}
+	if res.Response.Error.Code != -32700 {
+		t.Errorf("code = %d, want -32700", res.Response.Error.Code)
+	}
+}
+
+// TestStdioExchangeRefusesANewline: a body with a newline in it is two
+// messages, and the probe would be measuring something other than what it
+// meant to send.
+func TestStdioExchangeRefusesANewline(t *testing.T) {
+	requireShell(t)
+	s := start(t, transport.StdioConfig{Command: script(t, echoServer)})
+	if _, err := s.Exchange(context.Background(), transport.StdioExchange{Body: []byte("{}\n{}")}); err == nil {
+		t.Error("a two-line body was sent as one message")
+	}
+}
+
+// TestStdioNoiseNamesTheStrayLine: "it hangs" is not a diagnosis.
+//
+// A stdio server that prints anything to stdout has broken the transport,
+// and this is by far the most common way one is broken. Keeping the line
+// is the difference between a report that says which line and a report
+// that says the server did not answer.
+func TestStdioNoiseNamesTheStrayLine(t *testing.T) {
+	requireShell(t)
+	s := start(t, transport.StdioConfig{Command: script(t, `
+while IFS= read -r line; do
+  echo "Listening on stdio..."
+done
+`)})
+	if err := s.Call(context.Background(), "tools/list", nil, nil); err == nil {
+		t.Fatal("a stray line was accepted")
+	}
+	n, sample := s.Noise()
+	if n != 1 {
+		t.Errorf("Noise counted %d lines, want 1", n)
+	}
+	if sample != "Listening on stdio..." {
+		t.Errorf("sample = %q", sample)
+	}
+}
+
+// TestStdioExchangeAnyMessageSeesAMismatchedID is why AnyMessage exists.
+//
+// "The response id matches the request id" is one of the checks, so the
+// probe has to be able to observe a server that answers with the wrong
+// one. Matching by id cannot: the reply belongs to no outstanding call, so
+// it is dropped as unsolicited and the probe times out — reporting that
+// the server did not answer, when in fact it answered incorrectly. Those
+// are different findings, and the second is the true one.
+func TestStdioExchangeAnyMessageSeesAMismatchedID(t *testing.T) {
+	requireShell(t)
+	s := start(t, transport.StdioConfig{Command: script(t, `
+while IFS= read -r line; do
+  printf '{"jsonrpc":"2.0","id":9999,"result":{}}\n'
+done
+`)})
+	id := s.NextID()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	res, err := s.Exchange(ctx, transport.StdioExchange{
+		Request:    &transport.Request{JSONRPC: "2.0", ID: &id, Method: "tools/list"},
+		AnyMessage: true,
+	})
+	if err != nil {
+		t.Fatalf("Exchange: %v", err)
+	}
+	if res.Response == nil || res.Response.ID == nil {
+		t.Fatalf("no response with an id in %q", res.Line)
+	}
+	if *res.Response.ID == id {
+		t.Fatalf("the fixture echoed the id; it is meant not to")
 	}
 }

@@ -199,7 +199,9 @@ func (s *Session) setupStateless(ctx context.Context) []Finding {
 	if err != nil {
 		return append(out, s.check("handshake.stateless", "Stateless session setup").fail(Major, err.Error(), ""))
 	}
-	s.Client.Transport().SetDialect(&transport.Stateless{
+	// Conn, not Transport: the dialect belongs to whichever connection this
+	// is, and over a pipe Transport is nil.
+	s.Client.Conn().SetDialect(&transport.Stateless{
 		ProtocolVersion: scout.StatelessVersions[0],
 		ClientInfo:      transport.Implementation{Name: "scout", Version: s.Opts.Version},
 		Capabilities:    caps,

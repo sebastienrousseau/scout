@@ -46,10 +46,45 @@ type RunSpec struct {
 	Version string `json:"version,omitempty"`
 }
 
-// TargetSpec identifies the server under test.
+// TargetSpec identifies the server under test: either a URL to talk to or
+// a program to run.
 type TargetSpec struct {
 	// Endpoint is the Streamable HTTP URL.
 	Endpoint string `json:"endpoint"`
+	// Command is the program to run as the server, with Args, when the
+	// server speaks over stdio. Exactly one of Endpoint and Command is set.
+	//
+	// It is not a shell command: nothing is expanded, split or quoted, and
+	// a pipe in it is a pipe in the program's name. That is deliberate —
+	// this value arrives from a CLI flag today and could arrive from a web
+	// client tomorrow, and "run this string through a shell" is not a
+	// capability to leave lying in the request path.
+	Command string   `json:"command,omitempty"`
+	Args    []string `json:"args,omitempty"`
+	// Dir is the working directory for the server; empty means scout's.
+	Dir string `json:"dir,omitempty"`
+	// PassEnv names environment variables to forward to the server.
+	//
+	// Only these, plus a fixed base that lets a program find its
+	// interpreter, reach the child. A server scout is diagnosing is a
+	// program nobody has audited, and handing it every exported variable
+	// is how a credential for something else ends up inside it.
+	PassEnv []string `json:"pass_env,omitempty"`
+	// Env, when non-nil, replaces the child's environment entirely.
+	// Excluded from JSON: a variable's value is as sensitive as a token,
+	// and a spec that crosses a boundary carries names, not values.
+	Env []string `json:"-"`
+}
+
+// Stdio reports whether the target is a program rather than a URL.
+func (t TargetSpec) Stdio() bool { return strings.TrimSpace(t.Command) != "" }
+
+// Describe names the target for a human: the URL, or the command line.
+func (t TargetSpec) Describe() string {
+	if t.Stdio() {
+		return strings.Join(append([]string{t.Command}, t.Args...), " ")
+	}
+	return t.Endpoint
 }
 
 // CredSpec mirrors the credential surface. Fields that hold a secret
@@ -238,12 +273,20 @@ func (s RunSpec) WithDefaults() RunSpec {
 // every surface, so a web client gets the CLI's error rather than a
 // different one.
 func (s RunSpec) Validate() error {
-	if strings.TrimSpace(s.Target.Endpoint) == "" {
+	switch {
+	case s.Target.Stdio() && strings.TrimSpace(s.Target.Endpoint) != "":
+		return errors.New("a run has one target: an endpoint or a command, not both")
+	case s.Target.Stdio():
+		// Nothing further to validate about a command here. Whether the
+		// program exists is answered by trying to run it, and the error
+		// from exec names the path better than a guess from a stat would.
+	case strings.TrimSpace(s.Target.Endpoint) == "":
 		return errors.New("an endpoint is required")
-	}
-	u, err := url.Parse(s.Target.Endpoint)
-	if err != nil || u.Scheme == "" || u.Host == "" {
-		return fmt.Errorf("endpoint %q is not an absolute URL", s.Target.Endpoint)
+	default:
+		u, err := url.Parse(s.Target.Endpoint)
+		if err != nil || u.Scheme == "" || u.Host == "" {
+			return fmt.Errorf("endpoint %q is not an absolute URL", s.Target.Endpoint)
+		}
 	}
 	if !s.Output.Format.Valid() {
 		return fmt.Errorf("output format %q is not one of %v", s.Output.Format, Formats)
@@ -253,7 +296,15 @@ func (s RunSpec) Validate() error {
 			return fmt.Errorf("unknown phase %q; known phases are %s", name, strings.Join(probe.PhaseNames(), ", "))
 		}
 	}
-	return s.credentials().Validate()
+	c, err := s.Credentials()
+	if err != nil {
+		return err
+	}
+	if s.Target.Stdio() && c.Effective() != creds.ModeNone {
+		return fmt.Errorf("credentials have no meaning over stdio: a child process has no origin to authorize against, "+
+			"and %s would be sent nowhere. Pass what the server needs in its arguments, or forward a variable with --stdio-env", c.Effective())
+	}
+	return nil
 }
 
 func knownPhase(name string) bool {

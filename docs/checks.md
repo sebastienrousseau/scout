@@ -8,9 +8,13 @@ description: >-
 
 # The check inventory
 
-scout runs **81 checks** across **9 phases**.
+scout runs **86 checks** across **9 phases**.
 
-80 of those are fixed, and 1 is a family whose id is built at run time —
+5 of them apply only to a server that is a program rather than a URL, and
+replace the ones that have no meaning over a pipe. A run reports every check it
+did not make, by id and with the reason, rather than leaving it out.
+
+85 of those are fixed, and 1 is a family whose id is built at run time —
 one check per value the run encounters, marked `*` below.
 
 This file is generated from the source: every check is created through
@@ -146,3 +150,15 @@ that is what a reader sees in a report.
 | <span id="check-resilience-session_reinit" data-can-fail="true"></span>`resilience.session_reinit` | Client recovers from a lost session |
 | <span id="check-resilience-stateless" data-can-fail="true"></span>`resilience.stateless` | Requests do not depend on the connection |
 | <span id="check-resilience-token_refresh" data-can-fail="true"></span>`resilience.token_refresh` | Token source can renew |
+
+## stdio — 5 checks
+
+These run only when the server is a program rather than a URL. They belong to the connectivity and resilience phases, not to a phase of their own: a pipe has no name to resolve and no session to lose, so they take the place of the checks that do.
+
+| Check | What it looks for |
+|---|---|
+| <span id="check-stdio-alive" data-can-fail="true"></span>`stdio.alive` | Server survived the run |
+| <span id="check-stdio-environment" data-can-fail="false"></span>`stdio.environment` | Environment handed to the server |
+| <span id="check-stdio-process" data-can-fail="true"></span>`stdio.process` | Server process is running |
+| <span id="check-stdio-stderr" data-can-fail="false"></span>`stdio.stderr` | What the server logged |
+| <span id="check-stdio-stdout_clean" data-can-fail="true"></span>`stdio.stdout_clean` | Nothing but MCP messages on stdout |

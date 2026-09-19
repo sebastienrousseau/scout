@@ -322,6 +322,79 @@ var remediations = map[string]Remediation{
 			"server on http is not a finding.",
 	},
 
+	// --- stdio: the checks that only a child-process run can make ---------
+
+	"stdio.process": {
+		Means: "The program scout was told to run exited before it answered a " +
+			"single request. Nothing after this could be tested, so the rest of " +
+			"the report is empty rather than clean — a host starting this server " +
+			"would see the same thing and report that the server is unavailable.",
+		Steps: []Step{
+			{"Run the command yourself, exactly as scout did",
+				"The report names it, including the arguments. A server that exits " +
+					"immediately almost always says why on stderr, and the finding " +
+					"carries whatever it said."},
+			{"Check what it needed that it did not get",
+				"The three usual causes are a missing argument, a working directory " +
+					"it did not expect, and an environment variable it reads at " +
+					"startup. scout passes a fixed base environment and nothing " +
+					"else, so a server that needs a credential must be given it by " +
+					"name with --stdio-env."},
+			{"Make the failure legible",
+				"Exit with a message on stderr that names what was missing. A host " +
+					"has no other channel: it sees a process that died, and an " +
+					"operator sees a client that will not connect."},
+		},
+	},
+
+	"stdio.alive": {
+		Means: "The server was running when the run started and had exited before " +
+			"it finished. A host keeps one process for a whole session, so an exit " +
+			"partway through does not end one request — it ends every conversation " +
+			"that process was holding, and the user sees their assistant lose the " +
+			"ability to use the server mid-task.",
+		Steps: []Step{
+			{"Find the last request it answered",
+				"Run with --report-dir and read the telemetry: the last recorded " +
+					"message is the one it died on or just after. What the server " +
+					"wrote to stderr is in the finding's evidence."},
+			{"Handle the failure instead of exiting",
+				"An unhandled exception in a tool handler, an assertion, or a " +
+					"deliberate exit on bad input all present identically to a host. " +
+					"Return a JSON-RPC error, or an isError result, and stay up."},
+			{"Do not exit on a message you did not understand",
+				"An unknown method, a malformed body and an unexpected " +
+					"notification are all things a client will legitimately send. " +
+					"Answering with an error is correct; dying is not."},
+		},
+	},
+
+	"stdio.stdout_clean": {
+		Means: "The server wrote something to stdout that was not a JSON-RPC " +
+			"message. Over stdio, stdout is the wire: every byte on it is parsed " +
+			"as protocol framing. One banner, one print statement left in a " +
+			"handler, or a progress bar is enough to corrupt the stream, and the " +
+			"client cannot recover — it sees a parse error, or nothing at all.",
+		Steps: []Step{
+			{"Send every log line to stderr",
+				"scout keeps stderr and reports it; nothing is lost by moving it " +
+					"there. In most languages this is one change to the logger's " +
+					"destination, and it is the whole fix."},
+			{"Look for the ones that are not logging",
+				"A framework's startup banner, a dependency that prints on import, " +
+					"a deprecation warning from the runtime, a debugger left " +
+					"attached. The finding quotes the first line it saw, which is " +
+					"usually enough to identify the source."},
+			{"Keep stdout for the transport, permanently",
+				"Redirect the process's own stdout to stderr at startup, before " +
+					"anything else runs, and write protocol messages through the " +
+					"handle you saved. Then a stray print by anything you depend on " +
+					"cannot break the transport."},
+		},
+		Note: "This is the single most common way a working server appears broken " +
+			"to a host, because the symptom never names the cause.",
+	},
+
 	"net.tcp": {
 		Means: "The address resolved but the connection was refused or timed out. " +
 			"The server is not listening where DNS says it is, or something between " +

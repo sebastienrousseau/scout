@@ -89,6 +89,35 @@ type Config struct {
 	// whose "resource" does not match the endpoint. RFC 9728 requires the
 	// client to check this binding; skipping it invites a token mix-up.
 	AllowResourceMismatch bool
+
+	// Stdio, when set, runs the server as a child process and speaks to it
+	// over its pipes instead of over HTTP. Endpoint must be empty.
+	//
+	// A stdio server is a program the operator names, so there is no URL to
+	// authorize against and no discovery to perform: the trust decision was
+	// made when they chose what to run. The authorization phases report
+	// that rather than pretending to check it.
+	Stdio *StdioConfig
+}
+
+// StdioConfig describes a server to run as a child process.
+type StdioConfig struct {
+	// Command is the program and Args its arguments, used as given. This
+	// is not a shell: nothing is expanded, split or quoted.
+	Command string
+	Args    []string
+	// Dir is the working directory; empty means the caller's.
+	Dir string
+	// Env replaces the child's environment entirely. Nil does NOT mean the
+	// caller's — see transport.StdioConfig, which this becomes.
+	Env []string
+	// PassEnv names variables to forward from the caller's environment, for
+	// a server that legitimately needs one.
+	PassEnv []string
+	// Observe, when set, is called after every exchange. It is how a
+	// diagnostic records a pipe the way it records HTTP traffic, so a
+	// finding over stdio can cite the message that produced it.
+	Observe func(ctx context.Context, m transport.StdioMessage)
 }
 
 // Status of a Connect call.
@@ -158,8 +187,38 @@ type Client struct {
 // release increments by 0.0.1, it is not one it will reach for a long time.
 const DefaultClientVersion = "0.0.1"
 
-// New builds a Client. It does not contact the server.
+// New builds a Client.
+//
+// Over HTTP it contacts nothing. With Config.Stdio set it starts the
+// server process, because a pipe cannot exist before the process on the
+// other end of it does — so that client owns a child process from here,
+// and the caller must Close it. Use NewStdio to supply a context.
 func New(cfg Config) (*Client, error) {
+	return build(context.Background(), cfg)
+}
+
+// NewStdio builds a Client that runs the server as a child process.
+//
+// It is New with a context, for the one configuration where New does
+// something a context belongs on. The process is running when this
+// returns; the caller must Close.
+func NewStdio(ctx context.Context, cfg Config) (*Client, error) {
+	if cfg.Stdio == nil {
+		return nil, errors.New("scout: NewStdio needs Config.Stdio")
+	}
+	return build(ctx, cfg)
+}
+
+func build(ctx context.Context, cfg Config) (*Client, error) {
+	if cfg.Stdio != nil {
+		if cfg.Endpoint != "" {
+			return nil, errors.New("scout: set Endpoint or Stdio, not both")
+		}
+		if strings.TrimSpace(cfg.Stdio.Command) == "" {
+			return nil, errors.New("scout: Stdio needs a Command")
+		}
+		return newStdioClient(ctx, cfg)
+	}
 	if cfg.Endpoint == "" {
 		return nil, errors.New("scout: Endpoint is required")
 	}
@@ -227,6 +286,84 @@ func New(cfg Config) (*Client, error) {
 	}
 	atr.StepUp = c.stepUp
 	return c, nil
+}
+
+// newStdioClient starts the server and builds a client around its pipes.
+//
+// Everything HTTP-shaped is still constructed, empty: an origin set that
+// admits nothing, a token transport with no source, an http.Client that
+// will never be asked for a request. That is deliberate. A nil atr or a
+// nil allowed would turn every accessor on this type into a method that
+// panics for one kind of client, and the crash would land in a caller who
+// had no reason to know which kind they were holding.
+func newStdioClient(ctx context.Context, cfg Config) (*Client, error) {
+	if cfg.ClientInfo.Name == "" {
+		cfg.ClientInfo = Implementation{Name: "scout", Version: DefaultClientVersion}
+	}
+	// A credential mode other than none is an operator error worth naming
+	// rather than ignoring. There is no origin to send a bearer token to,
+	// no metadata to discover, and no authorization server: a stdio server
+	// inherits its trust from the fact that the operator chose to run it.
+	// Silently dropping a --token they passed would be the worst of the
+	// three possible behaviours.
+	switch cfg.Auth.Mode {
+	case "", AuthNone:
+		cfg.Auth.Mode = AuthNone
+	default:
+		return nil, fmt.Errorf("scout: auth mode %q has no meaning over stdio: a child process has no origin to authorize against; pass what the server needs in its arguments or with --stdio-env", cfg.Auth.Mode)
+	}
+
+	st, err := transport.StartStdio(ctx, transport.StdioConfig{
+		Command: cfg.Stdio.Command,
+		Args:    cfg.Stdio.Args,
+		Dir:     cfg.Stdio.Dir,
+		Env:     cfg.Stdio.Env,
+		PassEnv: cfg.Stdio.PassEnv,
+		Observe: cfg.Stdio.Observe,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	allowed, err := auth.NewOriginSet()
+	if err != nil {
+		return nil, err
+	}
+	atr := auth.NewTransport(trace.RoundTripper{Base: http.DefaultTransport}, nil)
+	atr.Allowed = allowed
+	empty := &http.Client{Transport: trace.RoundTripper{Base: http.DefaultTransport}}
+	c := &Client{
+		cfg:     cfg,
+		tr:      st,
+		atr:     atr,
+		http:    empty,
+		disc:    &auth.Discoverer{Client: empty, Policy: cfg.URLPolicy},
+		reg:     &auth.Registrar{Client: empty, Policy: cfg.URLPolicy},
+		allowed: allowed,
+	}
+	return c, nil
+}
+
+// Close releases what the client owns.
+//
+// Over HTTP there is nothing to release and this returns nil. Over stdio
+// it ends the server process and waits for it — which is why it exists,
+// and why every caller should defer it whether or not it knows which
+// transport it got. A tool that leaves a server running has done harm no
+// report undoes.
+func (c *Client) Close() error {
+	if st, ok := c.tr.(*transport.Stdio); ok {
+		return st.Close()
+	}
+	return nil
+}
+
+// Stdio returns the child-process transport, and false over HTTP. It is
+// the counterpart of HTTP, for the probes that need the server's stderr or
+// its exit status.
+func (c *Client) Stdio() (*transport.Stdio, bool) {
+	st, ok := c.tr.(*transport.Stdio)
+	return st, ok
 }
 
 // AllowedOrigins lists the origins this client may send credentials to.

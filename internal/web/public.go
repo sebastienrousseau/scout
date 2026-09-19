@@ -239,6 +239,11 @@ func jsonName(f reflect.StructField) string {
 // the value closes it.
 func publicSpec(s engine.RunSpec) engine.RunSpec {
 	s.Creds = engine.CredSpec{Mode: "none"}
+	// A public deployment runs nothing. startRun already refuses a spec
+	// naming a program, and this is the second place that has to be true:
+	// if a later change moves the order of those checks, the reconstruction
+	// must not be the thing that carried a command through.
+	s.Target = engine.TargetSpec{Endpoint: s.Target.Endpoint}
 	return s
 }
 
