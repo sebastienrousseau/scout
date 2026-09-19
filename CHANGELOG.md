@@ -15,7 +15,15 @@ project announces that a change felt big.
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+
+- `server/discover` results that carry the server's identity in `_meta`
+  under `io.modelcontextprotocol/serverInfo`, where the 2026-07-28 revision
+  and the reference SDKs put it, are now read. Such servers were reported as
+  not implementing `server/discover`, and because the answer was discarded
+  every capability they declared was then reported as undeclared by the
+  catalog phase (#49). A discover answer with no identity anywhere is its
+  own, smaller finding, and its capabilities are kept.
 
 ## [0.0.2] — 2026-09-18
 

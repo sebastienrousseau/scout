@@ -24,6 +24,10 @@ type statelessOpts struct {
 	acceptMismatch  bool // do not validate the mirrored headers against the body
 	serveGETStream  bool // still serve the stream the revision removed
 	varyByConnCount bool // answer differently on alternating calls
+	// metaServerInfo carries the identity in _meta, as the 2026-07-28
+	// reference SDKs do; anonymousDiscover answers with no identity at all.
+	metaServerInfo    bool
+	anonymousDiscover bool
 }
 
 // statelessFake is a server on the stateless revision that validates what
@@ -101,7 +105,14 @@ func statelessFake(t *testing.T, o statelessOpts) *httptest.Server {
 				fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%s,"error":{"code":-32601,"message":"not implemented"}}`, id)
 				return
 			}
-			fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%s,"result":{"resultType":"complete","serverInfo":{"name":"stateless-fake","version":"2.0"},"capabilities":{"tools":{}},"instructions":"A stateless server for tests."}}`, id)
+			switch {
+			case o.metaServerInfo:
+				fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%s,"result":{"resultType":"complete","capabilities":{"tools":{}},"instructions":"A stateless server for tests.","_meta":{"io.modelcontextprotocol/serverInfo":{"name":"stateless-fake","version":"2.0"}}}}`, id)
+			case o.anonymousDiscover:
+				fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%s,"result":{"resultType":"complete","capabilities":{"tools":{}},"instructions":"A stateless server for tests."}}`, id)
+			default:
+				fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%s,"result":{"resultType":"complete","serverInfo":{"name":"stateless-fake","version":"2.0"},"capabilities":{"tools":{}},"instructions":"A stateless server for tests."}}`, id)
+			}
 		case "tools/list":
 			mu.Lock()
 			listCalls++
@@ -209,6 +220,48 @@ func TestStatelessServerCompletesEveryPhase(t *testing.T) {
 		if _, ok := findingByID(s, id); ok {
 			t.Errorf("%s has no meaning on the stateless revision", id)
 		}
+	}
+}
+
+// A server that puts its identity in _meta, where the revision says it
+// goes, is identified, and its declared capabilities are the ones the
+// catalog is judged against.
+func TestStatelessServerInfoInMeta(t *testing.T) {
+	s := runStateless(t, statelessFake(t, statelessOpts{metaServerInfo: true}), nil)
+	if s.Blocked() != "" {
+		t.Fatalf("blocked: %s", s.Blocked())
+	}
+	if s.Init == nil || s.Init.ServerInfo.Name != "stateless-fake" || s.Init.ServerInfo.Version != "2.0" {
+		t.Fatalf("server was not identified from _meta: %+v", s.Init)
+	}
+	f, ok := findingByID(s, "handshake.server_info")
+	if !ok || f.Status != Pass {
+		t.Errorf("handshake.server_info = %+v", f)
+	}
+	f, ok = findingByID(s, "catalog.tools.list")
+	if !ok || f.Status != Pass {
+		t.Errorf("the declared tools capability was not believed: %+v", f)
+	}
+}
+
+// A discover answer with no identity anywhere is a smaller defect than a
+// missing RPC: the capabilities it declared are still real, so the catalog
+// must not be told they were never declared.
+func TestStatelessAnonymousDiscover(t *testing.T) {
+	s := runStateless(t, statelessFake(t, statelessOpts{anonymousDiscover: true}), nil)
+	if s.Blocked() != "" {
+		t.Fatalf("blocked: %s", s.Blocked())
+	}
+	f, ok := findingByID(s, "handshake.server_info")
+	if !ok || f.Status != Fail || !strings.Contains(f.Detail, "without a server identity") {
+		t.Errorf("handshake.server_info = %+v", f)
+	}
+	if s.Init == nil || s.Init.Capabilities.Tools == nil {
+		t.Fatalf("capabilities from the answer were dropped: %+v", s.Init)
+	}
+	f, ok = findingByID(s, "catalog.tools.list")
+	if !ok || f.Status != Pass {
+		t.Errorf("catalog.tools.list = %+v", f)
 	}
 }
 
