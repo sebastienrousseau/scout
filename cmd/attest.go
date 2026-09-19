@@ -109,9 +109,9 @@ var verifyCmd = &cobra.Command{
 By default this answers one question: can the statement be believed? It
 parses, its subject digest still covers the target it names, its subject is
 named for that same target, and it records what the verdicts were judged
-against. That is verification, and it is not the same as approval — a
-statement can be perfectly valid and describe a server you would never route
-to.
+against. That is verification, and it is not the same as approval. A
+statement can be perfectly valid and describe a server you would never
+route to.
 
 Approval is the flags, and each one is a gate that exits 2 when it is not
 met:
@@ -135,8 +135,8 @@ evidence is unusable, the second means the evidence is good and the answer
 is no.
 
 Nothing here checks a signature. Verify the envelope with the tool that
-produced it — cosign, or your own trust root — and then verify what is
-inside it with this.`,
+produced it (cosign, or your own trust root), then verify what is inside it
+with this.`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		b, err := readInput(args)
