@@ -654,6 +654,7 @@ them off unless you know why you are turning one on; see
 | `--log-format` | — | `human` | Diagnostic format on stderr: `human` or `json` |
 | `--capture-bodies` | — | off | Record request/response bodies in telemetry (redacted, capped) |
 | `--events` | — | off | Embed every telemetry event in JSON output |
+| `--guidance` | — | off | Embed remediation for each finding in JSON output, keyed by check id |
 | `--verbose` | `-v` | off | Show evidence references and full info findings |
 | `--no-color` | — | off | Disable ANSI colour |
 | `--phases` | — | all | Run only these phases (comma-separated) |

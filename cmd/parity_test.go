@@ -71,6 +71,7 @@ var specFields = map[string]string{
 	"report-dir":     "Output.ReportDir",
 	"capture-bodies": "Output.CaptureBodies",
 	"events":         "Output.WithEvents",
+	"guidance":       "Output.WithGuidance",
 	"verbose":        "Output.Verbose",
 	"no-color":       "Output.NoColor",
 	"otlp-endpoint":  "Output.OTLPEndpoint",

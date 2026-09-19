@@ -383,7 +383,7 @@ func TestWriteDir(t *testing.T) {
 	if res.Report == nil {
 		t.Fatalf("no report: %v", res.Err)
 	}
-	files, err := res.WriteDir(dir, "test")
+	files, err := res.WriteDir(spec, "test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -426,10 +426,14 @@ func TestWriteDir(t *testing.T) {
 
 	// A result assembled without a recorder still writes.
 	bare := &Result{Report: res.Report}
-	if _, err := bare.WriteDir(filepath.Join(t.TempDir(), "bare"), "test"); err != nil {
+	bareSpec := spec
+	bareSpec.Output.ReportDir = filepath.Join(t.TempDir(), "bare")
+	if _, err := bare.WriteDir(bareSpec, "test"); err != nil {
 		t.Errorf("WriteDir without a recorder: %v", err)
 	}
-	if _, err := (&Result{}).WriteDir(t.TempDir(), "test"); err != nil {
+	emptySpec := spec
+	emptySpec.Output.ReportDir = t.TempDir()
+	if _, err := (&Result{}).WriteDir(emptySpec, "test"); err != nil {
 		t.Errorf("WriteDir with no report: %v", err)
 	}
 }

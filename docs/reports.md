@@ -111,7 +111,7 @@ Where that appears depends on who is reading:
 | `text --verbose` | yes |
 | `md` | yes, always |
 | `html` | yes, always |
-| `json`, `ndjson` | no — `advice` and `doc_url` |
+| `json`, `ndjson` | on request — `--guidance` |
 
 The default terminal output is read while the run is still fresh, by
 somebody who wants to know what is wrong; five findings with three steps
@@ -119,9 +119,34 @@ each is sixty lines nobody asked for. The Markdown and HTML renderings are
 the ones forwarded to people who cannot re-run the tool, so they carry
 everything.
 
-The JSON keeps `advice` and `doc_url` rather than the prose, because the
-prose is identical for every run and would otherwise be duplicated into
-every report, once per occurrence. `doc_url` reaches the same material.
+The JSON carries `advice` and `doc_url` by default. `--guidance` adds a
+`guidance` object to the report:
+
+```json
+{
+  "guidance": {
+    "protocol.malformed_json": {
+      "means": "A truncated or malformed request body was answered with…",
+      "steps": [
+        { "title": "Reject a body that does not parse", "body": "Return HTTP 400, or…" }
+      ]
+    }
+  }
+}
+```
+
+It is a dictionary keyed by check id, not a field on each finding, because
+the prose is per-check and not per-occurrence: a catalog with forty poisoned
+descriptions produces forty findings and one entry here. Join on the
+finding's `id`.
+
+Only the checks that failed or warned in this run appear. A report about one
+server should not carry advice about checks that server passed.
+
+It is off by default because most consumers have `doc_url` and want the
+report small — it costs around 6 KB on a typical run. Turn it on for a
+consumer that has to explain a finding somewhere scout cannot reach, such as
+a bot writing a pull request comment.
 
 A test fails the build when a check that can fail has no guidance written
 for it, so this does not quietly regress as checks are added.

@@ -26,22 +26,26 @@ import "strings"
 // check id.
 
 // Step is one imperative action, with the reason it is the action.
+// The json tags matter: this type reaches a consumer through the report's
+// `guidance` dictionary under --guidance, and every other field in that
+// document is lower_snake. Exported Go names would have made this the one
+// object in the report that is spelled differently.
 type Step struct {
-	Title string
-	Body  string
+	Title string `json:"title"`
+	Body  string `json:"body"`
 }
 
 // Remediation is the guidance for one check.
 type Remediation struct {
 	// Means explains the finding in terms of the protocol, for a reader who
 	// did not follow the specification change that produced it.
-	Means string
+	Means string `json:"means"`
 	// Steps are what to change, in the order they are worth doing.
-	Steps []Step
+	Steps []Step `json:"steps"`
 	// Note is the shortcut, where one exists — usually that an SDK upgrade
 	// does most of this. Saying so is not undermining the advice; it is the
 	// difference between a report somebody acts on and one they postpone.
-	Note string
+	Note string `json:"note,omitempty"`
 }
 
 // remediations is keyed by check id. Families are keyed by their literal
