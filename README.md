@@ -1055,9 +1055,15 @@ the source is the mistake the gates exist to catch:
 |---|---|---|
 | `docs/checks.md` | the `(*Session).check(id, title)` call sites | `make checks-verify` |
 | `docs/ecosystem.md`, `ecosystem.json`, the table above | `internal/ecosystem` | `make ecosystem-verify` |
-| `internal/web/dist/` | `web/content` + `web/_layouts`, via `ssg` | `make web-shell` asserts it is not empty |
+| `internal/web/dist/` | `web/content` + `web/_layouts`, via `ssg` | `make ssg-check` compares a hash of the inputs against `internal/web/shell.sources` |
 | manpages, completions | the cobra command definitions | `make docs` |
-| the published check count, in seven files | the same call sites | `make checks-verify` |
+| the published check count, wherever it is published | the same call sites | `make checks-verify` |
+
+The embedded shell is the one that needed a real gate rather than an
+existence check. It is committed because `go:embed` needs it at compile time,
+nothing regenerates it automatically, and a stale one builds perfectly — so
+it shipped the wrong check count three times before `make web-shell` started
+recording what it was built from.
 
 That last gate exists because the embedded shell once shipped advertising a
 figure the source had long since left behind: a rebuild is something a person

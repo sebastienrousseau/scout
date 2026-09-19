@@ -85,7 +85,11 @@ web-shell:
 	@# pattern that matches no files. Assert here, where the cause is.
 	@test -s internal/web/dist/index.html || { \
 	  echo "web-shell: internal/web/dist is empty; ssg wiped it and did not finish" >&2; exit 1; }
-	@echo "web-shell: $$(find internal/web/dist -type f | wc -l | tr -d ' ') files embedded"
+	@# The stamp is what lets `make ssg-check` tell a current shell from a
+	@# stale one without ssg and without rebuilding. Written last, so a build
+	@# that died partway does not certify itself.
+	go run ./scripts/ssgcheck/main.go -stamp
+	@echo "web-shell: $$(find internal/web/dist -type f | wc -l | tr -d ' ') files embedded, sources stamped"
 
 checks:
 	go run ./scripts/checkinventory/main.go

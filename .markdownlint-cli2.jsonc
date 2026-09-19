@@ -18,6 +18,12 @@
     "node_modules/**",
     "dist/**",
     "build/**",
+    // Generated site output. Gitignored, so CI never sees it — but anyone
+    // who has run `make site` locally otherwise gets a failure from the
+    // sample report's endpoint, which is a bare URL because a report prints
+    // the endpoint it was given.
+    "site/dist/**",
+    "public/**",
     ".github/ISSUE_TEMPLATE/**"
   ],
   "config": {
