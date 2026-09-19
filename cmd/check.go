@@ -245,6 +245,18 @@ func runCheck(cmd *cobra.Command, args []string, only []string) error {
 			return err
 		}
 	}
+	// The policy's answer, after the report it judged. On stdout when the
+	// report was prose a person is reading; on stderr otherwise, because a
+	// gate verdict appended to JSON or SARIF would make the document
+	// unparseable, and the one reader who needs it there is a CI log.
+	if res.Gate != nil {
+		dst := os.Stdout
+		if spec.Output.Format != engine.FormatText && spec.Output.Format != engine.FormatMD {
+			dst = os.Stderr
+		}
+		writePolicyResult(dst, *res.Gate)
+	}
+
 	// After the report, and never fatal. A collector being unreachable is
 	// not a finding about the server under test, and a run that produced a
 	// verdict must not be reported as a run that failed to.

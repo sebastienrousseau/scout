@@ -59,6 +59,12 @@ var specFields = map[string]string{
 	"insecure-allow-http-auth":     "Policy.AllowPlaintextAuth",
 	"allow-resource-mismatch":      "Policy.AllowResourceMismatch",
 	"skip-era-check":               "Policy.SkipEraCheck",
+	// The flag names a file and the spec carries its contents, because a
+	// path in a spec asks the receiving process to read something somebody
+	// else named. Spec.Gate rather than Spec.Policy: PolicySpec already
+	// means what scout may do to the server, and this is what the operator
+	// will accept back.
+	"policy": "Gate",
 
 	// pacing
 	"samples":       "Pacing.Samples",

@@ -256,6 +256,22 @@ One binary, one base command, and every operation is a subcommand of it:
 The exit status is 0 when nothing failed, 2 when any finding failed, and 1
 on a scout error, so a pipeline can gate on it.
 
+For a gate an organisation has to agree on rather than one pipeline, write it
+down:
+
+```sh
+scout check "$URL" --policy company.json    # the policy decides the exit code
+scout verify attestation.json --policy company.json
+```
+
+An acceptance policy is a reviewable file: required checks, caps on failures
+and warnings, a floor on the score or on one category — and exceptions that
+carry a reason, a ticket and an **expiry date**, which is the difference
+between a gate a team keeps and a gate a team switches off. It is refused
+rather than partly applied if it was written for a later scout, because a
+policy engine that ignores what it does not understand is one that approves
+things. See [Acceptance policies](https://scoutmcp.io/manual/policy/).
+
 A run against a local server looks like this:
 
 ```text
@@ -787,6 +803,7 @@ scout check --stdio -- <command> [args...]
 
 | Option | Default | Description |
 | :--- | :--- | :--- |
+| `--policy` | — | Judge the run against this acceptance policy file instead of the default "any failure fails" rule |
 | `--allow-mutations` | off | Also invoke tools that mutate but are not destructive |
 | `--allow-destructive` | off | Also invoke destructive and unannotated tools (dangerous) |
 | `--only` | — | Restrict execution to this tool (repeatable) |

@@ -12,6 +12,7 @@ import (
 	"github.com/sebastienrousseau/scout"
 	"github.com/sebastienrousseau/scout/diagnostics"
 	"github.com/sebastienrousseau/scout/internal/creds"
+	"github.com/sebastienrousseau/scout/internal/policy"
 	"github.com/sebastienrousseau/scout/internal/probe"
 	"github.com/sebastienrousseau/scout/internal/report"
 	"github.com/sebastienrousseau/scout/internal/telemetry"
@@ -32,11 +33,28 @@ type Result struct {
 	// Err is the reason a run did not finish, or nil. A Result can carry
 	// both a Report and an Err: the report describes how far it got.
 	Err error
+	// Gate is the acceptance policy's answer, when the spec carried one.
+	//
+	// Evaluated here rather than in a surface, for the reason the package
+	// comment gives: a policy decision that lived in the CLI would be a
+	// decision the web UI could not make, and the two would eventually
+	// disagree about whether the same server was acceptable.
+	Gate *policy.Result
 }
 
-// Failed reports whether the run produced any failing finding, which is
+// Failed reports whether the run should be treated as a failure, which is
 // what every surface turns into its own kind of non-zero exit.
+//
+// A policy replaces the default rule rather than adding to it. That is the
+// whole point of an exemption: a team that has decided, in writing and with
+// an expiry, that one failing check is acceptable on this server has to get a
+// pass — otherwise the exemption changes nothing and the gate gets turned off
+// instead. The policy's own output names every failure it excused, so the
+// pass is never silent.
 func (r *Result) Failed() bool {
+	if r.Gate != nil {
+		return !r.Gate.OK
+	}
 	return r.Report != nil && r.Report.Counts.Fail > 0
 }
 
@@ -76,6 +94,10 @@ func Run(ctx context.Context, spec RunSpec, sink Sink) *Result {
 	res.Session, res.Err = sess, runErr
 	if sess != nil {
 		res.Report = report.Build(sess, spec.Version, spec.Output.WithEvents || spec.Output.ReportDir != "")
+	}
+	if spec.Gate != nil && res.Report != nil {
+		g := spec.Gate.Evaluate(policy.FromReport(res.Report), time.Now())
+		res.Gate = &g
 	}
 	return res
 }

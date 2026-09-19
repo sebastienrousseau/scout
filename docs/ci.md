@@ -31,7 +31,8 @@ problems" will eventually go green because the endpoint was down.
 
 Exit `2` is triggered by `counts.fail > 0` — a `warn` never fails a build
 on its own. If you want warnings to fail yours, gate on the JSON instead;
-see below.
+see below, or use a policy, which replaces that rule with one you wrote
+down.
 
 ## GitHub Actions
 
@@ -89,10 +90,36 @@ one that just failed the job.
 because a scheduled job pointed at a production server is a scheduled
 load test if you let it be. Raise it only against something you own.
 
+### Gating on a policy
+
+`jq` gating works and it lives in your pipeline, which means the rule your
+organisation actually enforces is a shell line in a YAML file. Past one
+repository, put it in a file instead:
+
+```bash
+scout check https://mcp.example.com/mcp --token-env MCP_TOKEN --policy .scout/policy.json
+```
+
+The policy replaces the default "any failure fails" rule, so exit `2` now
+means *the policy was not met*. It can require named checks, cap failures and
+warnings, set a floor on the score or on one category — and it can carry
+exceptions that have a reason, a ticket and an expiry date, which is the
+difference between a gate a team keeps and a gate a team switches off. A
+policy written for a later scout is refused rather than partly applied, so
+exit `1` still means nothing was judged.
+
+See [Acceptance policies](policy.md). The same file governs `scout verify`, so
+a gateway checking a signed attestation months later applies what the pipeline
+applied.
+
+With `--report-dir`, the answer is written to `policy.json` beside the
+evidence — which is the artefact to attach to a change request, because it
+names every rule, every exemption, and which of them were used.
+
 ### Gating on a score, not just a verdict
 
 Exit `2` fires on any failure at any severity. If you want a threshold
-instead, take the JSON:
+without a policy file, take the JSON:
 
 ```bash
 scout check https://mcp.example.com/mcp \

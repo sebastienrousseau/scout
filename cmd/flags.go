@@ -13,6 +13,7 @@ import (
 	"github.com/sebastienrousseau/scout/diagnostics"
 	"github.com/sebastienrousseau/scout/internal/creds"
 	"github.com/sebastienrousseau/scout/internal/engine"
+	"github.com/sebastienrousseau/scout/internal/policy"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -59,6 +60,7 @@ var (
 	allowPlaintextAuth    bool
 	allowResourceMismatch bool
 	skipEraCheck          bool
+	policyFile            string
 	maxRes                int
 	maxPrompts            int
 
@@ -146,6 +148,7 @@ func policyFlags() *pflag.FlagSet {
 		fs.BoolVar(&allowPlaintextAuth, "insecure-allow-http-auth", false, "allow discovered OAuth endpoints served over plain http (off by default: tokens would cross the network in the clear)")
 		fs.BoolVar(&allowResourceMismatch, "allow-resource-mismatch", false, "continue when the protected-resource metadata names a different endpoint (RFC 9728 requires this binding)")
 		fs.BoolVar(&skipEraCheck, "skip-era-check", false, "do not send the one server/discover that identifies which protocol generation the server speaks")
+		fs.StringVar(&policyFile, "policy", "", "judge the run against this acceptance policy file instead of the default \"any failure fails\" rule")
 		policySet = fs
 	})
 	return policySet
@@ -234,6 +237,19 @@ func buildSpec(target engine.TargetSpec, onlyPhases []string) (engine.RunSpec, e
 		phases = onlyPhases
 	}
 
+	// The file is read here, in the surface, and the loaded policy goes into
+	// the spec. A path in the spec would ask whichever process received it
+	// to open a file somebody else named, which is a different and much
+	// worse thing for the web surface to accept.
+	var gate *policy.Policy
+	if strings.TrimSpace(policyFile) != "" {
+		p, err := policy.Load(policyFile)
+		if err != nil {
+			return engine.RunSpec{}, err
+		}
+		gate = p
+	}
+
 	spec := engine.RunSpec{
 		Version: Version,
 		Target:  target,
@@ -251,6 +267,7 @@ func buildSpec(target engine.TargetSpec, onlyPhases []string) (engine.RunSpec, e
 			AllowPlaintextAuth: allowPlaintextAuth, AllowPrivateHosts: allowPrivateHosts,
 			AllowResourceMismatch: allowResourceMismatch, SkipEraCheck: skipEraCheck,
 		},
+		Gate: gate,
 		Pacing: engine.PacingSpec{
 			Samples: samples, Concurrency: concurrency, RPS: rps,
 			CallTimeout: callTimeout, Seed: seed, FillOptional: fillOpt,
