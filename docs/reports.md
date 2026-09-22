@@ -103,10 +103,30 @@ scout verify attestation.json \
 | `--require ID` | that check's verdict is a pass. **Absent is not a pass** — a statement that never ran the check cannot vouch for it |
 | `--max-fail N` | at most N checks failed |
 | `--min-score N` | the score is at least N. A run that assessed nothing carries no score, and a missing score never counts as zero |
+| `--against FILE` | no check is worse than in that earlier statement about the same target |
 
 A gate applies because the flag was given, not because of its value:
 `--max-fail 0` is the strictest form of that gate, and omitting the flag asks
 for no gate at all.
+
+### Drift between two statements
+
+```sh
+scout verify today.json --against approved.json
+```
+
+`--against` compares two statements about the same target check by check,
+because drift is a delta rather than a threshold: a score that did not move
+can hide one check that went from pass to fail beside another that went the
+other way. A check that got worse fails the gate. Improvements, severity
+changes, checks the later run did not assess, and checks it newly measured
+are listed but do not fail it. The score delta is shown only when both
+statements were judged under the same rubric and check inventory.
+
+Two statements about different targets are refused rather than compared:
+the difference between two servers is not drift. The comparison is
+`attestation.Compare` in the Apache-2.0 package, so a gateway can run the
+same check without scout.
 
 For anything an organisation has to agree on, `--policy` takes a file instead
 — reviewable, versioned, and able to carry exceptions with a reason and an

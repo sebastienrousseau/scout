@@ -85,6 +85,20 @@ project announces that a change felt big.
   would mean adding a dependency to the binary a security team has to
   approve in order to describe the dependencies in somebody else's.
 
+- **`scout verify --against` gates on drift.** Two statements about the
+  same target are compared check by check, and the gate fails when any
+  check got worse — pass or info to warn or fail, or warn to fail — even
+  if the score did not move. Improvements, severity changes, checks the
+  later run did not assess and checks it newly measured are listed; the
+  score delta only when both were judged under the same rubric and
+  inventory. Statements about different targets are refused. The
+  comparison is `attestation.Compare`, in the Apache-2.0 package, so a
+  gateway can run it without scout.
+
+  ```sh
+  scout verify today.json --against approved.json
+  ```
+
 - **The Tasks extension is checked.** For a server advertising
   `io.modelcontextprotocol/tasks`, four `protocol.tasks.*` checks ask
   what the extension requires: an unknown task id is refused with

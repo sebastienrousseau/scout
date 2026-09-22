@@ -40,6 +40,7 @@ func resetAll() {
 	redirectPort, tokenAuthMethod = 8976, ""
 	logLevel = "info"
 	verifyEndpoint, verifyTransport, verifyRequire = "", "http", nil
+	verifyAgainst = ""
 	verifyMaxFail, verifyMinScore, verifyOutput = 0, 0.0, "text"
 	verifyPolicy, policyFile = "", ""
 	baselineFile, approveBaseline = "", false
