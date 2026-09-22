@@ -6,10 +6,23 @@ package canary
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
 )
+
+// requirePOSIXPermissions skips a test whose subject is a Unix mode bit.
+//
+// Windows has no permission bits: Go reports 0666 whatever mode was asked
+// for, so `perm & 0o077` is always non-zero and a chmod restricts nothing.
+// A test asserting either is testing the platform rather than the code.
+func requirePOSIXPermissions(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("no Unix permission bits here; Go reports 0666 whatever mode was asked for")
+	}
+}
 
 func seed(t *testing.T) *Canary {
 	t.Helper()
@@ -30,6 +43,9 @@ func TestSeedPlantsCredentialsWhereTheyLive(t *testing.T) {
 		fi, err := os.Stat(p)
 		if err != nil {
 			t.Errorf("%s was not planted: %v", want, err)
+			continue
+		}
+		if runtime.GOOS == "windows" {
 			continue
 		}
 		if perm := fi.Mode().Perm(); perm&0o077 != 0 {
@@ -257,16 +273,25 @@ func TestSeedBackdatesTheDecoys(t *testing.T) {
 	}
 }
 
-// TestOpenedLogicIsExercisedEverywhere covers the reading itself on a
-// machine whose filesystem cannot record one.
+// TestOpenedLogicWhereAccessTimesAreReadable covers the reading itself on
+// a machine whose filesystem records no access at all.
 //
 // White-box on purpose. TestOpenedNoticesARead is the real thing and runs
-// only where access times work; this drives the same code by claiming the
-// instrument works and backdating what it compares against, so the walk,
-// the comparison and the ordering are exercised on every platform rather
-// than only on the ones that can answer the question.
-func TestOpenedLogicIsExercisedEverywhere(t *testing.T) {
+// only where access times actually move; this drives the same code by
+// claiming the instrument works and backdating what it compares against,
+// so the walk, the comparison and the ordering are exercised on macOS as
+// well as Linux rather than only where the question can be answered.
+//
+// It still needs a platform that reports an access time at all. Windows
+// does not -- accessTime there returns "cannot tell" by construction, so
+// Opened finds nothing and there is no logic left to exercise. An earlier
+// name for this test said "everywhere", which was wrong in exactly the
+// way the test then failed.
+func TestOpenedLogicWhereAccessTimesAreReadable(t *testing.T) {
 	c := seed(t)
+	if _, ok := accessTime(c.decoys[0].Path); !ok {
+		t.Skip("this platform does not report access times at all; there is nothing to exercise")
+	}
 	c.atimeOK = true
 
 	// Every decoy's baseline moved to the distant past, so whatever the
@@ -310,6 +335,7 @@ func sortedByName(ds []Decoy) bool {
 // decoys and reporting success would mean a run that watched less than it
 // said it did.
 func TestPlantFailsOnADirectoryItCannotWriteTo(t *testing.T) {
+	requirePOSIXPermissions(t)
 	if os.Geteuid() == 0 {
 		t.Skip("running as root, where permissions are not enforced")
 	}
