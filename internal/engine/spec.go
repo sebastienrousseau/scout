@@ -18,6 +18,7 @@ import (
 
 	"github.com/sebastienrousseau/scout/auth"
 	"github.com/sebastienrousseau/scout/diagnostics"
+	"github.com/sebastienrousseau/scout/internal/baseline"
 	"github.com/sebastienrousseau/scout/internal/creds"
 	"github.com/sebastienrousseau/scout/internal/policy"
 	"github.com/sebastienrousseau/scout/internal/probe"
@@ -50,6 +51,14 @@ type RunSpec struct {
 	// crosses a network never asks the receiving process to read a file
 	// somebody else named.
 	Gate *policy.Policy `json:"gate,omitempty"`
+	// Baseline is the approved catalogue this run is judged against, or
+	// nil to judge nothing.
+	//
+	// Carried by value for the reason Gate is: a spec that crosses a
+	// network must never ask the receiving process to read a file
+	// somebody else named. The surface reads the file; the engine reads
+	// the spec.
+	Baseline *baseline.Snapshot `json:"baseline,omitempty"`
 	// Pacing bounds how hard the server is exercised.
 	Pacing PacingSpec `json:"pacing"`
 	// Phases selects which parts of the diagnostic run.

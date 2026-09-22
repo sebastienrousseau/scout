@@ -115,6 +115,9 @@ func phaseCatalog(ctx context.Context, s *Session) []Finding {
 		// specification does not require and an agent pays for anyway.
 		out = append(out, checkCatalogueBudget(s)...)
 		out = append(out, checkParameterAmbiguity(s)...)
+
+		// And whether this is still the catalogue somebody signed off.
+		out = append(out, checkBaseline(s)...)
 	}
 
 	// ---- resources ----

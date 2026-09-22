@@ -22,6 +22,7 @@ import (
 	"github.com/sebastienrousseau/scout"
 	"github.com/sebastienrousseau/scout/auth"
 	"github.com/sebastienrousseau/scout/diagnostics"
+	"github.com/sebastienrousseau/scout/internal/baseline"
 	"github.com/sebastienrousseau/scout/internal/creds"
 	"github.com/sebastienrousseau/scout/internal/telemetry"
 	"github.com/sebastienrousseau/scout/trace"
@@ -164,6 +165,13 @@ type Options struct {
 	MaxPrompts   int
 	// ToolArgs overrides generated arguments per tool.
 	ToolArgs map[string]map[string]any
+	// Baseline is the approved catalogue to compare against, or nil to
+	// make no comparison.
+	//
+	// The snapshot itself rather than a path, for the reason RunSpec.Gate
+	// carries its policy by value: a spec that crosses a network must
+	// never ask the receiving process to open a file somebody else named.
+	Baseline *baseline.Snapshot
 
 	// Only and Skip select phases by name.
 	Only []string
@@ -198,6 +206,10 @@ type Session struct {
 	// unauthenticated. Nil over stdio: there is no unauthenticated view of
 	// a program the operator chose to run.
 	Bare *transport.Streamable
+	// Snapshot is the catalogue this run saw, set when a baseline was
+	// supplied. It is what --approve promotes.
+	Snapshot *baseline.Snapshot
+
 	// Pipe is the child-process transport, or nil over HTTP. It is the one
 	// place a phase asks which kind of run this is.
 	Pipe *transport.Stdio

@@ -64,6 +64,8 @@ var specFields = map[string]string{
 	// else named. Spec.Gate rather than Spec.Policy: PolicySpec already
 	// means what scout may do to the server, and this is what the operator
 	// will accept back.
+	"baseline": "Baseline",
+
 	"policy": "Gate",
 
 	// pacing
@@ -105,6 +107,9 @@ var notRunFlags = map[string]string{
 	"quiet":   "process-level logging",
 	"help":    "process-level",
 	"version": "process-level",
+	"approve": "says what to do with the result after the run, not what the run is. " +
+		"A spec that carried it would be asking whichever process received it to " +
+		"write a file somebody else named",
 }
 
 // runFlagSets are the flag groups that configure a run, as opposed to a

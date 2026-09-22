@@ -16,6 +16,17 @@ import (
 	"github.com/sebastienrousseau/scout/transport"
 )
 
+// politeGrace is how long these tests give a server that is supposed to
+// exit on its own.
+//
+// Generous, and it costs nothing: Close returns the moment the process
+// goes, so the only run that waits this long is one where the server did
+// not stop — which is a different test. It is this large because three
+// seconds was not always enough under `-race -shuffle` with the whole
+// suite running, and a server that has not been scheduled yet is not a
+// server that ignored its input.
+const politeGrace = 20 * time.Second
+
 // groupOf returns the process group id of pid, or 0.
 func groupOf(t *testing.T, pid int) int {
 	t.Helper()
@@ -52,7 +63,7 @@ while read -r line; do :; done
 func TestStdioCleanExitIsNotForced(t *testing.T) {
 	s, err := transport.StartStdio(context.Background(), transport.StdioConfig{
 		Command:       script(t, "while read -r line; do :; done\nexit 0\n"),
-		ShutdownGrace: 3 * time.Second,
+		ShutdownGrace: politeGrace,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -154,7 +165,7 @@ sleep 30 &
 while read -r line; do :; done
 exit 0
 `),
-		ShutdownGrace: 3 * time.Second,
+		ShutdownGrace: politeGrace,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -167,7 +178,12 @@ exit 0
 
 	c := s.Custody()
 	if c.Forced {
-		t.Errorf("the server exited on its own; it should not be recorded as forced (%s)", c.Signalled)
+		// Not a failure of the thing under test: a forced shutdown kills
+		// the group, so the orphan question is deliberately unanswerable
+		// afterwards. Saying which happened keeps the next reader from
+		// chasing the wrong bug.
+		t.Fatalf("the server had to be signalled (%s), so this test could not observe an orphan; "+
+			"it is supposed to exit on stdin close within %s", c.Signalled, politeGrace)
 	}
 	if !c.Orphans {
 		t.Fatal("a worker that outlived the server was not seen")
@@ -202,7 +218,7 @@ func TestStdioCustodyBeforeCloseIsNotAVerdict(t *testing.T) {
 func TestStdioCloseRecordsCustodyOnce(t *testing.T) {
 	s, err := transport.StartStdio(context.Background(), transport.StdioConfig{
 		Command:       script(t, "sleep 30 &\nwhile read -r line; do :; done\nexit 0\n"),
-		ShutdownGrace: 3 * time.Second,
+		ShutdownGrace: politeGrace,
 	})
 	if err != nil {
 		t.Fatal(err)

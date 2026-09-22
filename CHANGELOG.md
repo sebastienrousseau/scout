@@ -17,6 +17,33 @@ project announces that a change felt big.
 
 ### Added
 
+- **`scout check --baseline` says what changed since you approved it.**
+  A check tells you a server was sound when you ran it. It cannot tell
+  you the server is still the one you reviewed, and that gap is the whole
+  of the rug-pull threat: the server that passes review and edits its
+  tool descriptions the following week is the one that gets through.
+
+  `--baseline .scout/baseline.json` compares the catalogue against an
+  approved snapshot; `--approve` writes the catalogue this run saw as the
+  new one, after the report, so the person approving has just read what
+  they are approving. The snapshot content-addresses the catalogue, so
+  the common answer is one string comparison — which is what will make a
+  watcher cheap enough to run on a schedule.
+
+  **Severity is by kind, never by count.** A `readOnlyHint` becoming true
+  after approval is critical, because it is the flip that makes a
+  cautious client — scout included — start invoking a tool it previously
+  refused. A description that gains text aimed at the model is critical,
+  and is distinguished from one that was always odd, so an approved
+  quirk is not re-reported every run. A dropped `required` argument is
+  serious, because a widened schema accepts calls the approved one
+  refused. A new optional property is reported as information: a gate
+  that cries wolf over one is a gate somebody switches off.
+
+  Re-formatting is not a change. A server that minifies its schemas one
+  week and pretty-prints them the next has changed nothing a model can
+  see, and the digest says so.
+
 - **The interactive tool selector, in the browser.** `-i` was the last
   capability one surface had and the others did not, and it was
   surface-bound for no better reason than where the listing code was

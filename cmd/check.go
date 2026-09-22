@@ -15,6 +15,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/term"
 	"github.com/mattn/go-isatty"
+	"github.com/sebastienrousseau/scout/internal/baseline"
 	"github.com/sebastienrousseau/scout/internal/creds"
 	"github.com/sebastienrousseau/scout/internal/diag"
 	"github.com/sebastienrousseau/scout/internal/engine"
@@ -216,6 +217,22 @@ func runCheck(cmd *cobra.Command, args []string, only []string) error {
 			return res.Err
 		}
 		return nil
+	}
+
+	// --approve promotes what this run saw, after the report so the person
+	// approving has just read what they are approving. Written even when
+	// findings failed: approving a catalogue is a statement about drift,
+	// not about quality, and conflating the two would make the gate
+	// unusable on a server with a known, accepted failing check.
+	if approveBaseline {
+		if res.Session == nil || res.Session.Snapshot == nil {
+			diag.Warnf("nothing to approve: the run did not reach the catalogue")
+		} else if err := baseline.Save(baselineFile, *res.Session.Snapshot); err != nil {
+			return err
+		} else {
+			diag.Infof("approved %d tool(s) as the baseline in %s",
+				len(res.Session.Snapshot.Tools), baselineFile)
+		}
 	}
 
 	if spec.Output.ReportDir != "" {

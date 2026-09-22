@@ -326,6 +326,37 @@ var remediations = map[string]Remediation{
 			"groups skip it too.",
 	},
 
+	"catalog.baseline": {
+		Means: "The catalogue is not the one recorded in the baseline file. " +
+			"Something about this server changed after somebody approved it, " +
+			"which is the shape of the threat a one-shot diagnostic cannot " +
+			"see: a server passes review and edits its tool descriptions the " +
+			"following week.",
+		Steps: []Step{
+			{"Read the diff before deciding",
+				"The finding quotes both sides. What changed is the finding, " +
+					"not that something did -- a new optional property and a " +
+					"`readOnlyHint` becoming true are not the same event and are " +
+					"not reported at the same severity."},
+			{"Approve it if it is yours",
+				"`scout check --baseline .scout/baseline.json --approve` writes " +
+					"the catalogue this run saw as the new baseline. Approving is " +
+					"a decision a person makes after reading the diff, which is " +
+					"why it is a separate flag and not something a run does on " +
+					"its own."},
+			{"Treat an unexplained change as an incident",
+				"A tool that gained `readOnlyHint: true`, a description that " +
+					"acquired text aimed at the model, or a required argument " +
+					"that quietly disappeared are each worth asking the operator " +
+					"about before the next agent session runs against it."},
+		},
+		Note: "Severity is by kind, never by count. A `readOnlyHint` flipping " +
+			"to true is critical because it makes cautious clients -- scout " +
+			"included -- start invoking a tool they previously refused. A new " +
+			"optional property is reported as information, because a gate that " +
+			"cries wolf over one is a gate somebody switches off.",
+	},
+
 	"execution.error_guidance": {
 		Means: "A tool rejected a call and the rejection said nothing the " +
 			"caller could act on — a bare \"error\", or an internal stack " +
