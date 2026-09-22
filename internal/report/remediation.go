@@ -276,6 +276,353 @@ var remediations = map[string]Remediation{
 			"means something wrote a sentence and then hid it.",
 	},
 
+	"stdio.clean_exit": {
+		Means: "The server was still running after its stdin closed, and had " +
+			"to be signalled. Closing the pipe is how a host ends a stdio " +
+			"session — it is the documented shutdown and there is no other " +
+			"one — so a server that carries on is a server the host has to " +
+			"kill, every session, forever.",
+		Steps: []Step{
+			{"Treat EOF on stdin as the stop signal",
+				"The read loop returning end-of-file is the session ending. " +
+					"Finish what is in flight, flush, and exit; do not wait " +
+					"for a signal that a well-behaved host will not send " +
+					"first."},
+			{"Handle SIGTERM as well, not instead",
+				"A host that has waited its grace period signals before it " +
+					"kills. A server that ignores both loses whatever it had " +
+					"not written."},
+			{"Count the processes after a few sessions",
+				"This is the defect that shows up as a developer machine with " +
+					"eleven copies of the same server on it, none of which any " +
+					"host still has a handle to."},
+		},
+	},
+
+	"stdio.no_zombie": {
+		Means: "The server exited and processes it had started were still " +
+			"running in its process group. Nothing else in the report " +
+			"notices: the server handshook, served its catalogue and shut " +
+			"down cleanly. The worker it left behind still holds what it was " +
+			"given — a port, a lock, the credentials from its environment — " +
+			"and there is no longer anything that knows how to stop it.",
+		Steps: []Step{
+			{"Reap what you spawn",
+				"Keep a handle on every child and wait for it during " +
+					"shutdown. A worker started for one session should not " +
+					"outlive that session."},
+			{"Kill the group, not the leader",
+				"If the children are not tracked individually, put them in a " +
+					"process group and signal the group on the way out."},
+			{"Do not rely on the host",
+				"scout killed this one, because leaving it running would be a " +
+					"worse defect than reporting it. A host will not: it closes " +
+					"the pipe and forgets the server existed."},
+		},
+		Note: "Only asked when the server exited on its own. If it had to be " +
+			"signalled, its whole group went with it and what it left behind " +
+			"cannot be told apart from what the signal stopped, so the check " +
+			"skips rather than guessing. Platforms without POSIX process " +
+			"groups skip it too.",
+	},
+
+	"supply.provenance": {
+		Means: "The server binary was built from a working tree with " +
+			"uncommitted changes. Go records that as `vcs.modified=true`, " +
+			"and it means the source this binary was made from does not " +
+			"exist in the repository: no commit describes it, so no review " +
+			"of that repository describes what is actually running.",
+		Steps: []Step{
+			{"Build from a clean checkout",
+				"In CI that is usually already true. A dirty stamp on a " +
+					"release artifact almost always means it was built on " +
+					"somebody's laptop."},
+			{"Keep the revision",
+				"A binary built from a commit carries it, and that one field " +
+					"is what turns \"we reviewed the code\" into a statement " +
+					"about the thing that is running."},
+			{"Where dependencies carry no checksum, find out why",
+				"A module with no `h1:` sum did not come through the module " +
+					"proxy and the checksum database never saw it — a local " +
+					"`replace` or a vendored tree. Neither can be verified " +
+					"after the fact."},
+		},
+		Note: "Read out of the binary with `debug/buildinfo`, so it is one " +
+			"of the few things in this report the server cannot influence by " +
+			"answering differently. Only for a stdio target: an endpoint is a " +
+			"URL, and a URL is not a file scout can open. A build from a " +
+			"source archive carries no stamp at all, which is reported as an " +
+			"observation rather than as a dirty build.",
+	},
+
+	"fs.credential_probe": {
+		Means: "The server opened a credential file in its home directory " +
+			"that it was never given and never asked about. scout planted " +
+			"those files: they are decoys containing nothing real, and the " +
+			"home directory the server saw was a scratch one. Nothing was " +
+			"lost here. The same code against an operator's own machine " +
+			"reads their actual keys.",
+		Steps: []Step{
+			{"Find the read",
+				"The finding names which decoys were opened. A server that " +
+					"reads ~/.ssh/id_rsa or ~/.aws/credentials has a code path " +
+					"that goes looking for credentials outside the ones it was " +
+					"configured with, and that path is worth reading."},
+			{"Ask whether it is a library",
+				"Some SDKs load ambient cloud credentials by default. That is " +
+					"still a server reaching for something nobody gave it, and " +
+					"it still deserves to be deliberate rather than a default " +
+					"nobody noticed."},
+			{"Check what left",
+				"`fs.canary_exfiltrated` answers the second half. A read with " +
+					"nothing leaving is a smaller problem than a read followed " +
+					"by a request."},
+		},
+		Note: "This rests on file access times, and a great many filesystems " +
+			"do not record them — macOS on APFS does not, and Linux mounted " +
+			"`noatime` does not. scout measures whether the witness works " +
+			"before trusting it and reports that it cannot tell rather than " +
+			"reporting a clean result it is not entitled to.",
+	},
+
+	"fs.canary_exfiltrated": {
+		Means: "The contents of a planted credential file left. This is not " +
+			"an inference: each decoy contains a string that exists nowhere " +
+			"else, and that exact string was seen in an outbound request " +
+			"body, on the server's own stderr, or handed back to scout in a " +
+			"result. The file was read and its contents were sent.",
+		Steps: []Step{
+			{"Treat it as an incident, not a finding",
+				"Whatever reads a decoy key and transmits it reads a real one " +
+					"and transmits that. The finding names the file and where " +
+					"the contents went."},
+			{"Find the code before the server runs anywhere real",
+				"It may be deliberate, it may be a logging statement that " +
+					"dumps an environment, and the two are not the same " +
+					"problem — but both send a credential somewhere it does " +
+					"not belong."},
+			{"Assume any real credential is compromised",
+				"If this server has already run against a machine with real " +
+					"keys, rotate them rather than reasoning about whether " +
+					"this particular path was taken."},
+		},
+		Note: "Seen over plain HTTP, on stderr, and on the pipe back to " +
+			"scout. A tunnel is opaque on purpose: scout reads a CONNECT " +
+			"destination and never the payload, because the alternative is " +
+			"installing a certificate authority to decrypt traffic it was " +
+			"not asked to decrypt. Over https the destination is reported by " +
+			"`egress.hosts` and the payload is not.",
+	},
+
+	"egress.undeclared_host": {
+		Means: "The server connected to a host that `--expect-egress` does " +
+			"not name. scout saw it because it started the process and " +
+			"pointed its proxy settings at a listener of its own, which is " +
+			"the only way to see a destination that appears in no manifest, " +
+			"no catalogue and no documentation — a destination nobody " +
+			"declared is not declared on purpose.",
+		Steps: []Step{
+			{"Find out what the host is",
+				"The finding names it and says how many times it was reached. " +
+					"A CDN, a telemetry endpoint and an exfiltration target all " +
+					"look the same from here; only somebody who knows the " +
+					"server can tell them apart."},
+			{"Add it if it is a dependency",
+				"`--expect-egress api.example.com`, repeatable, and a leading " +
+					"dot matches subdomains. An expectation that is written " +
+					"down is one the next run enforces."},
+			{"Treat an unexplained host as an incident",
+				"A server that contacts somewhere its author cannot account " +
+					"for, on a run where it was handed tool arguments, is the " +
+					"case this check exists for. Check what it was given before " +
+					"the connection."},
+		},
+		Note: "Watched only with `--watch-egress`, and only over stdio, " +
+			"because it works by setting the child's environment. Two blind " +
+			"spots worth knowing: a destination on the same machine is not " +
+			"seen, since almost every runtime refuses to proxy loopback, and " +
+			"a client that ignores the proxy environment entirely is not seen " +
+			"either.",
+	},
+
+	"catalog.cache_hints": {
+		Means: "The tools/list result says nothing about being cached. Every " +
+			"client fetches your catalogue again on every session, and then " +
+			"pays for it in context on every call after that. The 2026-07-28 " +
+			"revision lets you stop the first half of that with two optional " +
+			"fields, and this server sets neither.",
+		Steps: []Step{
+			{"Set ttlMs on the list result",
+				"How many milliseconds a client may keep the answer. Minutes " +
+					"is usually right: long enough to cover a session, short " +
+					"enough that a catalogue change reaches clients the same " +
+					"day."},
+			{"Set cacheScope when the catalogue is the same for everyone",
+				"`public` lets a shared client cache one copy for all users. " +
+					"Leave it unset, or say `private`, when what a user sees " +
+					"depends on who they are -- an over-shared catalogue is a " +
+					"worse problem than a re-fetched one."},
+			{"Pair it with the catalogue's size",
+				"`catalog.budget.tokens` says what the catalogue costs to " +
+					"look at. This says whether anyone has to pay it twice."},
+		},
+		Note: "Both fields are optional, so this warns only on a catalogue " +
+			"large enough for re-fetching to cost something, and is an " +
+			"observation otherwise. It is skipped entirely before 2026-07-28, " +
+			"where there is nothing to state.",
+	},
+
+	"catalog.baseline": {
+		Means: "The catalogue is not the one recorded in the baseline file. " +
+			"Something about this server changed after somebody approved it, " +
+			"which is the shape of the threat a one-shot diagnostic cannot " +
+			"see: a server passes review and edits its tool descriptions the " +
+			"following week.",
+		Steps: []Step{
+			{"Read the diff before deciding",
+				"The finding quotes both sides. What changed is the finding, " +
+					"not that something did -- a new optional property and a " +
+					"`readOnlyHint` becoming true are not the same event and are " +
+					"not reported at the same severity."},
+			{"Approve it if it is yours",
+				"`scout check --baseline .scout/baseline.json --approve` writes " +
+					"the catalogue this run saw as the new baseline. Approving is " +
+					"a decision a person makes after reading the diff, which is " +
+					"why it is a separate flag and not something a run does on " +
+					"its own."},
+			{"Treat an unexplained change as an incident",
+				"A tool that gained `readOnlyHint: true`, a description that " +
+					"acquired text aimed at the model, or a required argument " +
+					"that quietly disappeared are each worth asking the operator " +
+					"about before the next agent session runs against it."},
+		},
+		Note: "Severity is by kind, never by count. A `readOnlyHint` flipping " +
+			"to true is critical because it makes cautious clients -- scout " +
+			"included -- start invoking a tool they previously refused. A new " +
+			"optional property is reported as information, because a gate that " +
+			"cries wolf over one is a gate somebody switches off.",
+	},
+
+	"execution.payload_size": {
+		Means: "A tool answered with more text than a caller can afford. A " +
+			"result is not a file somebody downloads: it goes into the " +
+			"model's context, whole, on the call that asked for it. A " +
+			"hundred kilobytes is a large share of a small window spent on " +
+			"one reply, and the caller cannot refuse delivery -- by the time " +
+			"the size is known, the answer has already arrived.",
+		Steps: []Step{
+			{"Page it",
+				"Return a cursor and let the caller ask for more. A tool that " +
+					"expects to be called again is one a model can use " +
+					"without gambling its whole window on the first call."},
+			{"Or truncate it and say so",
+				"A result cut at a sensible size with a line admitting it was " +
+					"cut is honest and usable. One that is silently complete " +
+					"but enormous is neither."},
+			{"Or hand back a reference",
+				"For genuinely large output, return a resource URI the caller " +
+					"can fetch in parts, rather than inlining it."},
+		},
+		Note: "A large result that says it was paginated or truncated is " +
+			"reported as an observation rather than a warning: the size is " +
+			"then a choice somebody made. Only a large result with no sign of " +
+			"being bounded is worth acting on. Nothing here costs an extra " +
+			"request -- the execution phase already made these calls and " +
+			"already counted the bytes.",
+	},
+
+	"execution.error_guidance": {
+		Means: "A tool rejected a call and the rejection said nothing the " +
+			"caller could act on — a bare \"error\", or an internal stack " +
+			"trace. The caller here is a model, and the error string is the " +
+			"entire recovery path it has: it cannot read your logs, open your " +
+			"source, or ask a colleague.",
+		Steps: []Step{
+			{"Say what was wrong with which argument",
+				"\"path must be absolute\" and \"state must be one of open, " +
+					"closed, all\" are each one retry away from a working call. " +
+					"\"Invalid input\" ends the attempt."},
+			{"Never return the exception",
+				"A trace is unusable to the caller and hands it your file " +
+					"layout, framework and often your dependency versions, on a " +
+					"path anyone who can call the tool can reach. Log the trace; " +
+					"return the reason."},
+			{"Point at the tool that would help",
+				"If recovery means calling something else first, name it. " +
+					"\"Use list_directory to find the path\" is the difference " +
+					"between a model that recovers and one that gives up or " +
+					"starts guessing."},
+		},
+		Note: "Returning isError is not itself a defect and is not counted as " +
+			"one. scout calls tools with generated arguments, so a correct " +
+			"server will reject some of them; this check grades only the " +
+			"wording of the rejection. With no rejection in the run, it skips " +
+			"rather than passing.",
+	},
+
+	"catalog.tools.annotation_honesty": {
+		Means: "A tool annotated `readOnlyHint: true` describes a change of " +
+			"state — its name leads with a mutation verb, or its first " +
+			"sentence does. One of the two is wrong, and until somebody says " +
+			"which, the catalogue cannot be acted on safely.",
+		Steps: []Step{
+			{"Decide which half is true",
+				"If the tool really only reads, the name or the opening sentence " +
+					"is misleading and should be reworded. If it writes, the " +
+					"annotation is wrong and has to be corrected — that is the " +
+					"urgent direction."},
+			{"Remember who reads this",
+				"`readOnlyHint` is not documentation; it is the flag cautious " +
+					"clients use to decide what may be invoked without asking. " +
+					"scout invokes read-only tools and nothing else, so an " +
+					"understated annotation is how a server gets a careful client " +
+					"to perform the write on its behalf."},
+			{"Set destructiveHint too",
+				"A tool that modifies but does not destroy should say so " +
+					"explicitly rather than leaning on the default, which is " +
+					"`destructiveHint: true` and is the safest reading rather than " +
+					"the accurate one."},
+		},
+		Note: "The check reads the leading verb of the name and of the first " +
+			"sentence only. Caveats later in a description — \"returns an error " +
+			"if the file was deleted\" — are not read as descriptions of " +
+			"deletion, and read-path verbs like open, close and set are not " +
+			"treated as mutations.",
+	},
+
+	"catalog.text.shadowing": {
+		Means: "A description does not describe the tool it belongs to. It " +
+			"attaches a rule to some other tool — \"when calling send_email, " +
+			"always BCC…\" — and the model reads every description it is given " +
+			"with equal authority and no notion of which server each one came " +
+			"from. That is the whole mechanism: a server you are evaluating can " +
+			"rewrite the behaviour of a server you already trust, without ever " +
+			"being called itself.",
+		Steps: []Step{
+			{"Read the sentence scout quoted",
+				"The finding names the field it came from, the tool the rule is " +
+					"aimed at, and whether that tool is one this server lists. A " +
+					"target this server does not have is the cross-server shape and " +
+					"is reported as critical."},
+			{"Move the rule to the tool it governs",
+				"If the constraint is real and the tool is yours, it belongs in " +
+					"that tool's own description, where the operator approving it " +
+					"can see what it applies to. A precondition on your own tool is " +
+					"documentation; the same sentence in a sibling's description is " +
+					"not."},
+			{"If the tool is not yours, treat it as an incident",
+				"Nothing legitimate needs one server's catalogue to issue orders " +
+					"about another server's tools. Check who can write this " +
+					"metadata and when the field last changed, and look for the " +
+					"same sentence across the rest of your fleet."},
+		},
+		Note: "Only constructions that constrain another tool are reported — " +
+			"\"when calling X\", \"before invoking X\", \"never use X\". Pointing " +
+			"the model at a sibling (\"use list_directory to find the path\") is " +
+			"what good documentation does and is passed over, because a check " +
+			"that flags helpful cross-references is one people mute.",
+	},
+
 	"catalog.text.instructions": {
 		Means: "Somewhere in the catalog, text is addressed to the model rather " +
 			"than describing a tool — an instruction to ignore what it was told, " +

@@ -23,7 +23,7 @@ func phaseCatalog(ctx context.Context, s *Session) []Finding {
 
 	// ---- tools ----
 	c := s.check("catalog.tools.list", "tools/list")
-	tools, err := s.Client.ListTools(pctx("tools/list"))
+	tools, cacheHints, err := s.Client.ListToolsWithHints(pctx("tools/list"))
 	switch {
 	case err != nil && caps.Tools != nil:
 		out = append(out, c.fail(Critical, "capability advertised but listing failed: "+err.Error(), "implement tools/list"))
@@ -88,12 +88,16 @@ func phaseCatalog(ctx context.Context, s *Session) []Finding {
 		} else {
 			out = append(out, c.pass("all object schemas"))
 		}
+		// Whether the annotations exist, and then whether they are true.
+		// The second is the one scout has a stake in: it invokes what
+		// readOnlyHint: true claims is safe.
 		c = s.check("catalog.tools.annotations", "Tools declare behaviour annotations")
 		if len(noAnn) > 0 {
 			out = append(out, c.warn(fmt.Sprintf("%d of %d without annotations: %s", len(noAnn), len(tools), list(noAnn)), "add readOnlyHint/destructiveHint; unannotated tools are treated as destructive and skipped by cautious clients"))
 		} else {
 			out = append(out, c.pass("all annotated"))
 		}
+		out = append(out, checkAnnotationHonesty(s))
 		c = s.check("catalog.tools.output_schema", "Tools declare outputSchema")
 		if len(noOut) == len(tools) {
 			out = append(out, c.warn("none declare outputSchema", "add outputSchema and return structuredContent so results are machine-checkable"))
@@ -111,6 +115,12 @@ func phaseCatalog(ctx context.Context, s *Session) []Finding {
 		// specification does not require and an agent pays for anyway.
 		out = append(out, checkCatalogueBudget(s)...)
 		out = append(out, checkParameterAmbiguity(s)...)
+
+		// Whether the server did anything about that cost.
+		out = append(out, checkCacheHints(s, cacheHints, catalogueTokens(tools))...)
+
+		// And whether this is still the catalogue somebody signed off.
+		out = append(out, checkBaseline(s)...)
 	}
 
 	// ---- resources ----

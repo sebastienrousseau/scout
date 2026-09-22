@@ -114,6 +114,11 @@ type StdioConfig struct {
 	// PassEnv names variables to forward from the caller's environment, for
 	// a server that legitimately needs one.
 	PassEnv []string
+	// Inject are KEY=VALUE pairs scout adds about itself, after Env and
+	// PassEnv and overriding either. It carries the proxy settings the
+	// egress witness needs the child to honour; it is not a second way to
+	// pass the caller's environment through.
+	Inject []string
 	// Observe, when set, is called after every exchange. It is how a
 	// diagnostic records a pipe the way it records HTTP traffic, so a
 	// finding over stdio can cite the message that produced it.
@@ -319,6 +324,7 @@ func newStdioClient(ctx context.Context, cfg Config) (*Client, error) {
 		Dir:     cfg.Stdio.Dir,
 		Env:     cfg.Stdio.Env,
 		PassEnv: cfg.Stdio.PassEnv,
+		Inject:  cfg.Stdio.Inject,
 		Observe: cfg.Stdio.Observe,
 	})
 	if err != nil {
@@ -840,17 +846,34 @@ func (c *Client) Call(ctx context.Context, method string, params, result any) er
 
 // ListTools returns every tool, following pagination cursors.
 func (c *Client) ListTools(ctx context.Context) ([]Tool, error) {
+	tools, _, err := c.ListToolsWithHints(ctx)
+	return tools, err
+}
+
+// ListToolsWithHints is ListTools, and what the server said about caching
+// the answer.
+//
+// A separate method rather than a changed signature: the hints matter to a
+// diagnostic and to nothing else, and every existing caller wants the
+// catalogue. The hints come from the first page, because that is where a
+// server states them and a later page contradicting the first is a server
+// problem rather than something to reconcile here.
+func (c *Client) ListToolsWithHints(ctx context.Context) ([]Tool, CacheHints, error) {
 	ctx = trace.Ensure(ctx)
 	var all []Tool
+	var hints CacheHints
 	cursor := ""
-	for {
+	for first := true; ; first = false {
 		var page listToolsResult
 		if err := c.call(ctx, "tools/list", listToolsParams{Cursor: cursor}, &page); err != nil {
-			return nil, err
+			return nil, CacheHints{}, err
+		}
+		if first {
+			hints = CacheHints{TTLMs: page.TTLMs, Scope: page.CacheScope}
 		}
 		all = append(all, page.Tools...)
 		if page.NextCursor == "" || page.NextCursor == cursor {
-			return all, nil
+			return all, hints, nil
 		}
 		cursor = page.NextCursor
 	}

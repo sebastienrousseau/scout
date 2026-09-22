@@ -182,6 +182,7 @@ func (s *Server) routes() {
 	}
 	s.mux.Handle("GET /", http.FileServerFS(shell))
 	s.mux.HandleFunc("POST /api/runs", s.startRun)
+	s.mux.HandleFunc("POST /api/tools", s.listTools)
 	s.mux.HandleFunc("GET /api/runs/{id}/events", s.streamRun)
 	s.mux.HandleFunc("GET /api/runs/{id}/report.json", s.reportJSON)
 	s.mux.HandleFunc("GET /runs/{id}/report.html", s.reportHTML)
@@ -300,19 +301,28 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
-func (s *Server) startRun(w http.ResponseWriter, r *http.Request) {
+// admit decodes a posted specification and applies every rule that
+// decides whether this process is willing to act on it at all.
+//
+// Shared by the two routes that take a spec, because both of them make
+// scout connect somewhere with credentials somebody sent over HTTP. The
+// tool selector was the near miss: it is a read-only convenience that
+// nonetheless dials whatever endpoint the body names, so a copy of these
+// checks that drifted by one condition would be a second, quieter version
+// of the exfiltration path ADR-0005 closed. There is one copy.
+func (s *Server) admit(w http.ResponseWriter, r *http.Request) (engine.RunSpec, bool) {
 	if s.limit != nil && !s.limit.allow(clientKey(r, s.opts.TrustProxyHeader)) {
 		w.Header().Set("Retry-After", "30")
 		writeJSON(w, http.StatusTooManyRequests, map[string]string{
 			"error": "too many runs from this address; wait a moment and try again",
 		})
-		return
+		return engine.RunSpec{}, false
 	}
 	var spec engine.RunSpec
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
 	if err := dec.Decode(&spec); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "the request body is not a run specification: " + err.Error()})
-		return
+		return engine.RunSpec{}, false
 	}
 	// A spec naming a program is refused before anything else looks at it.
 	// Public mode never permits one; a local server permits it only when
@@ -323,7 +333,7 @@ func (s *Server) startRun(w http.ResponseWriter, r *http.Request) {
 				"permission from fetching a URL, and it is not one an HTTP request can claim here: " +
 				"use the command line — scout check --stdio -- <command> — or start the server with --allow-stdio.",
 		})
-		return
+		return engine.RunSpec{}, false
 	}
 	if s.opts.Public {
 		// Refuse before running, rather than quietly dropping what was
@@ -335,7 +345,7 @@ func (s *Server) startRun(w http.ResponseWriter, r *http.Request) {
 				"error": "this server accepts no credentials: remove " + strings.Join(used, ", ") +
 					". Run scout locally to test a server that needs one — it is the same binary.",
 			})
-			return
+			return engine.RunSpec{}, false
 		}
 		name, ok := s.opts.Allowed.Permits(spec.Target.Endpoint)
 		if !ok {
@@ -343,7 +353,7 @@ func (s *Server) startRun(w http.ResponseWriter, r *http.Request) {
 				"error": "this server only scans the endpoints it was started with. " +
 					"Run scout locally to test your own server — it is the same binary.",
 			})
-			return
+			return engine.RunSpec{}, false
 		}
 		_ = name
 		// Constructed, not sanitised: whatever arrived is discarded.
@@ -355,6 +365,56 @@ func (s *Server) startRun(w http.ResponseWriter, r *http.Request) {
 	// One validator for every surface, so a browser gets the CLI's error.
 	if err := spec.Validate(); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return engine.RunSpec{}, false
+	}
+
+	spec.Version = s.opts.Version
+	spec = spec.WithDefaults()
+	// One validator for every surface, so a browser gets the CLI's error.
+	if err := spec.Validate(); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return engine.RunSpec{}, false
+	}
+	return spec, true
+}
+
+// listTools answers what the interactive selector should offer.
+//
+// `-i` was the last capability in the parity table that one surface had
+// and the others did not, and it was surface-bound for no better reason
+// than where the listing code was defined. It posts the same RunSpec a run
+// does, through the same admission gate, and answers with the same rows
+// the terminal selector draws.
+//
+// It starts a connection of its own and closes it. Nothing is remembered
+// between this and the run that follows: the browser sends back the names
+// it chose, and the engine widens the policy for them exactly as the CLI
+// does.
+func (s *Server) listTools(w http.ResponseWriter, r *http.Request) {
+	spec, ok := s.admit(w, r)
+	if !ok {
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), toolListTimeout)
+	defer cancel()
+
+	choices, err := engine.ListToolChoices(ctx, spec, s.opts.Version)
+	if err != nil {
+		// The same status a run gets for a server it cannot reach: this is
+		// a fact about the target, not about the request.
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"tools": choices})
+}
+
+// toolListTimeout bounds the selector's connection. Shorter than a run,
+// because nothing is being diagnosed: somebody is waiting to see a list.
+const toolListTimeout = 90 * time.Second
+
+func (s *Server) startRun(w http.ResponseWriter, r *http.Request) {
+	spec, ok := s.admit(w, r)
+	if !ok {
 		return
 	}
 

@@ -16,12 +16,17 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/sebastienrousseau/scout"
 	"github.com/sebastienrousseau/scout/auth"
 	"github.com/sebastienrousseau/scout/diagnostics"
+	"github.com/sebastienrousseau/scout/internal/baseline"
+	"github.com/sebastienrousseau/scout/internal/canary"
 	"github.com/sebastienrousseau/scout/internal/creds"
+	"github.com/sebastienrousseau/scout/internal/egress"
+	"github.com/sebastienrousseau/scout/internal/supply"
 	"github.com/sebastienrousseau/scout/internal/telemetry"
 	"github.com/sebastienrousseau/scout/trace"
 	"github.com/sebastienrousseau/scout/transport"
@@ -163,6 +168,32 @@ type Options struct {
 	MaxPrompts   int
 	// ToolArgs overrides generated arguments per tool.
 	ToolArgs map[string]map[string]any
+	// WatchEgress runs a loopback proxy and points the child at it, so
+	// the run can report where the server connected.
+	//
+	// Only meaningful over stdio: an endpoint scout did not start has an
+	// environment scout never set. Off by default, because it changes the
+	// environment the server runs in and that is not something to do to
+	// somebody's server without being asked.
+	WatchEgress bool
+	// ExpectEgress is the hosts the operator says the server should
+	// reach. A leading dot matches subdomains. Empty means the
+	// destinations are inventoried and not judged.
+	ExpectEgress []string
+	// PlantCanaries points the child's HOME at a scratch directory seeded
+	// with decoy credentials, so a server that goes looking for one can
+	// be seen doing it.
+	//
+	// Off by default and stdio only: it works by deciding where HOME
+	// points, which is only possible for a process scout started.
+	PlantCanaries bool
+	// Baseline is the approved catalogue to compare against, or nil to
+	// make no comparison.
+	//
+	// The snapshot itself rather than a path, for the reason RunSpec.Gate
+	// carries its policy by value: a spec that crosses a network must
+	// never ask the receiving process to open a file somebody else named.
+	Baseline *baseline.Snapshot
 
 	// Only and Skip select phases by name.
 	Only []string
@@ -197,6 +228,26 @@ type Session struct {
 	// unauthenticated. Nil over stdio: there is no unauthenticated view of
 	// a program the operator chose to run.
 	Bare *transport.Streamable
+	// Snapshot is the catalogue this run saw, set when a baseline was
+	// supplied. It is what --approve promotes.
+	Snapshot *baseline.Snapshot
+
+	// Proxy is the egress witness, when one is running.
+	Proxy *egress.Proxy
+	// Canary is the planted scratch home, when one was seeded.
+	Canary *canary.Canary
+	// Build is what the target binary is made of, when it is a Go program
+	// scout could read.
+	Build *supply.Build
+	// canaryHits is every decoy whose marker was seen in something the
+	// server said, and where. Written from the reader goroutine.
+	canaryMu   sync.Mutex
+	canaryHits map[string]string
+	// canaryErr is why there is none, when one was asked for.
+	canaryErr string
+	// egressErr is why there is no witness, when one was asked for.
+	egressErr string
+
 	// Pipe is the child-process transport, or nil over HTTP. It is the one
 	// place a phase asks which kind of run this is.
 	Pipe *transport.Stdio
@@ -375,6 +426,49 @@ func runStdio(ctx context.Context, opts Options) (s *Session, err error) {
 
 	cfg := *opts.Stdio
 	cfg.Observe = s.recordPipe(s.command())
+
+	// Before the process, because the address has to be in the
+	// environment the process is started with. A proxy that failed to
+	// listen is not a reason to abandon the run: every other check still
+	// has something to say, and the egress checks report that they could
+	// not watch.
+	if opts.WatchEgress {
+		if px, err := egress.Start(nil); err != nil {
+			s.egressErr = err.Error()
+		} else {
+			s.Proxy = px
+			cfg.Inject = append(append([]string{}, cfg.Inject...), px.Env()...)
+			defer func() { _ = px.Close() }()
+		}
+	}
+
+	// The decoys, for the same reason and at the same moment: HOME has to
+	// be set before the process reads it.
+	if opts.PlantCanaries {
+		if cn, err := canary.Seed(""); err != nil {
+			s.canaryErr = err.Error()
+		} else {
+			s.Canary = cn
+			cfg.Inject = append(append([]string{}, cfg.Inject...), cn.Env()...)
+			if s.Proxy != nil {
+				// So a marker leaving in a plain request body is seen at
+				// the moment it leaves, rather than inferred afterwards.
+				s.Proxy.WatchFor(cn.Markers())
+			}
+			// Scanned as it arrives rather than read back off the
+			// recorder, which keeps bodies only under --capture-bodies.
+			inner := cfg.Observe
+			cfg.Observe = func(ctx context.Context, m transport.StdioMessage) {
+				s.noteCanaries(m.Received, "sent back to scout over the pipe")
+				if inner != nil {
+					inner(ctx, m)
+				}
+			}
+			// Removed after the findings are built, not here: Opened()
+			// reads the access times off these files.
+			defer func() { _ = cn.Close() }()
+		}
+	}
 	client, cerr := scout.NewStdio(ctx, scout.Config{
 		Stdio:      &cfg,
 		ClientInfo: scout.Implementation{Name: "scout", Version: opts.Version},
@@ -391,14 +485,26 @@ func runStdio(ctx context.Context, opts Options) (s *Session, err error) {
 		return nil, errors.New("internal: a stdio client without a pipe")
 	}
 	s.Pipe = pipe
-	defer func() { _ = client.Close() }()
+	var once sync.Once
+	shutdown := func() { once.Do(func() { _ = client.Close() }) }
+	defer shutdown()
 
 	// Which generation the server speaks is settled before the handshake,
 	// as it is over HTTP — but on the pipe rather than on a credential-free
 	// transport, because there is no such thing here.
 	s.settleEraStdio(ctx)
 
-	return s.runPhases(ctx)
+	res, rerr := s.runPhases(ctx)
+	if rerr != nil {
+		return res, rerr
+	}
+	// Two checks can only be made once the process is gone: whether it
+	// stopped when its input closed, and whether anything it started
+	// outlived it. So the shutdown happens here rather than on the defer,
+	// and the resilience phase adopts what it found.
+	shutdown()
+	s.adoptCustody()
+	return res, nil
 }
 
 // runPhases executes the selected phases against a prepared session. It is

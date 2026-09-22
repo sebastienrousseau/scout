@@ -336,3 +336,116 @@ actually ran, and the report states how many were assessed, so a high
 score on a partial run cannot be mistaken for a full one. Every
 deduction is listed with the finding that caused it. Grades: A at 90 and
 above, B at 75, C at 60, D at 40, F below.
+
+## Badges
+
+A score in a CI log is read once, by whoever ran it. The same score in a
+README is read by everyone deciding whether to point an agent at the
+server.
+
+`scout badge` turns a saved report into a [shields.io endpoint][shields]
+document — not an image, so there is no service to run and nothing to
+render:
+
+```sh
+scout check "$URL" --output json > report.json
+scout badge report.json > badge.json
+```
+
+Serve `badge.json` over HTTPS and point shields at it:
+
+```markdown
+![scout](https://img.shields.io/endpoint?url=https://example.com/badge.json)
+```
+
+It reads standard input when given no filename, and `--label` sets the
+left-hand text for a project badging more than one server.
+
+The colour comes from the report's own grade rather than from a second
+reading of the number, so the badge and the document it came from cannot
+disagree about where a boundary is: A is bright green, B green, C yellow,
+D orange, F red.
+
+A run that never reached a verdict renders as an error rather than as a
+low score. This is the same distinction the exit codes make — a badge
+reading `0/100` because the endpoint was unreachable would repeat exactly
+the mistake that contract exists to prevent.
+
+[shields]: https://shields.io/badges/endpoint-badge
+
+## Watching for drift
+
+A check tells you a server was sound when you ran it. That is a statement
+about a moment, and the threat it cannot see by construction is the one
+that waits: the server that passes review and edits its tool descriptions
+the following week is the server that gets through.
+
+```sh
+scout check "$URL" --baseline .scout/baseline.json --approve
+scout watch "$URL" --baseline .scout/baseline.json
+```
+
+A pulse is deliberately small — connect, list the catalogue, hash it,
+compare. Two requests and a string comparison, because a watcher that
+re-ran nine phases on a loop would be the abusive client scout warns
+everyone else about. Between pulses there is a timer and nothing else.
+
+`--once` takes a single pulse and exits, which is the shape a CI job
+wants. It follows the same exit-code contract as `scout check`:
+
+| Exit | Meaning |
+|---|---|
+| 0 | the catalogue is the approved one |
+| 2 | it is not, and the report says what changed |
+| 1 | scout never reached a verdict at all |
+
+An unreachable server is a `1`, never a `2`. A network blip is not a rug
+pull, and a gate that conflated them would be one people switch off.
+
+`--output ndjson` emits one event per line for a log pipeline, and
+`--approve` promotes what the watch saw once somebody has read it.
+
+Severity is by kind rather than by count — the same ladder `--baseline`
+uses. A `readOnlyHint` becoming true after approval is critical; a new
+optional property is noise.
+
+## What rendering costs
+
+A run's wall clock belongs to the server. Roughly fifty requests,
+deliberately throttled, means the time you wait is almost entirely
+somebody else's latency. The render is scout's own work, and it is the
+part worth measuring.
+
+Rendering a 200-tool report, two findings per tool, on an Apple A18 Pro
+(darwin/arm64, go1.27.1), `go test -bench`:
+
+| Format | Time | Allocations |
+|---|---|---|
+| JSON | 0.32 ms | 15 |
+| Markdown | 0.33 ms | 2,873 |
+| Text | 0.63 ms | 7,039 |
+| HTML | 1.35 ms | 10,014 |
+
+HTML is the most expensive and reasonably so: it is the only renderer
+that escapes every string on the way out, and every string in a report
+came from a server nobody vetted.
+
+Reproduce with `go test ./internal/report/ -run '^$' -bench Render
+-benchmem`. A number without the machine it was measured on is marketing.
+
+### What is gated, and what is not
+
+CI enforces two budgets:
+
+- **Binary size**, 18 MiB against roughly 13 today. A static binary a
+  security team can approve in an afternoon is the product, and the way
+  that stops being true is one dependency at a time.
+- **Allocation ceilings** for each renderer, and a check that rendering
+  scales linearly with the number of findings. An accidental quadratic
+  passes every correctness test in the suite and is unusable on the
+  catalogue sizes that make a diagnostic worth running.
+
+Wall-clock budgets are published here and deliberately **not** gated. A
+time limit on a shared CI runner is a flaky gate, and a flaky gate
+teaches people to re-run the build until it is green — the same outcome
+as no gate, reached more slowly and with less trust.

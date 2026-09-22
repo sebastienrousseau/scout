@@ -137,7 +137,10 @@ func TestInventoryGroupsAreRealPhases(t *testing.T) {
 	// Prefixes that are deliberately not phases, with what they are. A new
 	// one fails here until somebody decides which it is.
 	notPhases := map[string]string{
-		"stdio": "checks that only a child-process run can make; they belong to net and resilience",
+		"stdio":  "checks that only a child-process run can make; they belong to net and resilience",
+		"egress": "checks that only a watched child-process run can make; they belong to resilience, at the end of the run",
+		"supply": "checks that read the target binary rather than ask the server; they belong to net",
+		"fs":     "checks that only a run with planted decoys can make; they belong to resilience, after the process ends",
 	}
 
 	headings := regexp.MustCompile(`(?m)^## ([a-z0-9_-]+) — \d+ checks$`).FindAllStringSubmatch(doc, -1)

@@ -342,6 +342,12 @@ jobs:
       - name: Benchmarks still compile (smoke run, nothing asserted)
         run: make bench
 
+      # The binary-size budget. A static binary a security team can
+      # approve in an afternoon is the product, and the way that stops
+      # being true is one dependency at a time.
+      - name: The binary is within its size budget
+        run: make perf
+
       - name: API breakage against the last release
         run: make api-check
 

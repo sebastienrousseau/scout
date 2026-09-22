@@ -18,6 +18,7 @@ import (
 
 	"github.com/sebastienrousseau/scout/auth"
 	"github.com/sebastienrousseau/scout/diagnostics"
+	"github.com/sebastienrousseau/scout/internal/baseline"
 	"github.com/sebastienrousseau/scout/internal/creds"
 	"github.com/sebastienrousseau/scout/internal/policy"
 	"github.com/sebastienrousseau/scout/internal/probe"
@@ -50,6 +51,16 @@ type RunSpec struct {
 	// crosses a network never asks the receiving process to read a file
 	// somebody else named.
 	Gate *policy.Policy `json:"gate,omitempty"`
+	// Egress asks the run to watch where the server connects.
+	Egress EgressSpec `json:"egress,omitempty"`
+	// Baseline is the approved catalogue this run is judged against, or
+	// nil to judge nothing.
+	//
+	// Carried by value for the reason Gate is: a spec that crosses a
+	// network must never ask the receiving process to read a file
+	// somebody else named. The surface reads the file; the engine reads
+	// the spec.
+	Baseline *baseline.Snapshot `json:"baseline,omitempty"`
 	// Pacing bounds how hard the server is exercised.
 	Pacing PacingSpec `json:"pacing"`
 	// Phases selects which parts of the diagnostic run.
@@ -161,6 +172,22 @@ type PacingSpec struct {
 	AllowLoad    bool          `json:"allow_load,omitempty"`
 	MaxResources int           `json:"max_resources,omitempty"`
 	MaxPrompts   int           `json:"max_prompts,omitempty"`
+}
+
+// EgressSpec says whether to watch a server's outbound connections, and
+// what to measure them against.
+//
+// Only meaningful for a stdio target: an endpoint scout did not start has
+// an environment scout never set, so there is no proxy to point it at.
+type EgressSpec struct {
+	// Watch runs the loopback proxy and points the child at it.
+	Watch bool `json:"watch,omitempty"`
+	// Expect is the hosts the operator says the server should reach. A
+	// leading dot matches subdomains. Empty inventories without judging.
+	Expect []string `json:"expect,omitempty"`
+	// Canaries points the child's HOME at a scratch directory seeded with
+	// decoy credentials, so a server that goes looking can be seen.
+	Canaries bool `json:"canaries,omitempty"`
 }
 
 // PhaseSpec selects phases by name.

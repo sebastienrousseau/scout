@@ -4,13 +4,16 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/sebastienrousseau/scout/diagnostics"
+	"github.com/sebastienrousseau/scout/internal/baseline"
 	"github.com/sebastienrousseau/scout/internal/creds"
 	"github.com/sebastienrousseau/scout/internal/engine"
 	"github.com/sebastienrousseau/scout/internal/policy"
@@ -61,6 +64,11 @@ var (
 	allowResourceMismatch bool
 	skipEraCheck          bool
 	policyFile            string
+	baselineFile          string
+	watchEgress           bool
+	plantCanaries         bool
+	expectEgress          []string
+	approveBaseline       bool
 	maxRes                int
 	maxPrompts            int
 
@@ -149,6 +157,11 @@ func policyFlags() *pflag.FlagSet {
 		fs.BoolVar(&allowResourceMismatch, "allow-resource-mismatch", false, "continue when the protected-resource metadata names a different endpoint (RFC 9728 requires this binding)")
 		fs.BoolVar(&skipEraCheck, "skip-era-check", false, "do not send the one server/discover that identifies which protocol generation the server speaks")
 		fs.StringVar(&policyFile, "policy", "", "judge the run against this acceptance policy file instead of the default \"any failure fails\" rule")
+		fs.BoolVar(&watchEgress, "watch-egress", false, "run a loopback proxy and report where the server connects (stdio only: it works by setting the child's environment)")
+		fs.StringArrayVar(&expectEgress, "expect-egress", nil, "a host the server is expected to reach (repeatable); a leading dot matches subdomains. Without it the destinations are listed and not judged")
+		fs.BoolVar(&plantCanaries, "plant-canaries", false, "point the server's HOME at a scratch directory seeded with decoy credentials, and report whether it read or sent them (stdio only)")
+		fs.StringVar(&baselineFile, "baseline", "", "compare the catalogue against this approved snapshot and report what changed")
+		fs.BoolVar(&approveBaseline, "approve", false, "write the catalogue this run saw to the --baseline file, approving it")
 		policySet = fs
 	})
 	return policySet
@@ -241,6 +254,26 @@ func buildSpec(target engine.TargetSpec, onlyPhases []string) (engine.RunSpec, e
 	// the spec. A path in the spec would ask whichever process received it
 	// to open a file somebody else named, which is a different and much
 	// worse thing for the web surface to accept.
+	// Read here for the same reason the policy file is: the surface opens
+	// files, the spec carries values. An absent baseline with --approve is
+	// the first approval rather than an error, so a missing file is not
+	// one.
+	var approved *baseline.Snapshot
+	if strings.TrimSpace(baselineFile) != "" {
+		snap, err := baseline.Load(baselineFile)
+		switch {
+		case err == nil:
+			approved = snap
+		case approveBaseline && errors.Is(err, os.ErrNotExist):
+			// Approving into a path that does not exist yet.
+		default:
+			return engine.RunSpec{}, err
+		}
+	}
+	if approveBaseline && strings.TrimSpace(baselineFile) == "" {
+		return engine.RunSpec{}, errors.New("--approve needs --baseline: there is no file to write")
+	}
+
 	var gate *policy.Policy
 	if strings.TrimSpace(policyFile) != "" {
 		p, err := policy.Load(policyFile)
@@ -251,8 +284,10 @@ func buildSpec(target engine.TargetSpec, onlyPhases []string) (engine.RunSpec, e
 	}
 
 	spec := engine.RunSpec{
-		Version: Version,
-		Target:  target,
+		Version:  Version,
+		Target:   target,
+		Baseline: approved,
+		Egress:   engine.EgressSpec{Watch: watchEgress, Expect: expectEgress, Canaries: plantCanaries},
 		Creds: engine.CredSpec{
 			Mode: authMode, Token: token, TokenEnv: tokenEnv,
 			Headers: hdrs, Basic: basic,

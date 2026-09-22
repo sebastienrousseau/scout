@@ -16,7 +16,7 @@
          number and the source disagree. -->
     <ul class="run-facts">
       <li><b>9</b><span>phases, in order</span></li>
-      <li><b>93</b><span>checks</span></li>
+      <li><b>107</b><span>checks</span></li>
       <li><b>Both</b><span>protocol revisions, detected</span></li>
       <li><b>0</b><span>bytes uploaded</span></li>
     </ul>
@@ -36,7 +36,7 @@
             <input id="endpoint" name="endpoint" type="url" inputmode="url" autocomplete="url"
                    placeholder="https://mcp.example.com/mcp" required
                    aria-describedby="endpoint-help" />
-            <p id="endpoint-help" class="field-help">The Streamable HTTP URL. Five of the 93 checks
+            <p id="endpoint-help" class="field-help">The Streamable HTTP URL. Five of the 107 checks
                apply only to a server that is a program rather than a URL; run those from the
                command line with <code>scout check --stdio -- &lt;command&gt;</code>.</p>
           </div>
@@ -80,6 +80,28 @@
             <label class="check"><input type="checkbox" id="allow-mutations" name="allow_mutations" /> <span>Also call tools that mutate but are not destructive</span></label>
             <label class="check"><input type="checkbox" id="allow-destructive" name="allow_destructive" /> <span>Also call destructive and unannotated tools</span></label>
             <label class="check"><input type="checkbox" id="skip-era" name="skip_era_check" /> <span>Skip the protocol-generation probe (one fewer request)</span></label>
+          </fieldset>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="p-tools">
+        <header class="panel-head">
+          <h3 id="p-tools">Tools</h3>
+          <p>The same selector <code>scout check -i</code> draws in a terminal.
+             Choosing a tool is an explicit opt-in, so picking a mutating one
+             widens the policy for that tool and nothing else.</p>
+        </header>
+        <div class="panel-body">
+          <div class="actions">
+            <button class="button secondary" type="button" id="load-tools">List this server&rsquo;s tools</button>
+            <span id="tools-status" class="run-status" role="status" aria-live="polite"></span>
+          </div>
+          <fieldset class="field field-wide bare" id="tool-list" hidden>
+            <legend class="sr-only">Tools to exercise</legend>
+            <div id="tool-rows"></div>
+            <p class="field-help">With nothing selected, every tool the policy
+               already permits is exercised, which is what a run does by
+               default.</p>
           </fieldset>
         </div>
       </section>

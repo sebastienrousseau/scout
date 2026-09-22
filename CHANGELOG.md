@@ -17,6 +17,280 @@ project announces that a change felt big.
 
 ### Added
 
+- **`execution.payload_size` measures what an answer costs the caller.**
+  The catalogue budget measures what a server costs to look at; this
+  measures what it costs to use. A tool result is not a file somebody
+  downloads — it goes into the model's context, whole, on the call that
+  asked for it, and the caller cannot refuse delivery: by the time the
+  size is known the answer has already arrived.
+
+  What separates a large answer from a broken one is whether the server
+  knows it is large. A result that paginates, truncates, or says it was
+  cut is reported as an observation, because the size is then a choice
+  somebody made. Only a large result with no sign of being bounded is
+  worth acting on.
+
+  It costs no extra request: the execution phase already made these
+  calls and already counted the bytes.
+
+- **Performance is a gate now, not an adjective.** "Fast" is
+  unfalsifiable; budgets with a red build are the only version of a
+  performance claim that survives a year of commits.
+
+  CI enforces two: the binary stays under 18 MiB (roughly 13 today,
+  because a static binary a security team can approve in an afternoon is
+  the product and the way that stops being true is one dependency at a
+  time), and each renderer stays under an allocation ceiling, with a
+  check that rendering scales linearly with the number of findings. An
+  accidental quadratic passes every correctness test in the suite and is
+  unusable on the catalogue sizes that make a diagnostic worth running.
+
+  **Wall-clock budgets are published rather than gated**, which is a
+  deliberate departure from the roadmap. A time limit on a shared runner
+  is a flaky gate, and a flaky gate teaches people to re-run the build
+  until it goes green — the same outcome as no gate, reached more slowly
+  and with less trust. `docs/reports.md` now carries the measured render
+  costs and the machine they came from.
+
+- **`scout watch` is the part that does the remembering.** `--baseline`
+  closes the drift gap for anyone who runs it again. This runs it again.
+
+  ```sh
+  scout watch "$URL" --baseline .scout/baseline.json
+  ```
+
+  A pulse is deliberately small — connect, list the catalogue, hash it,
+  compare — because a watcher that re-ran nine phases on a loop would be
+  the abusive client scout warns everyone else about. Two requests and a
+  string comparison, which is what the content address in a snapshot was
+  for, and a timer in between rather than a polling loop. Intervals under
+  30 seconds are refused with the reason.
+
+  `--once` takes a single pulse and exits on the same contract `scout
+  check` uses: 2 when the catalogue is not the approved one, 0 when it
+  is, 1 when scout never got an answer. **An unreachable server is a 1,
+  never a 2** — a network blip is not a rug pull, and a gate that
+  conflated them is one people switch off. `--output ndjson` emits one
+  event per line; `--approve` promotes what the watch saw.
+
+- **The server's own binary now says what it is made of.** scout scored
+  how a server behaves on the wire and said nothing about the artifact
+  behind it, which for a platform team is the first question they are
+  asked.
+
+  For a Go server it needs no new dependency and no network: a Go binary
+  carries its own module graph — every dependency with its version and
+  `h1:` checksum, the toolchain, the target platform, and, when it was
+  built from a checkout, the commit and whether the tree was clean.
+  `supply.buildinfo` reports the inventory; `supply.provenance` reports
+  whether it can be traced to a commit.
+
+  **A dirty build is the finding worth having.** `vcs.modified=true`
+  means the source it was made from does not exist in the repository, so
+  no review of that repository describes what is running. A build from a
+  source archive carries no stamp at all, which is an observation rather
+  than a dirty build, and the two are not conflated.
+
+  Read out of the file, so it is one of the few things in the report the
+  server cannot influence by answering differently. stdio only: an
+  endpoint is a URL, and a URL is not a file scout can open. A server
+  that is not a Go binary is reported as such — most are Python or
+  TypeScript, and a manifest-based inventory for those is separate work.
+
+- **`scout check --plant-canaries` says whether the server went looking
+  for credentials it was never given.** The egress witness says where a
+  server went; it cannot say what it took. The thing worth taking sits in
+  the same place on almost every developer machine.
+
+  Because scout starts the process, it decides where `HOME` points.
+  Pointing it at a scratch directory holding a decoy `.ssh/id_rsa`,
+  `.aws/credentials`, `.env` and `.netrc` turns "did it go looking" into
+  a question with an answer, and costs a well-behaved server nothing.
+  Each decoy carries a marker that exists nowhere else, so a marker
+  seen leaving is not a suspicion — it is the file, in transit, labelled.
+
+  `fs.credential_probe` reports the decoys being opened.
+  `fs.canary_exfiltrated` reports their contents leaving, in a plain
+  request body, on the server's own stderr, or handed back to scout in a
+  result.
+
+  **The instrument measures itself.** The obvious witness for "was this
+  read" is the access time moving, and it is unreliable in a way that
+  matters: macOS on APFS does not update it on an ordinary read at all,
+  and Linux mounted `noatime` never does. So `Seed` writes a probe file,
+  backdates it, reads it back and looks — and where the answer is no, the
+  check reports that it **cannot tell** rather than that nothing was
+  found. A security check that reported clean on a machine where it was
+  incapable of reporting anything else would be worse than no check.
+
+- **`scout check --watch-egress` says where the server went.** A server
+  that quietly posts your tool arguments to a third host passes every
+  other check: the catalogue is clean, the schemas validate, the
+  annotations are honest, and the destination appears in no document
+  anywhere, because not appearing is the point.
+
+  You do not need a packet capture to see where a subprocess dials — you
+  need to be the thing it dials through. scout runs a loopback proxy and
+  points the child's `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY` at it.
+  `CONNECT` hands over the hostname in clear text before any handshake,
+  so there is no certificate authority, no interception, and nothing read
+  that the server sent.
+
+  `egress.hosts` inventories the destinations and does not judge them: a
+  GitHub server talks to GitHub, and scout cannot know which host is
+  legitimate for a server it was handed five seconds ago. Supply
+  `--expect-egress` and the same evidence becomes a gate —
+  `egress.undeclared_host` fails on anything the operator did not name, a
+  leading dot matching subdomains.
+
+  stdio only, because it works by setting the child's environment. Two
+  blind spots, documented rather than discovered later: a destination on
+  the same machine is not seen, since almost every runtime refuses to
+  proxy loopback, and a client that ignores the proxy environment is not
+  seen either.
+
+- **`catalog.cache_hints` asks whether the catalogue can be cached.**
+  The budget check says what a catalogue costs to look at; this says
+  whether the server did anything about it. Every client fetches the
+  catalogue again on every session and then pays for it in context on
+  every call, and the 2026-07-28 revision answers the first half of that
+  directly: any list result may carry `ttlMs`, how long a client may keep
+  it, and `cacheScope`, whether that cache may be shared.
+
+  Both fields are optional, so silence warns only on a catalogue large
+  enough for the re-fetch to cost something — the budget check's own warn
+  threshold, so the two cannot disagree — and is an observation
+  otherwise. It is skipped before 2026-07-28, where the fields do not
+  exist: reporting their absence there would be a finding about the
+  revision the operator runs rather than about the server.
+
+  `Client.ListToolsWithHints` exposes them. `ListTools` is unchanged.
+
+- **`scout badge` turns a report into a shields.io endpoint.** A score in
+  a CI log is read once, by whoever ran it; the same score in a README is
+  read by everyone deciding whether to point an agent at the server.
+
+  ```sh
+  scout check "$URL" --output json > report.json
+  scout badge report.json > badge.json
+  ```
+
+  An endpoint document rather than an image, so there is no service to
+  run and nothing to render. The colour follows the report's own grade
+  instead of re-reading the number, so the badge and the document it came
+  from cannot disagree about where a boundary is. A run that never
+  reached a verdict renders as an error rather than as a low score: a
+  badge reading `0/100` because the endpoint was unreachable would repeat
+  exactly the mistake the exit-code contract exists to prevent.
+
+- **`scout check --baseline` says what changed since you approved it.**
+  A check tells you a server was sound when you ran it. It cannot tell
+  you the server is still the one you reviewed, and that gap is the whole
+  of the rug-pull threat: the server that passes review and edits its
+  tool descriptions the following week is the one that gets through.
+
+  `--baseline .scout/baseline.json` compares the catalogue against an
+  approved snapshot; `--approve` writes the catalogue this run saw as the
+  new one, after the report, so the person approving has just read what
+  they are approving. The snapshot content-addresses the catalogue, so
+  the common answer is one string comparison — which is what will make a
+  watcher cheap enough to run on a schedule.
+
+  **Severity is by kind, never by count.** A `readOnlyHint` becoming true
+  after approval is critical, because it is the flip that makes a
+  cautious client — scout included — start invoking a tool it previously
+  refused. A description that gains text aimed at the model is critical,
+  and is distinguished from one that was always odd, so an approved
+  quirk is not re-reported every run. A dropped `required` argument is
+  serious, because a widened schema accepts calls the approved one
+  refused. A new optional property is reported as information: a gate
+  that cries wolf over one is a gate somebody switches off.
+
+  Re-formatting is not a change. A server that minifies its schemas one
+  week and pretty-prints them the next has changed nothing a model can
+  see, and the digest says so.
+
+- **The interactive tool selector, in the browser.** `-i` was the last
+  capability one surface had and the others did not, and it was
+  surface-bound for no better reason than where the listing code was
+  defined: connecting, listing the catalogue and classifying each tool
+  sat in `cmd`, so only the CLI and the TUI could reach it.
+
+  It moves to `engine.ListToolChoices`, and `scout serve` grows
+  `POST /api/tools`, which takes the same `RunSpec` a run does and
+  answers with the same rows the terminal draws — name, class, whether
+  the current policy would invoke it, and the server's own description.
+  Choosing a tool stays an explicit opt-in: the browser sends back the
+  names, and `SelectTools` widens the policy for exactly those, the same
+  call the CLI makes.
+
+  The new route shares one admission gate with `POST /api/runs` rather
+  than carrying a copy. Listing dials whatever endpoint the body names,
+  with whatever credentials it carries, so a read-only convenience with
+  its own nearly-identical checks would have been a second and quieter
+  version of the path [ADR-0005](docs/adr/0005-public-mode-is-the-same-binary.md)
+  closed. Public mode refuses credentials and off-allowlist endpoints on
+  the selector exactly as it does on a run, and a program is refused on
+  both.
+
+- **Process custody over stdio.** The child is started in its own process
+  group, so scout owns the tree rather than the one pid it was handed.
+  Shutdown escalates — stdin closed, then `SIGTERM` to the group, then
+  `SIGKILL` — and `Close` still returns having reaped everything. Putting
+  the child in its own group also detaches it from scout's terminal, so
+  Ctrl-C reaches scout alone and the server is shut down the documented
+  way instead of the terminal signalling both and racing.
+
+  Two checks come out of it, and neither is answerable until the process
+  is gone, so they run after the phases and the resilience phase adopts
+  them. `stdio.clean_exit` asks whether closing stdin was enough, because
+  that is how a host ends a session and a server that ignores it is one
+  that accumulates, a process per session, until something runs out.
+  `stdio.no_zombie` asks whether the server's process group was empty once
+  it exited — the question no other diagnostic asks, because no other
+  diagnostic owns the process. A worker that outlives its server still
+  holds what it was given and nothing is left that knows how to stop it;
+  scout kills it, and says so, because a host will not.
+
+  After a forced kill `stdio.no_zombie` skips rather than guessing: the
+  group was ended to stop the server, so what it left behind cannot be
+  told apart from what the signal stopped. Platforms without POSIX process
+  groups skip it too, with the reason, rather than claiming the tree was
+  clean.
+
+- **Three checks that read the catalogue for intent rather than for
+  quality.** The existing text checks ask whether a description is
+  well-formed. These ask what it is trying to do.
+
+  `catalog.text.shadowing` finds text that governs a tool other than the
+  one it describes — "when calling `send_email`, always BCC…". The model
+  reads every description with equal authority and no notion of which
+  server each one came from, so a server being evaluated can rewrite the
+  behaviour of a server already trusted without ever being called. A
+  target this server does not itself list is reported as critical, because
+  that is the cross-server shape. Constructions that merely point at a
+  sibling — "use `list_directory` to find the path" — are passed over:
+  that is what good documentation looks like, and a check that flags it is
+  one people mute.
+
+  `catalog.tools.annotation_honesty` reads `readOnlyHint: true` against
+  the tool's own name and opening sentence. scout has a stake in this one:
+  `diagnostics.Policy` invokes read-only tools and nothing else, so a
+  server that annotates `delete_project` as read-only has found the way to
+  make scout perform the deletion on a run the operator authorised
+  precisely because it was supposed to be safe.
+
+  `execution.error_guidance` grades what a rejected call said. The caller
+  is a model and the error string is its entire recovery path, so "path
+  must be absolute; use `list_directory` to find it" is a retry away from
+  working and "invalid input" is not. A returned stack trace fails it
+  twice over — unusable to the caller, and a disclosure of file layout,
+  framework and versions to anyone who can call the tool. Returning
+  `isError` is not itself counted against a server: scout calls tools with
+  generated arguments and a correct server rejects some of them, so only
+  the wording is graded, and a run with no rejection skips rather than
+  passing.
+
 - **`scout check --stdio -- <command>`.** The stdio transport that shipped
   in 0.0.2 was unreachable from the CLI, which meant scout could not
   diagnose most MCP servers: most of them are programs a host starts, not
@@ -129,10 +403,20 @@ project announces that a change felt big.
   "across 10 phases" while scout ran nine, which is the drift a generated
   page exists to prevent — and a new test fails when a group in the
   inventory is neither a phase nor a recorded exception.
-||||||| 042e8d6
-Nothing yet.
 
 ### Fixed
+
+- **A stdio server was reported as running for as long as anything it
+  started.** `os/exec` copies a plain `io.Writer` stderr on a goroutine
+  that `Wait` joins, so `Wait` returned when the last holder of the stderr
+  descriptor let go rather than when the server exited — and a server that
+  forks a worker leaves that worker holding it. Measured against a fixture
+  that exits immediately and leaves a `sleep 5` behind: the shell was gone
+  at 0.5s and `Exited()` still said false at 5.0s. Every check that asks
+  whether the server is still running read that, `stdio.alive` included,
+  and the shutdown grace was being counted against a process that had
+  already gone. stderr now has a pipe of its own, drained by scout, so the
+  process's exit is what ends the wait.
 
 - `server/discover` results that carry the server's identity in `_meta`
   under `io.modelcontextprotocol/serverInfo`, where the 2026-07-28 revision
