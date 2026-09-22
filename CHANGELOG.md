@@ -17,6 +17,40 @@ project announces that a change felt big.
 
 ### Added
 
+- **`scout sbom` emits a CycloneDX bill of materials.** The supply phase
+  already reads a Go server's module graph out of the binary, and until
+  now that graph only ever became two findings. This is the same read,
+  written in the format a scanner, a registry or an artifact store
+  already ingests.
+
+  ```sh
+  scout sbom ./mcp-server > bom.json
+  ```
+
+  Every dependency travels with its package URL and its `h1:` module
+  checksum, which is what makes the document an inventory somebody can
+  verify rather than a list somebody can edit. A dependency that carries
+  no checksum is marked `scout:unverifiable` rather than left silently
+  short of a hash: an absent one is indistinguishable from an oversight.
+  The toolchain, the platform, the commit and whether the tree was dirty
+  travel as properties, because CycloneDX has no field for them and a
+  document that dropped them would say less than the binary does.
+
+  The same binary described twice gives the same bytes. The serial
+  number is derived from what is being described rather than generated
+  at random, and `SOURCE_DATE_EPOCH` fixes the timestamp, so a pipeline
+  diffing yesterday's document against today's sees dependency changes
+  rather than a clock.
+
+  It only works on a Go binary, and for anything else it says so and
+  exits non-zero — a pipeline that ingested an empty bill of materials
+  and went green is the failure this exists to avoid. No network, and
+  the program is opened and read, never executed. No new dependency
+  either: the document is a few hundred lines of struct tags against a
+  schema that has been stable for years, and taking a library for it
+  would mean adding a dependency to the binary a security team has to
+  approve in order to describe the dependencies in somebody else's.
+
 - **`execution.payload_size` measures what an answer costs the caller.**
   The catalogue budget measures what a server costs to look at; this
   measures what it costs to use. A tool result is not a file somebody

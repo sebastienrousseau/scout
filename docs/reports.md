@@ -1,7 +1,7 @@
 ---
 # SPDX-License-Identifier: GPL-3.0-only
 description: >-
-  scout's output formats — text, Markdown, JSON, NDJSON, HTML and the in-toto attestation — plus the report directory, the HAR export, and what telemetry holds.
+  scout's output formats — text, Markdown, JSON, NDJSON, HTML, the in-toto attestation and the CycloneDX bill of materials — plus the report directory, the HAR export, and what telemetry holds.
 ---
 
 # Reports and telemetry
@@ -119,6 +119,54 @@ Treat `1` and `2` differently. They are different incidents.
 
 Nothing in `scout verify` checks a signature. Verify the envelope with the
 tool that produced it, then verify what is inside it with this.
+
+## Bills of materials
+
+An attestation says how the server behaved. A bill of materials says what it
+is made of, and for the platform-team half of the audience that is the first
+question asked about anything new: what is in this, and can you prove where
+it came from.
+
+```sh
+scout sbom ./mcp-server > bom.json
+```
+
+A Go binary carries its own answer. Every dependency the toolchain linked in
+is in the file, with its version and its `h1:` module checksum, along with
+the toolchain, the target platform, the commit it was built from and whether
+the tree was dirty at the time. `scout sbom` reads that and writes
+[CycloneDX 1.6](https://cyclonedx.org/), which is what a scanner, a registry
+or an artifact store already ingests.
+
+The program is resolved through `PATH`, the way a shell would resolve it. It
+is opened and read, never executed, and nothing here touches the network.
+
+Three things about the document are deliberate:
+
+- **A dependency with no checksum is marked, not omitted.** It carries a
+  `scout:unverifiable` property. A module with no `h1:` sum did not come
+  through the module proxy and the checksum database never saw it, so
+  nothing about it can be verified after the fact — a local `replace` or a
+  vendored tree is the usual cause. An absent hash is indistinguishable from
+  an oversight; saying so is the point.
+- **The toolchain, platform and commit travel as properties.** CycloneDX has
+  no field for "the tree was dirty when this was built", and that is the one
+  provenance fact here that is both cheap to establish and impossible to
+  argue with. A document that dropped it would say less than the binary does.
+- **The same binary gives the same bytes.** The serial number is derived
+  from what is being described rather than generated at random, and
+  `SOURCE_DATE_EPOCH`, if set, fixes the timestamp. A pipeline diffing
+  yesterday's document against today's sees dependency changes, not a clock.
+
+This only works on a Go binary. Most MCP servers are Python or TypeScript,
+and for those the command says so and exits non-zero rather than writing a
+bill of materials with no materials in it — a pipeline that ingested an empty
+document and went green is the failure this avoids. A manifest-based
+inventory for the other ecosystems is not implemented.
+
+The same read drives the `supply.buildinfo` and `supply.provenance` checks
+during a [stdio run](stdio.md), so a run and a document taken from one binary
+agree by construction.
 
 ## SARIF and JUnit
 
