@@ -78,11 +78,13 @@ func mutationVerb(word string) (string, bool) {
 		if mutationVerbs[stem] {
 			return stem, true
 		}
-		// "creates" -> "creat" -> "create"; "deleting" -> "delet" -> "delete".
+		// Trimming the suffix can leave a stem with its final "e" gone --
+		// "creates" and "deleting" both do it -- so putting the "e" back
+		// is tried before giving up.
 		if mutationVerbs[stem+"e"] {
 			return stem + "e", true
 		}
-		// "committing" -> "committ" -> "commit"; doubled final consonant.
+		// Or with the final consonant doubled, as "committing" does.
 		if n := len(stem); n >= 2 && stem[n-1] == stem[n-2] && mutationVerbs[stem[:n-1]] {
 			return stem[:n-1], true
 		}
