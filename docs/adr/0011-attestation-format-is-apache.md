@@ -59,6 +59,16 @@ on its own, not coupled to this decision.
 Signing (W5) and the gateway pull requests (W8) are no longer blocked on a
 licence question, only on that extraction.
 
+## Update — 2026-09-22: the verifier is extracted
+
+The next step above is done. The statement types, `Parse`, `Validate`,
+`Covers`, `VerdictFor` and a `SubjectFor` helper now live in the public
+package `github.com/sebastienrousseau/scout/attestation`, licensed
+Apache-2.0 and importing only the standard library, with its own tests and
+fixture under the same licence. `internal/attest` keeps the builder that
+reads scout's report types and re-exports the rest, and the published
+schema is unchanged. Moving the package to `scout-reporting` is now a copy.
+
 ## What would make this wrong
 
 A format adopted under a different licence by the specification's own

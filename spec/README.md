@@ -13,6 +13,11 @@ records why.
 Both JSON files are generated from the Go that implements them, by
 `make spec`, and CI fails when they drift. Do not edit them by hand.
 
+That Go is the package `github.com/sebastienrousseau/scout/attestation`,
+under the same Apache-2.0 licence and importing only the standard library:
+`Parse`, `Validate`, `Covers` and `VerdictFor` are a complete offline
+verifier for anyone who would rather embed it than re-implement the schema.
+
 ## Contents
 
 | File | What it is |

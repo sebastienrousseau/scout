@@ -756,7 +756,9 @@ out, _ := client.CallTool(ctx, "search", map[string]any{"q": "invoices"})
 `transport` is the Streamable HTTP layer with raw access for conformance
 probes; `diagnostics` holds the safety policy, the schema-driven argument
 generator, the validator and a standalone read-only runner; `trace` carries
-the run's trace id.
+the run's trace id. `attestation` reads and verifies the statements
+`scout attest` writes; it is Apache-2.0 and imports only the standard
+library, so a gateway can embed it without taking on scout's GPL.
 
 ---
 

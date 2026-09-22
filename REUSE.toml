@@ -118,3 +118,12 @@ path = [
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Sebastien Rousseau <sebastian.rousseau@gmail.com>"
 SPDX-License-Identifier = "GPL-3.0-only"
+
+# The public attestation package is Apache-2.0 (ADR 0011), and so is its
+# test fixture; the repository-wide testdata rule above would otherwise
+# mark it GPL.
+[[annotations]]
+path = ["attestation/testdata/**"]
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Sebastien Rousseau <sebastian.rousseau@gmail.com>"
+SPDX-License-Identifier = "Apache-2.0"

@@ -85,6 +85,15 @@ project announces that a change felt big.
   would mean adding a dependency to the binary a security team has to
   approve in order to describe the dependencies in somebody else's.
 
+- **`attestation` is a public, Apache-2.0 package for verifying a
+  statement.** The statement types and the offline verifier — `Parse`,
+  `Validate`, `Covers`, `VerdictFor`, and `SubjectFor` for producers —
+  moved out of `internal/attest` into a package that imports only the
+  standard library, so a gateway can embed it without taking on scout's
+  GPL. `internal/attest` keeps the report-to-statement builder and
+  re-exports the rest, and the published schema is unchanged. Error
+  messages from the package now begin `attestation:`.
+
 - **The attestation format is published under Apache-2.0** (ADR 0011).
   `spec/` holds a JSON Schema for the in-toto statement and its
   `mcp-evaluation/v1` predicate, and the scoring rubric as data — weights,
