@@ -90,3 +90,4 @@ nav:
           - 0005 Public mode is the same binary: adr/0005-public-mode-is-the-same-binary.md
           - 0006 scout never phones home: adr/0006-no-client-telemetry.md
           - 0007 An instrument, not a gateway: adr/0007-not-a-gateway.md
+          - 0008 No adversarial mode: adr/0008-no-adversarial-mode.md

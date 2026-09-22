@@ -603,7 +603,8 @@ came from — flag, environment variable, profile — never its value.
   rate limiting for real.
 - **One adversarial request.** The invalid-token probe sends a single
   request with an obviously made-up bearer token. Nothing else adversarial
-  is sent, and nothing is fuzzed against a server you do not own.
+  is sent, and scout has no mode that would: there are no exploit probes
+  behind any flag ([ADR 0008](docs/adr/0008-no-adversarial-mode.md)).
 
 ### Safety in the other direction
 
@@ -1034,6 +1035,8 @@ scout is opinionated, and the opinions do not suit everyone.
   deterministic: generated or supplied arguments, one call per tool. The
   `diagnostics.Model` interface exists for a model-driven probe, but no
   vendor adapter ships in this module.
+  adversarial mode, by decision rather than by omission
+  ([ADR 0008](docs/adr/0008-no-adversarial-mode.md)). Use dedicated security
 - **You need Windows without WSL.** Binaries are published for Windows,
   but the experience is less tested than on macOS and Linux.
 

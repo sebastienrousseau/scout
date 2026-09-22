@@ -467,6 +467,7 @@ project announces that a change felt big.
   `--api-key=…` in an argument is ordinary, and a report is the one place it
   must not be.
 
+- **scout has no adversarial mode, and will not grow one** (ADR 0008).
 - **`scout serve` refuses a run that names a program** unless started with
   `--allow-stdio`, and always refuses one in `--public` mode. The engine can
   do it and the CLI does, but "diagnose the URL in this field" and "run this
