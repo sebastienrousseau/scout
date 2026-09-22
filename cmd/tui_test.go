@@ -14,7 +14,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/sebastienrousseau/scout/internal/creds"
 	"github.com/sebastienrousseau/scout/internal/engine"
-	"github.com/sebastienrousseau/scout/internal/telemetry"
 	"github.com/sebastienrousseau/scout/internal/tui"
 )
 
@@ -96,25 +95,35 @@ func TestInteractiveSelectorPath(t *testing.T) {
 	}
 }
 
-func TestListSelectorItems(t *testing.T) {
+func TestSelectorItems(t *testing.T) {
 	f := newFakeServer(t)
 	xdg := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", xdg)
-	rec := telemetry.New()
+
+	// The selector now asks the engine, so the case is expressed as the
+	// spec every surface builds rather than as this surface's arguments.
+	spec := func(endpoint string, cs engine.CredSpec) engine.RunSpec {
+		return engine.RunSpec{
+			Target: engine.TargetSpec{Endpoint: endpoint},
+			Creds:  cs,
+		}
+	}
+
 	// protected server, bearer token the server knows
-	cr := &creds.Credentials{Mode: creds.ModeBearer, Token: "tok-valid"}
 	f.mu.Lock()
 	f.tokens["tok-valid"] = true
 	f.mu.Unlock()
-	items, err := listSelectorItems(context.Background(), engine.TargetSpec{Endpoint: f.srv.URL + "/mcp"}, cr, rec, buildPolicy())
+	items, err := selectorItems(context.Background(), spec(f.srv.URL+"/mcp", engine.CredSpec{Mode: "bearer", Token: "tok-valid"}))
 	if err != nil || len(items) == 0 {
 		t.Fatalf("items %v err %v", items, err)
 	}
+
 	// authorization-code without a stored token
-	cr = &creds.Credentials{Mode: creds.ModeAuthorizationCode}
-	if _, err := listSelectorItems(context.Background(), engine.TargetSpec{Endpoint: f.srv.URL + "/mcp"}, cr, rec, buildPolicy()); err == nil || !strings.Contains(err.Error(), "scout login") {
+	authCode := engine.CredSpec{Mode: "authorization-code"}
+	if _, err := selectorItems(context.Background(), spec(f.srv.URL+"/mcp", authCode)); err == nil || !strings.Contains(err.Error(), "scout login") {
 		t.Errorf("want login hint, got %v", err)
 	}
+
 	// authorization-code with a stored token
 	st := &creds.Store{}
 	f.mu.Lock()
@@ -123,16 +132,17 @@ func TestListSelectorItems(t *testing.T) {
 	if err := st.Put(creds.StoredToken{Endpoint: f.srv.URL + "/mcp", AccessToken: "stored", TokenURL: f.srv.URL + "/as/token", ClientID: "c"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := listSelectorItems(context.Background(), engine.TargetSpec{Endpoint: f.srv.URL + "/mcp"}, cr, rec, buildPolicy()); err != nil {
+	if _, err := selectorItems(context.Background(), spec(f.srv.URL+"/mcp", authCode)); err != nil {
 		t.Errorf("stored token: %v", err)
 	}
+
 	// no credentials against a protected server
-	cr = &creds.Credentials{Mode: creds.ModeNone}
-	if _, err := listSelectorItems(context.Background(), engine.TargetSpec{Endpoint: f.srv.URL + "/mcp"}, cr, rec, buildPolicy()); err == nil {
+	if _, err := selectorItems(context.Background(), spec(f.srv.URL+"/mcp", engine.CredSpec{Mode: "none"})); err == nil {
 		t.Error("protected server without credentials must fail")
 	}
+
 	// bad endpoint
-	if _, err := listSelectorItems(context.Background(), engine.TargetSpec{Endpoint: "::"}, cr, rec, buildPolicy()); err == nil {
+	if _, err := selectorItems(context.Background(), spec("::", engine.CredSpec{Mode: "none"})); err == nil {
 		t.Error("bad endpoint must fail")
 	}
 	_ = os.Getenv

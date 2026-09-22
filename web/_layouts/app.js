@@ -11,6 +11,11 @@
 
   var form = document.getElementById('run-form');
   if (!form) return;
+  var loadTools = document.getElementById('load-tools');
+  var toolList = document.getElementById('tool-list');
+  var toolRows = document.getElementById('tool-rows');
+  var toolStatus = document.getElementById('tools-status');
+  var toolKinds = Object.create(null);
 
   var runBtn = document.getElementById('run-btn');
   var cancelBtn = document.getElementById('cancel-btn');
@@ -48,6 +53,30 @@
       },
       output: { format: 'json' }
     };
+  }
+
+  // Selecting tools is an explicit opt-in, so the spec says which ones and
+  // the engine widens the policy for exactly those. The browser does not
+  // decide what "widening" means -- SelectTools does, once, for all three
+  // surfaces.
+  function selectedTools() {
+    var boxes = toolRows.querySelectorAll('input[type=checkbox]:checked');
+    var names = [];
+    for (var i = 0; i < boxes.length; i++) names.push(boxes[i].value);
+    return names;
+  }
+
+  function specWithSelection() {
+    var spec = buildSpec();
+    var names = selectedTools();
+    if (!names.length) return spec;
+    spec.policy.only = names;
+    for (var i = 0; i < names.length; i++) {
+      var kind = toolKinds[names[i]];
+      if (kind === 'mutating') spec.policy.allow_mutations = true;
+      if (kind === 'destructive') spec.policy.allow_destructive = true;
+    }
+    return spec;
   }
 
   function setStatus(text, kind) {
@@ -222,6 +251,79 @@
     };
   }
 
+  // The selector asks the server for the same rows the terminal draws.
+  // It is a separate request because the tools have to be listed before
+  // the run that would have listed them.
+  function renderTools(tools) {
+    toolRows.textContent = '';
+    toolKinds = Object.create(null);
+    if (!tools || !tools.length) {
+      setToolStatus('This server lists no tools.', '');
+      toolList.hidden = true;
+      return;
+    }
+    for (var i = 0; i < tools.length; i++) {
+      var t = tools[i];
+      toolKinds[t.name] = t.kind;
+
+      var label = document.createElement('label');
+      label.className = 'check';
+
+      var box = document.createElement('input');
+      box.type = 'checkbox';
+      box.value = t.name;
+      label.appendChild(box);
+
+      // textContent throughout: every string here was chosen by the server
+      // under test, and this page is the one place it is rendered.
+      var span = document.createElement('span');
+      var strong = document.createElement('strong');
+      strong.textContent = t.name;
+      span.appendChild(strong);
+      span.appendChild(document.createTextNode(
+        ' \u2014 ' + t.kind + ', ' + t.policy +
+        (t.description ? '. ' + t.description : '')
+      ));
+      label.appendChild(span);
+
+      toolRows.appendChild(label);
+    }
+    toolList.hidden = false;
+    setToolStatus(tools.length + (tools.length === 1 ? ' tool' : ' tools') + ' listed.', '');
+  }
+
+  function setToolStatus(text, kind) {
+    if (!toolStatus) return;
+    toolStatus.textContent = text || '';
+    toolStatus.className = 'run-status' + (kind ? ' ' + kind : '');
+  }
+
+  if (loadTools) {
+    loadTools.addEventListener('click', function () {
+      if (!endpointLooksUsable()) { setToolStatus('Enter an endpoint first.', 'fail'); return; }
+      loadTools.disabled = true;
+      setToolStatus('Listing\u2026', '');
+      fetch('api/tools', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(buildSpec())
+      }).then(function (r) {
+        return r.json().then(function (body) { return { ok: r.ok, body: body }; });
+      }).then(function (res) {
+        loadTools.disabled = false;
+        if (!res.ok) {
+          toolList.hidden = true;
+          setToolStatus(res.body && res.body.error ? res.body.error : 'The tools could not be listed.', 'fail');
+          return;
+        }
+        renderTools(res.body.tools);
+      }).catch(function () {
+        loadTools.disabled = false;
+        setToolStatus('scout is not reachable. Is it still running?', 'fail');
+      });
+    });
+  }
+
   form.addEventListener('submit', function (ev) {
     ev.preventDefault();
     var endpoint = val('endpoint');
@@ -237,7 +339,7 @@
     fetch('api/runs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(buildSpec())
+      body: JSON.stringify(specWithSelection())
     }).then(function (r) {
       return r.json().then(function (body) { return { ok: r.ok, body: body }; });
     }).then(function (res) {

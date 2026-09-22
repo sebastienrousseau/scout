@@ -17,7 +17,28 @@ project announces that a change felt big.
 
 ### Added
 
-- **Process custody over stdio.** The child is started in its own process
+- **The interactive tool selector, in the browser.** `-i` was the last
+  capability one surface had and the others did not, and it was
+  surface-bound for no better reason than where the listing code was
+  defined: connecting, listing the catalogue and classifying each tool
+  sat in `cmd`, so only the CLI and the TUI could reach it.
+
+  It moves to `engine.ListToolChoices`, and `scout serve` grows
+  `POST /api/tools`, which takes the same `RunSpec` a run does and
+  answers with the same rows the terminal draws — name, class, whether
+  the current policy would invoke it, and the server's own description.
+  Choosing a tool stays an explicit opt-in: the browser sends back the
+  names, and `SelectTools` widens the policy for exactly those, the same
+  call the CLI makes.
+
+  The new route shares one admission gate with `POST /api/runs` rather
+  than carrying a copy. Listing dials whatever endpoint the body names,
+  with whatever credentials it carries, so a read-only convenience with
+  its own nearly-identical checks would have been a second and quieter
+  version of the path [ADR-0005](docs/adr/0005-public-mode-is-the-same-binary.md)
+  closed. Public mode refuses credentials and off-allowlist endpoints on
+  the selector exactly as it does on a run, and a program is refused on
+  both. The child is started in its own process
   group, so scout owns the tree rather than the one pid it was handed.
   Shutdown escalates — stdin closed, then `SIGTERM` to the group, then
   `SIGKILL` — and `Close` still returns having reaped everything. Putting

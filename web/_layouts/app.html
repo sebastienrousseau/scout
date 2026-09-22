@@ -84,6 +84,28 @@
         </div>
       </section>
 
+      <section class="panel" aria-labelledby="p-tools">
+        <header class="panel-head">
+          <h3 id="p-tools">Tools</h3>
+          <p>The same selector <code>scout check -i</code> draws in a terminal.
+             Choosing a tool is an explicit opt-in, so picking a mutating one
+             widens the policy for that tool and nothing else.</p>
+        </header>
+        <div class="panel-body">
+          <div class="actions">
+            <button class="button secondary" type="button" id="load-tools">List this server&rsquo;s tools</button>
+            <span id="tools-status" class="run-status" role="status" aria-live="polite"></span>
+          </div>
+          <fieldset class="field field-wide bare" id="tool-list" hidden>
+            <legend class="sr-only">Tools to exercise</legend>
+            <div id="tool-rows"></div>
+            <p class="field-help">With nothing selected, every tool the policy
+               already permits is exercised, which is what a run does by
+               default.</p>
+          </fieldset>
+        </div>
+      </section>
+
       <section class="panel" aria-labelledby="p-pacing">
         <header class="panel-head">
           <h3 id="p-pacing">Pacing</h3>

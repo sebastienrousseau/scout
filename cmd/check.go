@@ -6,10 +6,8 @@ package cmd
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
-	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -17,13 +15,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/term"
 	"github.com/mattn/go-isatty"
-	"github.com/sebastienrousseau/scout"
-	"github.com/sebastienrousseau/scout/diagnostics"
 	"github.com/sebastienrousseau/scout/internal/creds"
 	"github.com/sebastienrousseau/scout/internal/diag"
 	"github.com/sebastienrousseau/scout/internal/engine"
 	"github.com/sebastienrousseau/scout/internal/probe"
-	"github.com/sebastienrousseau/scout/internal/telemetry"
 	"github.com/sebastienrousseau/scout/internal/tui"
 	"github.com/sebastienrousseau/scout/trace"
 	"github.com/spf13/cobra"
@@ -116,9 +111,8 @@ func runCheck(cmd *cobra.Command, args []string, only []string) error {
 	// so the widening a deliberate choice implies happens in one place.
 	if spec.Output.Interactive && isTTY {
 		tui.Version = Version
-		rec := telemetry.New()
 		items, ok, err := runSelector(ctx, func() ([]tui.Item, error) {
-			return listSelectorItems(ctx, spec.Target, cr, rec, spec.ToolPolicy())
+			return selectorItems(ctx, spec)
 		})
 		if err != nil {
 			return err
@@ -375,82 +369,23 @@ func termWidth() int {
 	return 84
 }
 
-// listSelectorItems connects with the supplied credentials and lists the
-// tools with their policy class, for the interactive selector.
-func listSelectorItems(ctx context.Context, target engine.TargetSpec, cr *creds.Credentials, rec *telemetry.Recorder, policy diagnostics.Policy) ([]tui.Item, error) {
-	endpoint := target.Endpoint
-	cfg := scout.Config{Endpoint: endpoint, HTTPClient: &http.Client{Timeout: 60 * time.Second, Transport: rec.Wrap(nil)}, ClientInfo: scout.Implementation{Name: "scout", Version: Version}}
-	// The selector starts its own connection, because it has to list the
-	// tools before the run that would have listed them. Over stdio that
-	// means a second process — briefly, and closed before the run starts
-	// its own. Sharing one would mean the selector holding a server open
-	// while somebody reads a list, which is the longer-lived mistake.
-	if target.Stdio() {
-		cfg = scout.Config{
-			Stdio: &scout.StdioConfig{
-				Command: target.Command, Args: target.Args,
-				Dir: target.Dir, PassEnv: target.PassEnv, Env: target.Env,
-			},
-			ClientInfo: scout.Implementation{Name: "scout", Version: Version},
-		}
-	}
-	cr.Apply(&cfg)
-	client, err := scout.New(cfg)
+// selectorItems asks the engine what the selector should offer, and
+// renders it in the terminal's terms.
+//
+// Connecting, listing and classifying moved to engine.ListToolChoices so
+// the browser can offer the same list; what stays here is the conversion
+// into the TUI's own row type, which is the only part that is genuinely
+// this surface's business.
+func selectorItems(ctx context.Context, spec engine.RunSpec) ([]tui.Item, error) {
+	choices, err := engine.ListToolChoices(ctx, spec, Version)
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = client.Close() }()
-	if target.Stdio() {
-		if _, err := client.Connect(ctx); err != nil {
-			return nil, err
-		}
-		return selectorItems(ctx, client, policy)
-	}
-	if cr.Effective() == creds.ModeAuthorizationCode {
-		st, err := (&creds.Store{}).Get(endpoint)
-		if err != nil {
-			return nil, err
-		}
-		if st == nil {
-			return nil, fmt.Errorf("no stored token for %s; run `scout login %s`", endpoint, endpoint)
-		}
-		if _, err := client.Resume(ctx, st.Source(creds.HTTP{C: client.HTTPClient()})); err != nil {
-			return nil, err
-		}
-	} else {
-		res, err := client.Connect(ctx)
-		if err != nil {
-			return nil, err
-		}
-		if res.Status != scout.StatusConnected {
-			return nil, errors.New("server requires a user login; run `scout login` first")
-		}
-	}
-	return selectorItems(ctx, client, policy)
-}
-
-// selectorItems lists the catalog as the selector shows it. Shared by both
-// transports, so what the selector offers cannot depend on how the server
-// was reached.
-func selectorItems(ctx context.Context, client *scout.Client, policy diagnostics.Policy) ([]tui.Item, error) {
-	tools, err := client.ListTools(ctx)
-	if err != nil {
-		return nil, err
-	}
-	items := make([]tui.Item, 0, len(tools))
-	for _, t := range tools {
-		kind := "mutating"
-		switch {
-		case t.IsReadOnly():
-			kind = "read-only"
-		case t.IsDestructive():
-			kind = "destructive"
-		}
-		pol := "opt-in"
-		if policy.Decide(t).Execute {
-			pol = "allowed"
-		}
-		items = append(items, tui.Item{Name: t.Name, Kind: kind, Policy: pol, Description: t.Description})
+	items := make([]tui.Item, 0, len(choices))
+	for _, c := range choices {
+		items = append(items, tui.Item{
+			Name: c.Name, Kind: c.Kind, Policy: c.Policy, Description: c.Description,
+		})
 	}
 	return items, nil
 }
