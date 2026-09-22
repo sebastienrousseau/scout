@@ -15,7 +15,79 @@ project announces that a change felt big.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A stdio server was reported as running for as long as anything it
+  started.** `os/exec` copies a plain `io.Writer` stderr on a goroutine
+  that `Wait` joins, so `Wait` returned when the last holder of the stderr
+  descriptor let go rather than when the server exited — and a server that
+  forks a worker leaves that worker holding it. Measured against a fixture
+  that exits immediately and leaves a `sleep 5` behind: the shell was gone
+  at 0.5s and `Exited()` still said false at 5.0s. Every check that asks
+  whether the server is still running read that, `stdio.alive` included,
+  and the shutdown grace was being counted against a process that had
+  already gone. stderr now has a pipe of its own, drained by scout, so the
+  process's exit is what ends the wait.
+
 ### Added
+
+- **Process custody over stdio.** The child is started in its own process
+  group, so scout owns the tree rather than the one pid it was handed.
+  Shutdown escalates — stdin closed, then `SIGTERM` to the group, then
+  `SIGKILL` — and `Close` still returns having reaped everything. Putting
+  the child in its own group also detaches it from scout's terminal, so
+  Ctrl-C reaches scout alone and the server is shut down the documented
+  way instead of the terminal signalling both and racing.
+
+  Two checks come out of it, and neither is answerable until the process
+  is gone, so they run after the phases and the resilience phase adopts
+  them. `stdio.clean_exit` asks whether closing stdin was enough, because
+  that is how a host ends a session and a server that ignores it is one
+  that accumulates, a process per session, until something runs out.
+  `stdio.no_zombie` asks whether the server's process group was empty once
+  it exited — the question no other diagnostic asks, because no other
+  diagnostic owns the process. A worker that outlives its server still
+  holds what it was given and nothing is left that knows how to stop it;
+  scout kills it, and says so, because a host will not.
+
+  After a forced kill `stdio.no_zombie` skips rather than guessing: the
+  group was ended to stop the server, so what it left behind cannot be
+  told apart from what the signal stopped. Platforms without POSIX process
+  groups skip it too, with the reason, rather than claiming the tree was
+  clean.
+
+- **Three checks that read the catalogue for intent rather than for
+  quality.** The existing text checks ask whether a description is
+  well-formed. These ask what it is trying to do.
+
+  `catalog.text.shadowing` finds text that governs a tool other than the
+  one it describes — "when calling `send_email`, always BCC…". The model
+  reads every description with equal authority and no notion of which
+  server each one came from, so a server being evaluated can rewrite the
+  behaviour of a server already trusted without ever being called. A
+  target this server does not itself list is reported as critical, because
+  that is the cross-server shape. Constructions that merely point at a
+  sibling — "use `list_directory` to find the path" — are passed over:
+  that is what good documentation looks like, and a check that flags it is
+  one people mute.
+
+  `catalog.tools.annotation_honesty` reads `readOnlyHint: true` against
+  the tool's own name and opening sentence. scout has a stake in this one:
+  `diagnostics.Policy` invokes read-only tools and nothing else, so a
+  server that annotates `delete_project` as read-only has found the way to
+  make scout perform the deletion on a run the operator authorised
+  precisely because it was supposed to be safe.
+
+  `execution.error_guidance` grades what a rejected call said. The caller
+  is a model and the error string is its entire recovery path, so "path
+  must be absolute; use `list_directory` to find it" is a retry away from
+  working and "invalid input" is not. A returned stack trace fails it
+  twice over — unusable to the caller, and a disclosure of file layout,
+  framework and versions to anyone who can call the tool. Returning
+  `isError` is not itself counted against a server: scout calls tools with
+  generated arguments and a correct server rejects some of them, so only
+  the wording is graded, and a run with no rejection skips rather than
+  passing.
 
 - **`scout check --stdio -- <command>`.** The stdio transport that shipped
   in 0.0.2 was unreachable from the CLI, which meant scout could not

@@ -16,6 +16,7 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/sebastienrousseau/scout"
@@ -391,14 +392,26 @@ func runStdio(ctx context.Context, opts Options) (s *Session, err error) {
 		return nil, errors.New("internal: a stdio client without a pipe")
 	}
 	s.Pipe = pipe
-	defer func() { _ = client.Close() }()
+	var once sync.Once
+	shutdown := func() { once.Do(func() { _ = client.Close() }) }
+	defer shutdown()
 
 	// Which generation the server speaks is settled before the handshake,
 	// as it is over HTTP — but on the pipe rather than on a credential-free
 	// transport, because there is no such thing here.
 	s.settleEraStdio(ctx)
 
-	return s.runPhases(ctx)
+	res, rerr := s.runPhases(ctx)
+	if rerr != nil {
+		return res, rerr
+	}
+	// Two checks can only be made once the process is gone: whether it
+	// stopped when its input closed, and whether anything it started
+	// outlived it. So the shutdown happens here rather than on the defer,
+	// and the resilience phase adopts what it found.
+	shutdown()
+	s.adoptCustody()
+	return res, nil
 }
 
 // runPhases executes the selected phases against a prepared session. It is

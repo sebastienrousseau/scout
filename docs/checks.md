@@ -8,13 +8,13 @@ description: >-
 
 # The check inventory
 
-scout runs **93 checks** across **9 phases**.
+scout runs **98 checks** across **9 phases**.
 
-5 of them apply only to a server that is a program rather than a URL, and
+7 of them apply only to a server that is a program rather than a URL, and
 replace the ones that have no meaning over a pipe. A run reports every check it
 did not make, by id and with the reason, rather than leaving it out.
 
-92 of those are fixed, and 1 is a family whose id is built at run time —
+97 of those are fixed, and 1 is a family whose id is built at run time —
 one check per value the run encounters, marked `*` below.
 
 This file is generated from the source: every check is created through
@@ -101,7 +101,7 @@ that is what a reader sees in a report.
 | <span id="check-protocol-unknown_tool" data-can-fail="true"></span>`protocol.unknown_tool` | Unknown tool is reported |
 | <span id="check-protocol-version_header" data-can-fail="false"></span>`protocol.version_header` | Bad MCP-Protocol-Version is rejected |
 
-## catalog — 22 checks
+## catalog — 24 checks
 
 | Check | What it looks for |
 |---|---|
@@ -120,6 +120,8 @@ that is what a reader sees in a report.
 | <span id="check-catalog-text-hidden" data-can-fail="true"></span>`catalog.text.hidden` | Catalog text has nothing hidden in it |
 | <span id="check-catalog-text-instructions" data-can-fail="true"></span>`catalog.text.instructions` | Catalog text describes rather than instructs |
 | <span id="check-catalog-text-secret_paths" data-can-fail="true"></span>`catalog.text.secret_paths` | Catalog text names no credential locations |
+| <span id="check-catalog-text-shadowing" data-can-fail="true"></span>`catalog.text.shadowing` | Catalog text governs only its own tool |
+| <span id="check-catalog-tools-annotation_honesty" data-can-fail="true"></span>`catalog.tools.annotation_honesty` | readOnlyHint agrees with what the tool says it does |
 | <span id="check-catalog-tools-annotations" data-can-fail="true"></span>`catalog.tools.annotations` | Tools declare behaviour annotations |
 | <span id="check-catalog-tools-descriptions" data-can-fail="true"></span>`catalog.tools.descriptions` | Every tool has a useful description |
 | <span id="check-catalog-tools-input_schema" data-can-fail="true"></span>`catalog.tools.input_schema` | inputSchema is a JSON Schema object |
@@ -128,11 +130,12 @@ that is what a reader sees in a report.
 | <span id="check-catalog-tools-title" data-can-fail="false"></span>`catalog.tools.title` | Tools have a human title |
 | <span id="check-catalog-tools-unique" data-can-fail="true"></span>`catalog.tools.unique` | Tool names are unique |
 
-## execution — 6 checks
+## execution — 7 checks
 
 | Check | What it looks for |
 |---|---|
 | <span id="check-execution-content" data-can-fail="true"></span>`execution.content` | Results validate against outputSchema |
+| <span id="check-execution-error_guidance" data-can-fail="true"></span>`execution.error_guidance` | Rejected calls say how to succeed |
 | <span id="check-execution-policy" data-can-fail="false"></span>`execution.policy` | Safety policy |
 | <span id="check-execution-prompts" data-can-fail="true"></span>`execution.prompts` | Prompt rendering |
 | <span id="check-execution-resources" data-can-fail="true"></span>`execution.resources` | Resource reads |
@@ -158,14 +161,16 @@ that is what a reader sees in a report.
 | <span id="check-resilience-stateless" data-can-fail="true"></span>`resilience.stateless` | Requests do not depend on the connection |
 | <span id="check-resilience-token_refresh" data-can-fail="true"></span>`resilience.token_refresh` | Token source can renew |
 
-## stdio — 5 checks
+## stdio — 7 checks
 
 These run only when the server is a program rather than a URL. They belong to the connectivity and resilience phases, not to a phase of their own: a pipe has no name to resolve and no session to lose, so they take the place of the checks that do.
 
 | Check | What it looks for |
 |---|---|
 | <span id="check-stdio-alive" data-can-fail="true"></span>`stdio.alive` | Server survived the run |
+| <span id="check-stdio-clean_exit" data-can-fail="true"></span>`stdio.clean_exit` | Server stopped when its input closed |
 | <span id="check-stdio-environment" data-can-fail="false"></span>`stdio.environment` | Environment handed to the server |
+| <span id="check-stdio-no_zombie" data-can-fail="true"></span>`stdio.no_zombie` | The server left nothing running |
 | <span id="check-stdio-process" data-can-fail="true"></span>`stdio.process` | Server process is running |
 | <span id="check-stdio-stderr" data-can-fail="false"></span>`stdio.stderr` | What the server logged |
 | <span id="check-stdio-stdout_clean" data-can-fail="true"></span>`stdio.stdout_clean` | Nothing but MCP messages on stdout |

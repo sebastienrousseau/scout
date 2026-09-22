@@ -319,3 +319,89 @@ func (s *Session) stdioDeadline(ctx context.Context) (context.Context, context.C
 	}
 	return context.WithTimeout(ctx, d)
 }
+
+// --- custody, after the process is gone --------------------------------
+
+// custodyFindings reports what shutting the server down took, and what
+// survived it.
+//
+// These two run after the phases rather than inside one, because neither
+// is observable while the server is up: "it stopped when its input closed"
+// needs the input to have been closed, and "nothing outlived it" needs it
+// to have been reaped first. The resilience phase adopts them, since that
+// is where the rest of the end-of-run process questions live.
+func (s *Session) custodyFindings() []Finding {
+	if s.Pipe == nil {
+		return nil
+	}
+	c := s.Pipe.Custody()
+	var out []Finding
+
+	// Closing stdin is how the specification says to stop a stdio server,
+	// and a host does exactly this between conversations. One that has to
+	// be signalled instead is one that accumulates on a developer's
+	// machine, a process per session, until something runs out.
+	clean := s.check("stdio.clean_exit", "Server stopped when its input closed")
+	switch {
+	case c.AlreadyExited:
+		out = append(out, clean.skip("the server was already gone before shutdown began; stdio.alive carries that"))
+	case c.Forced:
+		out = append(out, clean.fail(Major,
+			fmt.Sprintf("the server was still running after its stdin closed and had to be sent %s", c.Signalled),
+			"exit when stdin reaches EOF. A host closes the pipe to end a session and does not wait long; "+
+				"a server that ignores it is killed, loses whatever it had not flushed, and leaves the host "+
+				"to do the same thing again next time"))
+	default:
+		out = append(out, clean.pass("exited on its own when stdin closed"))
+	}
+
+	// The question no other diagnostic asks, because no other diagnostic
+	// owns the process: when the server went, did everything it started
+	// go with it.
+	zombie := s.check("stdio.no_zombie", "The server left nothing running")
+	switch {
+	case !c.Supported:
+		out = append(out, zombie.skip("this platform has no process group to inspect, so scout cannot tell and will not guess"))
+	case c.Err != nil:
+		out = append(out, zombie.info("the server's process group could not be inspected: "+c.Err.Error()))
+	case c.Forced:
+		out = append(out, zombie.skip("the server had to be signalled, so its whole group was ended with it and "+
+			"what it left behind cannot be told apart from what the signal stopped"))
+	case c.Orphans:
+		out = append(out, zombie.fail(Major,
+			"the server exited but processes it started were still running in its process group",
+			"reap what you spawn. A worker that outlives its server holds whatever it was given — a port, a lock, "+
+				"the credentials from its environment — with nothing left to shut it down; scout killed this one, "+
+				"and a host will not"))
+	default:
+		out = append(out, zombie.pass("its process group was empty once it exited"))
+	}
+	return out
+}
+
+// adoptCustody attaches the custody findings to the resilience phase.
+//
+// A phase that was never selected has no result to attach to, and one that
+// was skipped has already said why; in both cases the checks simply did
+// not run, which is the same answer the rest of the report gives.
+func (s *Session) adoptCustody() {
+	findings := s.custodyFindings()
+	if len(findings) == 0 {
+		return
+	}
+	for i := range s.Results {
+		if s.Results[i].Name != "resilience" || s.Results[i].Status == Skip {
+			continue
+		}
+		for j := range findings {
+			findings[j].Phase = "resilience"
+			if s.Opts.Progress != nil {
+				s.Opts.Progress("resilience", &findings[j])
+			}
+		}
+		s.Results[i].Findings = append(s.Results[i].Findings, findings...)
+		s.Results[i].Status = worst(s.Results[i].Findings)
+		s.Results[i].Summary = summarize("resilience", s, s.Results[i])
+		return
+	}
+}

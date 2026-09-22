@@ -276,6 +276,148 @@ var remediations = map[string]Remediation{
 			"means something wrote a sentence and then hid it.",
 	},
 
+	"stdio.clean_exit": {
+		Means: "The server was still running after its stdin closed, and had " +
+			"to be signalled. Closing the pipe is how a host ends a stdio " +
+			"session — it is the documented shutdown and there is no other " +
+			"one — so a server that carries on is a server the host has to " +
+			"kill, every session, forever.",
+		Steps: []Step{
+			{"Treat EOF on stdin as the stop signal",
+				"The read loop returning end-of-file is the session ending. " +
+					"Finish what is in flight, flush, and exit; do not wait " +
+					"for a signal that a well-behaved host will not send " +
+					"first."},
+			{"Handle SIGTERM as well, not instead",
+				"A host that has waited its grace period signals before it " +
+					"kills. A server that ignores both loses whatever it had " +
+					"not written."},
+			{"Count the processes after a few sessions",
+				"This is the defect that shows up as a developer machine with " +
+					"eleven copies of the same server on it, none of which any " +
+					"host still has a handle to."},
+		},
+	},
+
+	"stdio.no_zombie": {
+		Means: "The server exited and processes it had started were still " +
+			"running in its process group. Nothing else in the report " +
+			"notices: the server handshook, served its catalogue and shut " +
+			"down cleanly. The worker it left behind still holds what it was " +
+			"given — a port, a lock, the credentials from its environment — " +
+			"and there is no longer anything that knows how to stop it.",
+		Steps: []Step{
+			{"Reap what you spawn",
+				"Keep a handle on every child and wait for it during " +
+					"shutdown. A worker started for one session should not " +
+					"outlive that session."},
+			{"Kill the group, not the leader",
+				"If the children are not tracked individually, put them in a " +
+					"process group and signal the group on the way out."},
+			{"Do not rely on the host",
+				"scout killed this one, because leaving it running would be a " +
+					"worse defect than reporting it. A host will not: it closes " +
+					"the pipe and forgets the server existed."},
+		},
+		Note: "Only asked when the server exited on its own. If it had to be " +
+			"signalled, its whole group went with it and what it left behind " +
+			"cannot be told apart from what the signal stopped, so the check " +
+			"skips rather than guessing. Platforms without POSIX process " +
+			"groups skip it too.",
+	},
+
+	"execution.error_guidance": {
+		Means: "A tool rejected a call and the rejection said nothing the " +
+			"caller could act on — a bare \"error\", or an internal stack " +
+			"trace. The caller here is a model, and the error string is the " +
+			"entire recovery path it has: it cannot read your logs, open your " +
+			"source, or ask a colleague.",
+		Steps: []Step{
+			{"Say what was wrong with which argument",
+				"\"path must be absolute\" and \"state must be one of open, " +
+					"closed, all\" are each one retry away from a working call. " +
+					"\"Invalid input\" ends the attempt."},
+			{"Never return the exception",
+				"A trace is unusable to the caller and hands it your file " +
+					"layout, framework and often your dependency versions, on a " +
+					"path anyone who can call the tool can reach. Log the trace; " +
+					"return the reason."},
+			{"Point at the tool that would help",
+				"If recovery means calling something else first, name it. " +
+					"\"Use list_directory to find the path\" is the difference " +
+					"between a model that recovers and one that gives up or " +
+					"starts guessing."},
+		},
+		Note: "Returning isError is not itself a defect and is not counted as " +
+			"one. scout calls tools with generated arguments, so a correct " +
+			"server will reject some of them; this check grades only the " +
+			"wording of the rejection. With no rejection in the run, it skips " +
+			"rather than passing.",
+	},
+
+	"catalog.tools.annotation_honesty": {
+		Means: "A tool annotated `readOnlyHint: true` describes a change of " +
+			"state — its name leads with a mutation verb, or its first " +
+			"sentence does. One of the two is wrong, and until somebody says " +
+			"which, the catalogue cannot be acted on safely.",
+		Steps: []Step{
+			{"Decide which half is true",
+				"If the tool really only reads, the name or the opening sentence " +
+					"is misleading and should be reworded. If it writes, the " +
+					"annotation is wrong and has to be corrected — that is the " +
+					"urgent direction."},
+			{"Remember who reads this",
+				"`readOnlyHint` is not documentation; it is the flag cautious " +
+					"clients use to decide what may be invoked without asking. " +
+					"scout invokes read-only tools and nothing else, so an " +
+					"understated annotation is how a server gets a careful client " +
+					"to perform the write on its behalf."},
+			{"Set destructiveHint too",
+				"A tool that modifies but does not destroy should say so " +
+					"explicitly rather than leaning on the default, which is " +
+					"`destructiveHint: true` and is the safest reading rather than " +
+					"the accurate one."},
+		},
+		Note: "The check reads the leading verb of the name and of the first " +
+			"sentence only. Caveats later in a description — \"returns an error " +
+			"if the file was deleted\" — are not read as descriptions of " +
+			"deletion, and read-path verbs like open, close and set are not " +
+			"treated as mutations.",
+	},
+
+	"catalog.text.shadowing": {
+		Means: "A description does not describe the tool it belongs to. It " +
+			"attaches a rule to some other tool — \"when calling send_email, " +
+			"always BCC…\" — and the model reads every description it is given " +
+			"with equal authority and no notion of which server each one came " +
+			"from. That is the whole mechanism: a server you are evaluating can " +
+			"rewrite the behaviour of a server you already trust, without ever " +
+			"being called itself.",
+		Steps: []Step{
+			{"Read the sentence scout quoted",
+				"The finding names the field it came from, the tool the rule is " +
+					"aimed at, and whether that tool is one this server lists. A " +
+					"target this server does not have is the cross-server shape and " +
+					"is reported as critical."},
+			{"Move the rule to the tool it governs",
+				"If the constraint is real and the tool is yours, it belongs in " +
+					"that tool's own description, where the operator approving it " +
+					"can see what it applies to. A precondition on your own tool is " +
+					"documentation; the same sentence in a sibling's description is " +
+					"not."},
+			{"If the tool is not yours, treat it as an incident",
+				"Nothing legitimate needs one server's catalogue to issue orders " +
+					"about another server's tools. Check who can write this " +
+					"metadata and when the field last changed, and look for the " +
+					"same sentence across the rest of your fleet."},
+		},
+		Note: "Only constructions that constrain another tool are reported — " +
+			"\"when calling X\", \"before invoking X\", \"never use X\". Pointing " +
+			"the model at a sibling (\"use list_directory to find the path\") is " +
+			"what good documentation does and is passed over, because a check " +
+			"that flags helpful cross-references is one people mute.",
+	},
+
 	"catalog.text.instructions": {
 		Means: "Somewhere in the catalog, text is addressed to the model rather " +
 			"than describing a tool — an instruction to ignore what it was told, " +

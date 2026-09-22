@@ -222,6 +222,9 @@ func phaseExecution(ctx context.Context, s *Session) []Finding {
 		} else {
 			out = append(out, c.pass("all tested tools rejected the call"))
 		}
+		// A rejection is correct behaviour; what it said is a separate
+		// property, and the rejections are already in hand.
+		out = append(out, checkErrorGuidance(s))
 	}
 
 	// ---- resources ----

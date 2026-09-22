@@ -24,27 +24,28 @@ func catalogText(tools []scout.Tool, res []scout.Resource, prompts []scout.Promp
 	var fields []textField
 	for _, t := range tools {
 		fields = append(fields,
-			textField{where: fmt.Sprintf("tool %q description", t.Name), text: t.Description},
-			textField{where: fmt.Sprintf("tool %q title", t.Name), text: t.Title},
+			textField{where: fmt.Sprintf("tool %q description", t.Name), text: t.Description, owner: t.Name},
+			textField{where: fmt.Sprintf("tool %q title", t.Name), text: t.Title, owner: t.Name},
 		)
-		fields = append(fields, schemaText(fmt.Sprintf("tool %q inputSchema", t.Name), t.InputSchema)...)
-		fields = append(fields, schemaText(fmt.Sprintf("tool %q outputSchema", t.Name), t.OutputSchema)...)
+		fields = append(fields, owned(schemaText(fmt.Sprintf("tool %q inputSchema", t.Name), t.InputSchema), t.Name)...)
+		fields = append(fields, owned(schemaText(fmt.Sprintf("tool %q outputSchema", t.Name), t.OutputSchema), t.Name)...)
 	}
 	for _, r := range res {
 		fields = append(fields,
-			textField{where: fmt.Sprintf("resource %q description", r.Name), text: r.Description},
-			textField{where: fmt.Sprintf("resource %q title", r.Name), text: r.Title},
+			textField{where: fmt.Sprintf("resource %q description", r.Name), text: r.Description, owner: r.Name},
+			textField{where: fmt.Sprintf("resource %q title", r.Name), text: r.Title, owner: r.Name},
 		)
 	}
 	for _, p := range prompts {
 		fields = append(fields,
-			textField{where: fmt.Sprintf("prompt %q description", p.Name), text: p.Description},
-			textField{where: fmt.Sprintf("prompt %q title", p.Name), text: p.Title},
+			textField{where: fmt.Sprintf("prompt %q description", p.Name), text: p.Description, owner: p.Name},
+			textField{where: fmt.Sprintf("prompt %q title", p.Name), text: p.Title, owner: p.Name},
 		)
 		for _, a := range p.Arguments {
 			fields = append(fields, textField{
 				where: fmt.Sprintf("prompt %q argument %q description", p.Name, a.Name),
 				text:  a.Description,
+				owner: p.Name,
 			})
 		}
 	}
@@ -54,6 +55,20 @@ func catalogText(tools []scout.Tool, res []scout.Resource, prompts []scout.Promp
 type textField struct {
 	where string
 	text  string
+	// owner is the catalog entry the field belongs to. Most checks here do
+	// not care, because a poisoned string is poisoned wherever it sits.
+	// Shadowing is the exception: it turns entirely on whether the text
+	// governs its own tool or somebody else's.
+	owner string
+}
+
+// owned stamps the owning catalog entry onto fields lifted out of a schema.
+// schemaText walks a document and has no idea whose document it is.
+func owned(fields []textField, owner string) []textField {
+	for i := range fields {
+		fields[i].owner = owner
+	}
+	return fields
 }
 
 // schemaDepthLimit bounds the walk. A schema deep enough to exceed it is
@@ -108,7 +123,8 @@ func schemaText(where string, raw json.RawMessage) []textField {
 // say to the person reading it.
 func scanCatalog(s *Session, res []scout.Resource, prompts []scout.Prompt) []Finding {
 	var sigs []diagnostics.Signal
-	for _, f := range catalogText(s.Tools, res, prompts) {
+	fields := catalogText(s.Tools, res, prompts)
+	for _, f := range fields {
 		sigs = append(sigs, diagnostics.ScanText(f.where, f.text)...)
 	}
 	for _, t := range s.Tools {
@@ -161,6 +177,7 @@ func scanCatalog(s *Session, res []scout.Resource, prompts []scout.Prompt) []Fin
 			byKind[diagnostics.SignalConfusable],
 			"every name is single-script",
 			"use one script per name; a mixed-script name exists to render like a name the user already trusts"),
+		checkShadowing(s, fields),
 	}
 	return out
 }
