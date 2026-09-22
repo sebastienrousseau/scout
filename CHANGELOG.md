@@ -17,6 +17,25 @@ project announces that a change felt big.
 
 ### Added
 
+- **Performance is a gate now, not an adjective.** "Fast" is
+  unfalsifiable; budgets with a red build are the only version of a
+  performance claim that survives a year of commits.
+
+  CI enforces two: the binary stays under 18 MiB (roughly 13 today,
+  because a static binary a security team can approve in an afternoon is
+  the product and the way that stops being true is one dependency at a
+  time), and each renderer stays under an allocation ceiling, with a
+  check that rendering scales linearly with the number of findings. An
+  accidental quadratic passes every correctness test in the suite and is
+  unusable on the catalogue sizes that make a diagnostic worth running.
+
+  **Wall-clock budgets are published rather than gated**, which is a
+  deliberate departure from the roadmap. A time limit on a shared runner
+  is a flaky gate, and a flaky gate teaches people to re-run the build
+  until it goes green — the same outcome as no gate, reached more slowly
+  and with less trust. `docs/reports.md` now carries the measured render
+  costs and the machine they came from.
+
 - **`scout watch` is the part that does the remembering.** `--baseline`
   closes the drift gap for anyone who runs it again. This runs it again.
 

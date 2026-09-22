@@ -12,7 +12,7 @@ LDFLAGS = -s -w -X $(VERSION_PKG)/cmd.Version=$(VERSION)
 export CGO_ENABLED = 0
 COVER_MIN ?= 85
 
-.PHONY: web-shell all build docs test test-race vet lint format spdx-check example-check \
+.PHONY: web-shell all build docs test test-race vet lint format spdx-check example-check perf \
         fuzz sbom coverage bench api-check checks checks-verify docs-lock \
         ecosystem ecosystem-verify commitlint ssg-check site clean help
 
@@ -39,6 +39,29 @@ coverage:
 # asserts on their numbers.
 bench:
 	go test -run '^$$' -bench . -benchtime 1x ./...
+
+# The one budget that is a size rather than a duration.
+#
+# A single static binary a security team can approve in an afternoon is
+# the product, not an aesthetic, and the way that stops being true is one
+# dependency at a time. 18 MiB against roughly 13 today: headroom for
+# growth somebody chose, and a red build for growth nobody noticed.
+#
+# The allocation budgets live in internal/report/perf_test.go, where they
+# run with the rest of the suite. Wall-clock budgets are measured and
+# published rather than gated -- a time limit on a shared runner is a
+# flaky gate, and a flaky gate teaches people to re-run the build.
+BINARY_BUDGET_MIB ?= 18
+perf: build
+	@size=$$(wc -c < $(DIST)/$(BINARY_NAME)); \
+	mib=$$(( size / 1048576 )); \
+	if [ "$$mib" -gt "$(BINARY_BUDGET_MIB)" ]; then \
+	  echo "perf: $(BINARY_NAME) is $${mib} MiB, over the $(BINARY_BUDGET_MIB) MiB budget" >&2; \
+	  echo "perf: a static binary people can approve quickly is the product; if this growth" >&2; \
+	  echo "perf: was deliberate, move BINARY_BUDGET_MIB in the same commit" >&2; \
+	  exit 1; \
+	fi; \
+	echo "perf: $(BINARY_NAME) is $${mib} MiB, within the $(BINARY_BUDGET_MIB) MiB budget"
 
 # API-breakage check against the last release tag. gorelease reports
 # removed or changed exported identifiers; a pre-1.0 module may accept them,

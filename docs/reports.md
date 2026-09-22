@@ -408,3 +408,44 @@ pull, and a gate that conflated them would be one people switch off.
 Severity is by kind rather than by count — the same ladder `--baseline`
 uses. A `readOnlyHint` becoming true after approval is critical; a new
 optional property is noise.
+
+## What rendering costs
+
+A run's wall clock belongs to the server. Roughly fifty requests,
+deliberately throttled, means the time you wait is almost entirely
+somebody else's latency. The render is scout's own work, and it is the
+part worth measuring.
+
+Rendering a 200-tool report, two findings per tool, on an Apple A18 Pro
+(darwin/arm64, go1.27.1), `go test -bench`:
+
+| Format | Time | Allocations |
+|---|---|---|
+| JSON | 0.32 ms | 15 |
+| Markdown | 0.33 ms | 2,873 |
+| Text | 0.63 ms | 7,039 |
+| HTML | 1.35 ms | 10,014 |
+
+HTML is the most expensive and reasonably so: it is the only renderer
+that escapes every string on the way out, and every string in a report
+came from a server nobody vetted.
+
+Reproduce with `go test ./internal/report/ -run '^$' -bench Render
+-benchmem`. A number without the machine it was measured on is marketing.
+
+### What is gated, and what is not
+
+CI enforces two budgets:
+
+- **Binary size**, 18 MiB against roughly 13 today. A static binary a
+  security team can approve in an afternoon is the product, and the way
+  that stops being true is one dependency at a time.
+- **Allocation ceilings** for each renderer, and a check that rendering
+  scales linearly with the number of findings. An accidental quadratic
+  passes every correctness test in the suite and is unusable on the
+  catalogue sizes that make a diagnostic worth running.
+
+Wall-clock budgets are published here and deliberately **not** gated. A
+time limit on a shared CI runner is a flaky gate, and a flaky gate
+teaches people to re-run the build until it is green — the same outcome
+as no gate, reached more slowly and with less trust.
