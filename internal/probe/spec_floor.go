@@ -60,18 +60,23 @@ func checkExtensions(s *Session) Finding {
 		return c.skip("the server does not implement server/discover, so it advertises nothing")
 	}
 
-	ids := s.Era.Discovered.Extensions
+	ids := s.Era.Discovered.ExtensionIDs()
 	if len(ids) == 0 {
+		if misplaced := s.Era.Discovered.Extensions; len(misplaced) > 0 {
+			// Advertised, but in a field the specification does not define,
+			// so a client reading capabilities.extensions — every client
+			// that follows the specification — sees a server with none.
+			return c.ev(misplaced...).warn(
+				fmt.Sprintf("%s advertised in a top-level extensions list rather than in capabilities.extensions, where clients read them: %s",
+					plural(len(misplaced), "extension"), list(misplaced)),
+				"move them into capabilities.extensions, keyed by identifier with a settings object as the value ({} for none). As sent, a client following the specification sees a server with no extensions")
+		}
 		return c.info("none advertised: the server implements the base protocol only")
 	}
 
-	var malformed, dupes, spec, third []string
-	seen := map[string]bool{}
+	var malformed, spec, third []string
 	for _, id := range ids {
 		switch {
-		case seen[id]:
-			dupes = append(dupes, id)
-			continue
 		case !extensionID.MatchString(id):
 			malformed = append(malformed, id)
 		case id == specNamespace || strings.HasPrefix(id, specNamespace+"/"):
@@ -79,7 +84,6 @@ func checkExtensions(s *Session) Finding {
 		default:
 			third = append(third, id)
 		}
-		seen[id] = true
 	}
 
 	// The census wants this as evidence whatever the verdict, because the
@@ -87,12 +91,6 @@ func checkExtensions(s *Session) Finding {
 	// all — and a server with one malformed identifier still tells us that.
 	c = c.ev(ids...)
 
-	if len(dupes) > 0 {
-		sort.Strings(dupes)
-		return c.warn(
-			fmt.Sprintf("%s listed twice: %s", plural(len(dupes), "extension"), list(dupes)),
-			"list each extension once. A client that deduplicates and one that does not will disagree about what this server offers, and neither is wrong")
-	}
 	if len(malformed) > 0 {
 		sort.Strings(malformed)
 		return c.warn(

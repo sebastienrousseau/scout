@@ -533,6 +533,17 @@ project announces that a change felt big.
 
 ### Fixed
 
+- **`protocol.extensions` read extensions from the wrong place.** The
+  2026-07-28 schema puts a server's extensions in
+  `capabilities.extensions`, keyed by identifier; scout read a top-level
+  list no specification defines, so a correct server advertising Tasks was
+  reported as advertising nothing. scout now reads
+  `capabilities.extensions` (`DiscoverResult.ExtensionIDs`), and a server
+  that advertises only in the top-level list gets a warning, because no
+  client following the specification will see those extensions.
+  `ServerCapabilities.Extensions` is new. The test fake had the same
+  misreading, which is why the tests never caught it.
+
 - **A stdio server was reported as running for as long as anything it
   started.** `os/exec` copies a plain `io.Writer` stderr on a goroutine
   that `Wait` joins, so `Wait` returned when the last holder of the stderr

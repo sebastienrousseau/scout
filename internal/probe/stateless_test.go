@@ -38,7 +38,12 @@ type statelessOpts struct {
 	// server can put on the wire, including shapes Go's own types would
 	// refuse to build.
 	supportedVersions string
-	extensions        string
+	// extensions lists identifiers the fake advertises in
+	// capabilities.extensions, where the specification puts them;
+	// legacyExtensions sends the same kind of list as a top-level field,
+	// which no specification defines.
+	extensions       string
+	legacyExtensions string
 }
 
 // statelessFake is a server on the stateless revision that validates what
@@ -120,16 +125,29 @@ func statelessFake(t *testing.T, o statelessOpts) *httptest.Server {
 			if o.supportedVersions != "" {
 				extra += `,"supportedVersions":` + o.supportedVersions
 			}
+			if o.legacyExtensions != "" {
+				extra += `,"extensions":` + o.legacyExtensions
+			}
+			caps := `{"tools":{}}`
 			if o.extensions != "" {
-				extra += `,"extensions":` + o.extensions
+				var ids []string
+				if err := json.Unmarshal([]byte(o.extensions), &ids); err != nil {
+					t.Fatalf("statelessOpts.extensions: %v", err)
+				}
+				obj := map[string]map[string]any{}
+				for _, id := range ids {
+					obj[id] = map[string]any{}
+				}
+				b, _ := json.Marshal(map[string]any{"tools": map[string]any{}, "extensions": obj})
+				caps = string(b)
 			}
 			switch {
 			case o.metaServerInfo:
-				fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%s,"result":{"resultType":"complete","capabilities":{"tools":{}},"instructions":"A stateless server for tests."%s,"_meta":{"io.modelcontextprotocol/serverInfo":{"name":"stateless-fake","version":"2.0"}}}}`, id, extra)
+				fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%s,"result":{"resultType":"complete","capabilities":%s,"instructions":"A stateless server for tests."%s,"_meta":{"io.modelcontextprotocol/serverInfo":{"name":"stateless-fake","version":"2.0"}}}}`, id, caps, extra)
 			case o.anonymousDiscover:
-				fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%s,"result":{"resultType":"complete","capabilities":{"tools":{}},"instructions":"A stateless server for tests."%s}}`, id, extra)
+				fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%s,"result":{"resultType":"complete","capabilities":%s,"instructions":"A stateless server for tests."%s}}`, id, caps, extra)
 			default:
-				fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%s,"result":{"resultType":"complete","serverInfo":{"name":"stateless-fake","version":"2.0"},"capabilities":{"tools":{}},"instructions":"A stateless server for tests."%s}}`, id, extra)
+				fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%s,"result":{"resultType":"complete","serverInfo":{"name":"stateless-fake","version":"2.0"},"capabilities":%s,"instructions":"A stateless server for tests."%s}}`, id, caps, extra)
 			}
 		case "tools/list":
 			mu.Lock()

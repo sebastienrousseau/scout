@@ -189,21 +189,20 @@ func TestExtensionIdentifierShape(t *testing.T) {
 		}
 	})
 
-	// A duplicate is not harmless: a client that deduplicates and one that
-	// does not will disagree about what the server offers.
-	t.Run("duplicate", func(t *testing.T) {
+	// Advertised where no client looks: a top-level list is not
+	// capabilities.extensions, so a client following the specification
+	// sees a server with none. An earlier version of this check read the
+	// top-level list and so reported correct servers as having nothing.
+	t.Run("misplaced", func(t *testing.T) {
 		s := runStateless(t, statelessFake(t, statelessOpts{
-			extensions: `["com.example.mcp/billing","com.example.mcp/billing"]`,
+			legacyExtensions: `["io.modelcontextprotocol/tasks"]`,
 		}), nil)
 		f, ok := findingByID(s, "protocol.extensions")
 		if !ok {
 			t.Fatal("protocol.extensions is missing")
 		}
-		if f.Status != Warn {
-			t.Fatalf("status = %s: %s", f.Status, f.Detail)
-		}
-		if !strings.Contains(f.Detail, "listed twice") {
-			t.Errorf("detail = %q", f.Detail)
+		if f.Status != Warn || !strings.Contains(f.Detail, "capabilities.extensions") {
+			t.Fatalf("got %s: %s", f.Status, f.Detail)
 		}
 	})
 }

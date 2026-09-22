@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"sort"
 
 	"github.com/sebastienrousseau/scout/trace"
 	"github.com/sebastienrousseau/scout/transport"
@@ -59,11 +60,29 @@ type DiscoverResult struct {
 	Instructions string             `json:"instructions,omitempty"`
 	// SupportedVersions lists the protocol revisions the server speaks.
 	SupportedVersions []string `json:"supportedVersions,omitempty"`
-	// Extensions the server advertises, by reverse-DNS identifier.
+	// Extensions is a top-level list of identifiers some servers send. It is
+	// not where the specification puts extensions — that is
+	// Capabilities.Extensions, which ExtensionIDs reads — and no client
+	// following the specification looks here. It is kept so a report can
+	// say a server advertised its extensions somewhere nobody will see them.
 	Extensions []string `json:"extensions,omitempty"`
 	// Meta is the result's _meta, kept raw so reserved keys scout does not
 	// model are still visible in the report.
 	Meta map[string]json.RawMessage `json:"_meta,omitempty"`
+}
+
+// ExtensionIDs returns the extensions the server advertises where the
+// specification puts them, in capabilities.extensions, sorted.
+func (d *DiscoverResult) ExtensionIDs() []string {
+	if d == nil {
+		return nil
+	}
+	ids := make([]string, 0, len(d.Capabilities.Extensions))
+	for id := range d.Capabilities.Extensions {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	return ids
 }
 
 // UnmarshalJSON decodes a server/discover result and settles where the

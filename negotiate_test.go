@@ -393,3 +393,25 @@ func TestNegotiateStatelessMethodNotFoundIsStateless(t *testing.T) {
 		t.Fatalf("a 404 + -32601 is a stateless server without the optional RPC: %+v", n)
 	}
 }
+
+// TestExtensionIDsReadsCapabilities. The 2026-07-28 schema puts extensions
+// in capabilities.extensions, keyed by identifier; a top-level list is not
+// where a client looks, and must not be reported as advertised.
+func TestExtensionIDsReadsCapabilities(t *testing.T) {
+	var d DiscoverResult
+	body := `{"capabilities":{"extensions":{"io.modelcontextprotocol/tasks":{},"com.example.mcp/billing":{"tier":"gold"}}},"extensions":["top.level/ignored"]}`
+	if err := json.Unmarshal([]byte(body), &d); err != nil {
+		t.Fatal(err)
+	}
+	got := d.ExtensionIDs()
+	if len(got) != 2 || got[0] != "com.example.mcp/billing" || got[1] != "io.modelcontextprotocol/tasks" {
+		t.Errorf("ExtensionIDs = %v, want the two capability keys, sorted", got)
+	}
+	if string(d.Capabilities.Extensions["com.example.mcp/billing"]) != `{"tier":"gold"}` {
+		t.Errorf("settings were not kept: %s", d.Capabilities.Extensions["com.example.mcp/billing"])
+	}
+	var nilResult *DiscoverResult
+	if nilResult.ExtensionIDs() != nil {
+		t.Error("a nil result advertised extensions")
+	}
+}
