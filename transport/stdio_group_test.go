@@ -126,8 +126,21 @@ while :; do sleep 0.05; done
 	}
 
 	// The whole point: nothing is left running.
-	if alive := groupStillThere(pid); alive {
-		t.Error("the process group survived Close")
+	//
+	// Polled rather than asserted outright. SIGKILL is delivered
+	// immediately but reaping is not: the shell's own children are
+	// reparented and collected by init, and until that happens they are
+	// zombies, which signal 0 still reports as present. Linux showed this
+	// and macOS did not, because the timing differs. What is being
+	// asserted is that the group empties, not that it has emptied by the
+	// instant Close returned.
+	deadline := time.Now().Add(5 * time.Second)
+	for groupStillThere(pid) {
+		if time.Now().After(deadline) {
+			t.Error("the process group survived Close")
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
 	}
 }
 

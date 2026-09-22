@@ -15,20 +15,6 @@ project announces that a change felt big.
 
 ## [Unreleased]
 
-### Fixed
-
-- **A stdio server was reported as running for as long as anything it
-  started.** `os/exec` copies a plain `io.Writer` stderr on a goroutine
-  that `Wait` joins, so `Wait` returned when the last holder of the stderr
-  descriptor let go rather than when the server exited — and a server that
-  forks a worker leaves that worker holding it. Measured against a fixture
-  that exits immediately and leaves a `sleep 5` behind: the shell was gone
-  at 0.5s and `Exited()` still said false at 5.0s. Every check that asks
-  whether the server is still running read that, `stdio.alive` included,
-  and the shutdown grace was being counted against a process that had
-  already gone. stderr now has a pipe of its own, drained by scout, so the
-  process's exit is what ends the wait.
-
 ### Added
 
 - **Process custody over stdio.** The child is started in its own process
@@ -201,10 +187,20 @@ project announces that a change felt big.
   "across 10 phases" while scout ran nine, which is the drift a generated
   page exists to prevent — and a new test fails when a group in the
   inventory is neither a phase nor a recorded exception.
-||||||| 042e8d6
-Nothing yet.
 
 ### Fixed
+
+- **A stdio server was reported as running for as long as anything it
+  started.** `os/exec` copies a plain `io.Writer` stderr on a goroutine
+  that `Wait` joins, so `Wait` returned when the last holder of the stderr
+  descriptor let go rather than when the server exited — and a server that
+  forks a worker leaves that worker holding it. Measured against a fixture
+  that exits immediately and leaves a `sleep 5` behind: the shell was gone
+  at 0.5s and `Exited()` still said false at 5.0s. Every check that asks
+  whether the server is still running read that, `stdio.alive` included,
+  and the shutdown grace was being counted against a process that had
+  already gone. stderr now has a pipe of its own, drained by scout, so the
+  process's exit is what ends the wait.
 
 - `server/discover` results that carry the server's identity in `_meta`
   under `io.modelcontextprotocol/serverInfo`, where the 2026-07-28 revision

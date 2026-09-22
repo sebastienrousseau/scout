@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"runtime"
 	"strings"
 	"syscall"
 	"testing"
@@ -342,6 +343,15 @@ func TestStdioCleanExitAndNoZombie(t *testing.T) {
 	_, fs := runStdioFixture(t, "serve")
 
 	expect(t, fs, "stdio.clean_exit", Pass, "exited on its own")
+
+	// Windows has no POSIX process group, so scout says it cannot tell
+	// rather than claiming the tree was clean. Asserting the skip here is
+	// the point: the platform difference is a documented outcome, not an
+	// absent check.
+	if runtime.GOOS == "windows" {
+		expect(t, fs, "stdio.no_zombie", Skip, "no process group to inspect")
+		return
+	}
 	expect(t, fs, "stdio.no_zombie", Pass, "process group was empty")
 }
 
@@ -351,6 +361,9 @@ func TestStdioCleanExitAndNoZombie(t *testing.T) {
 // worker holding whatever it was given. No other check in the report
 // notices, because no other diagnostic owns the process.
 func TestStdioSeesAWorkerThatOutlivedTheServer(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("no POSIX process group here; TestStdioCleanExitAndNoZombie asserts what Windows reports instead")
+	}
 	_, fs := runStdioFixture(t, "orphan")
 
 	// The server itself did everything right, which is the point.
