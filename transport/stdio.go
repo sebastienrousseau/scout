@@ -193,6 +193,8 @@ type Stdio struct {
 	shut chan struct{}
 	// stderrDone closes when the drain goroutine reaches EOF.
 	stderrDone chan struct{}
+	// drainOnce bounds the wait for it to at most one grace period.
+	drainOnce sync.Once
 	// noise counts lines the server wrote that were not JSON-RPC messages,
 	// with the first kept as evidence. Writing anything else to stdout is
 	// a protocol violation — the stream is the wire — and it is the single
@@ -414,7 +416,17 @@ func (s *Stdio) Reset() {
 // refuses its arguments says so on stderr and nowhere else; without this
 // the diagnostic is "the process exited", which tells an operator nothing
 // they can act on.
-func (s *Stdio) Stderr() string { return s.stderr.String() }
+func (s *Stdio) Stderr() string {
+	// Once the process has gone, the last of what it said may still be in
+	// flight, and "it exited and said nothing" is the least useful thing
+	// this can report. While it is running there is nothing to wait for.
+	select {
+	case <-s.done:
+		return s.stderrSettled()
+	default:
+		return s.stderr.String()
+	}
+}
 
 // Exited reports whether the process has finished, and its error if so.
 func (s *Stdio) Exited() (bool, error) {
@@ -853,9 +865,7 @@ const exitReapGrace = 2 * time.Second
 // exitError explains a dead process, with what it said on the way out.
 func (s *Stdio) exitError() error {
 	<-s.done
-	// No wait for the drain: cmd.Stderr is a writer, so os/exec owns the
-	// copy and Wait joins it. done closing already means stderr is whole.
-	msg := strings.TrimSpace(s.stderr.String())
+	msg := strings.TrimSpace(s.stderrSettled())
 	switch {
 	case s.waitErr != nil && msg != "":
 		// Both wrapped, so a caller can test for ErrProcessExited and still
@@ -988,12 +998,8 @@ func (s *Stdio) Close() error {
 	<-s.done
 
 	// The tree is gone, so whatever held the stderr write end has let go
-	// and the drain can finish. Bounded anyway: a descriptor inherited by
-	// something scout could not reach must not hang Close.
-	select {
-	case <-s.stderrDone:
-	case <-time.After(stderrDrainGrace):
-	}
+	// and the drain can finish.
+	_ = s.stderrSettled()
 
 	s.custody.Store(c)
 	return nil
@@ -1002,6 +1008,30 @@ func (s *Stdio) Close() error {
 // stderrDrainGrace bounds the wait for the last of the server's output
 // once its process tree has ended.
 const stderrDrainGrace = 500 * time.Millisecond
+
+// stderrSettled returns the server's output, having waited for the drain
+// to finish.
+//
+// This exists because of what changed underneath it. While os/exec owned
+// the stderr copy, Wait joined the copier and `done` closing meant the
+// buffer was whole -- so the error path could read it with no
+// synchronisation at all. Draining on scout's own goroutine removed that
+// guarantee and left the assumption behind, which showed up as a dying
+// server's explanation missing from the error naming its death, under
+// -race and nowhere else.
+//
+// Bounded, and done once: a descriptor inherited by something scout could
+// not reach must not hang a caller building an error message, and must
+// not cost the bound again on every later call.
+func (s *Stdio) stderrSettled() string {
+	s.drainOnce.Do(func() {
+		select {
+		case <-s.stderrDone:
+		case <-time.After(stderrDrainGrace):
+		}
+	})
+	return s.stderr.String()
+}
 
 // survivors reports whether anything remained in the server's group once
 // the server itself was gone.

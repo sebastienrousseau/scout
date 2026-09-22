@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -247,8 +248,14 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
 	}
 	// A catalogue names the tools an operator can reach; on a shared
 	// machine that is nobody else's business.
-	if perm := info.Mode().Perm(); perm != 0o600 {
-		t.Errorf("mode = %v, want 0600", perm)
+	//
+	// Asserted off Windows only. There are no Unix permission bits there,
+	// so Go reports 0666 whatever mode was asked for, and a check that
+	// insisted would be testing the platform rather than the code.
+	if runtime.GOOS != "windows" {
+		if perm := info.Mode().Perm(); perm != 0o600 {
+			t.Errorf("mode = %v, want 0600", perm)
+		}
 	}
 
 	got, err := Load(path)
