@@ -32,3 +32,4 @@ made on a weaker basis than it appeared.
 | [0008](0008-no-adversarial-mode.md) | scout contains no adversarial or exploit probes, in any command | Accepted |
 | [0009](0009-token-counts-are-estimates.md) | Token counts are named estimates; no tokenizer vocabulary is embedded | Accepted |
 | [0010](0010-provenance-is-reported-not-verified.md) | Provenance is reported from the binary; signatures are verified with cosign or gh | Accepted |
+| [0011](0011-attestation-format-is-apache.md) | The attestation schema and rubric are Apache-2.0; the engine stays GPL-3.0 | Accepted |

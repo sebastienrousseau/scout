@@ -84,6 +84,17 @@ project announces that a change felt big.
   would mean adding a dependency to the binary a security team has to
   approve in order to describe the dependencies in somebody else's.
 
+- **The attestation format is published under Apache-2.0** (ADR 0011).
+  `spec/` holds a JSON Schema for the in-toto statement and its
+  `mcp-evaluation/v1` predicate, and the scoring rubric as data — weights,
+  deductions, grade bands and rules — so a gateway, registry or CI system
+  can implement verification without taking on the engine's GPL. Both are
+  generated from the code (`make spec`), CI fails when they drift, a test
+  validates a real statement against the schema and refuses tampered ones,
+  and another checks every published deduction against the scorer. The
+  engine stays GPL-3.0; extracting the verifier into an Apache-2.0 package
+  is the next step, on its own.
+
 - **`scout sbom --osv` says which of those dependencies are known to be
   broken.** Every component from a public registry is looked up in OSV,
   and the advisories that affect it are added to the document as
@@ -456,6 +467,11 @@ project announces that a change felt big.
   and every caller defers one.
 
 - **Provenance is reported, not verified** (ADR 0010). `supply.provenance`
+  and `scout sbom` report what a binary records about itself; signature
+  verification is left to `cosign` and `gh attestation verify`, and the
+  reports manual now shows how. A hand-written Sigstore verifier was the
+  alternative, and a subtle bug in one produces a false "verified".
+
 - **A line on stdout that is not a JSON-RPC message ends the connection and
   is recorded.** It was already fatal to the call in flight; what is new is
   that the line is kept, so the report can name the cause instead of a
@@ -464,6 +480,9 @@ project announces that a change felt big.
 - **Token counts stay named estimates** (ADR 0009). No tokenizer
   vocabulary is embedded: model families tokenize differently and several
   tokenizers are unpublished, so an exact count against one public
+  vocabulary would be a precise answer about the wrong model. The
+  catalogue-budget guidance now says so; bytes remain exact.
+
 - **`Report.Target` carries `transport` and, for a stdio run, `command`.** A
   consumer comparing two reports has to be able to tell which kind of run it
   is reading: they do not contain the same checks, and the difference is not
@@ -472,6 +491,13 @@ project announces that a change felt big.
   must not be.
 
 - **scout has no adversarial mode, and will not grow one** (ADR 0008).
+  The plan proposed exploit probes behind a separate command gated on a
+  statement of ownership. That is closed rather than deferred: a binary
+  that contains an exploit mode has to be reviewed as one, a confirmation
+  prompt stops nobody, and the evidence such a probe needs is the harm
+  itself. Protocol conformance probes and policy-permitted tool calls are
+  unchanged.
+
 - **`scout serve` refuses a run that names a program** unless started with
   `--allow-stdio`, and always refuses one in `--public` mode. The engine can
   do it and the CLI does, but "diagnose the URL in this field" and "run this

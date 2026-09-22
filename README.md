@@ -731,6 +731,10 @@ for a full one. Every deduction is listed with the finding that caused it.
 Grades are coarse labels for dashboards: A at 90 and above, B at 75, C at
 60, D at 40, F below.
 
+The rubric is published as data in [`spec/rubric/`](spec/rubric/), generated
+from the scorer and versioned, so anyone can recompute a score from the
+verdicts in a report or an attestation.
+
 ---
 
 ## Library use
@@ -1035,8 +1039,10 @@ scout is opinionated, and the opinions do not suit everyone.
   deterministic: generated or supplied arguments, one call per tool. The
   `diagnostics.Model` interface exists for a model-driven probe, but no
   vendor adapter ships in this module.
+- **You need injection or request-forgery testing.** scout has no
   adversarial mode, by decision rather than by omission
   ([ADR 0008](docs/adr/0008-no-adversarial-mode.md)). Use dedicated security
+  tooling, against a server you are authorised to test.
 - **You need Windows without WSL.** Binaries are published for Windows,
   but the experience is less tested than on macOS and Linux.
 
@@ -1207,5 +1213,10 @@ never on stdout, which carries the selected output format.
 ## License
 
 Licensed under the **[GNU General Public License v3.0](LICENSE)**.
+
+The attestation format in [`spec/`](spec/) — the predicate's JSON Schema
+and the scoring rubric — is licensed **Apache-2.0**, so a gateway, registry
+or CI system can implement it without taking on the engine's licence
+([ADR 0011](docs/adr/0011-attestation-format-is-apache.md)).
 
 <p align="right"><a href="#scout">Back to Top</a></p>

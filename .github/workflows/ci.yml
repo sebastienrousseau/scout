@@ -387,6 +387,12 @@ jobs:
       - name: The published check inventory matches the source
         run: make checks-verify
 
+      # spec/ is the Apache-2.0 half of the attestation format (ADR 0011).
+      # A published schema or rubric that disagreed with the code would be
+      # adopted and then be wrong, which is worse than not publishing it.
+      - name: The published attestation schema and rubric match the source
+        run: make spec-verify
+
       # internal/web/dist is the shell `scout serve` embeds. It is committed
       # build output that nothing regenerates, so it drifts silently — it
       # shipped with the SSG demo theme's nav and contact address, and with

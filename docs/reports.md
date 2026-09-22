@@ -59,6 +59,12 @@ Four properties make it worth more than the JSON report:
 - **It verifies offline.** A gateway must never have to call scout to trust
   a statement scout produced.
 
+The format is published for other implementations: a JSON Schema for the
+statement and the rubric as data, both in
+[`spec/`](https://github.com/sebastienrousseau/scout/tree/main/spec) under
+Apache-2.0 and generated from the code that writes them
+([ADR 0011](adr/0011-attestation-format-is-apache.md)).
+
 ### Producing one in a later job
 
 Signing usually is not the job that ran the diagnostic. Run scout where the
@@ -190,7 +196,26 @@ was installed, not what is running, and the document says which it is in a
 local lockfile at all, and scout does not fetch one.
 
 ### Verifying provenance
+
+A bill of materials reports what the binary says about itself: the commit,
+whether the tree was dirty, every dependency's checksum. It does not verify
+a signature, and scout does not claim a verified supply chain for anything
 ([ADR 0010](adr/0010-provenance-is-reported-not-verified.md)). Where the
+server's publisher signs releases, verify them with the tools built for it:
+
+```sh
+# a Sigstore-signed file, e.g. a release's checksums
+cosign verify-blob checksums.txt --bundle checksums.txt.sigstore.json \
+  --certificate-identity-regexp 'https://github.com/OWNER/REPO/.*' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+
+# a GitHub artifact attestation (SLSA build provenance)
+gh attestation verify ./mcp-server --owner OWNER
+```
+
+scout's own releases are verified the same way; see
+[Packaging](packaging.md).
+
 ### Known vulnerabilities
 
 ```sh

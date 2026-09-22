@@ -12,7 +12,7 @@ LDFLAGS = -s -w -X $(VERSION_PKG)/cmd.Version=$(VERSION)
 export CGO_ENABLED = 0
 COVER_MIN ?= 85
 
-.PHONY: web-shell all build docs test test-race vet lint format spdx-check example-check perf \
+.PHONY: spec spec-verify web-shell all build docs test test-race vet lint format spdx-check example-check perf \
         fuzz sbom coverage bench api-check checks checks-verify docs-lock \
         ecosystem ecosystem-verify commitlint ssg-check site clean help
 
@@ -119,6 +119,14 @@ checks:
 
 checks-verify:
 	go run ./scripts/checkinventory/main.go -check
+
+# The Apache-2.0 attestation format (ADR 0011): the predicate's JSON Schema
+# and the rubric as data, generated from the Go that implements them.
+spec:
+	go run ./scripts/specgen/main.go
+
+spec-verify:
+	go run ./scripts/specgen/main.go -check
 
 # The family manifest in internal/ecosystem is the single source; the table in
 # docs/ecosystem.md and the ecosystem.json that other repositories read are
