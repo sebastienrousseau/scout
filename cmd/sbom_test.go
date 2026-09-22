@@ -112,8 +112,64 @@ func TestSBOMRefusesSomethingThatIsNotAGoBinary(t *testing.T) {
 	if !errors.Is(err, supply.ErrNotGo) {
 		t.Errorf("the reason is not the one being tested: %v", err)
 	}
-	if !strings.Contains(err.Error(), "not implemented yet") {
-		t.Errorf("the message does not say the limit is scout's: %v", err)
+	if !strings.Contains(err.Error(), "project directory") {
+		t.Errorf("the message does not say what to do instead: %v", err)
+	}
+}
+
+// TestSBOMReadsAProjectDirectory. The routing is what is under test here;
+// the lockfile formats are tested in internal/supply.
+func TestSBOMReadsAProjectDirectory(t *testing.T) {
+	dir := t.TempDir()
+	lock := "httpx==0.27.2 --hash=sha256:44c3f6f83c39094fec0db8b7f158d0a8fad3418e77f5f739b103e1ac73eee5d8\nstarlette>=0.38\n"
+	if err := os.WriteFile(filepath.Join(dir, "requirements.txt"), []byte(lock), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	out, code := run(t, "sbom", dir)
+	if code != 0 {
+		t.Fatalf("exit %d:\n%s", code, out)
+	}
+	var doc struct {
+		BOMFormat string `json:"bomFormat"`
+		Metadata  struct {
+			Properties []struct{ Name, Value string } `json:"properties"`
+		} `json:"metadata"`
+		Components []struct {
+			PURL       string `json:"purl"`
+			Properties []struct{ Name, Value string }
+		} `json:"components"`
+	}
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatalf("not JSON: %v\n%s", err, out)
+	}
+	if doc.BOMFormat != "CycloneDX" || len(doc.Components) != 2 {
+		t.Fatalf("document = %+v", doc)
+	}
+	if doc.Components[0].PURL != "pkg:pypi/httpx@0.27.2" {
+		t.Errorf("first component = %q", doc.Components[0].PURL)
+	}
+	if len(doc.Components[1].Properties) == 0 || doc.Components[1].Properties[0].Name != "scout:unverifiable" {
+		t.Errorf("an unpinned requirement is not marked: %+v", doc.Components[1])
+	}
+	var evidence bool
+	for _, p := range doc.Metadata.Properties {
+		evidence = evidence || p.Name == "scout:evidence"
+	}
+	if !evidence {
+		t.Error("the document does not say it was read from a lockfile")
+	}
+}
+
+// TestSBOMOnADirectoryWithNoLockfile fails rather than writing an empty
+// inventory, for the same reason a non-Go binary does.
+func TestSBOMOnADirectoryWithNoLockfile(t *testing.T) {
+	dir := t.TempDir()
+	out, code := run(t, "sbom", dir)
+	if code == 0 || out != "" {
+		t.Fatalf("exit %d, stdout:\n%s", code, out)
+	}
+	if err := sbomCmd.RunE(sbomCmd, []string{dir}); !errors.Is(err, supply.ErrNoManifest) {
+		t.Errorf("err = %v, want ErrNoManifest", err)
 	}
 }
 

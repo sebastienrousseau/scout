@@ -27,46 +27,66 @@ import (
 // No network, and nothing is executed: the program named is opened and
 // read, not run.
 
-// sbomCmd emits a CycloneDX document for a server binary.
+// sbomCmd emits a CycloneDX document for a server binary or project.
 var sbomCmd = &cobra.Command{
-	Use:   "sbom <program>",
-	Short: "Emit a CycloneDX bill of materials for a Go server binary.",
-	Long: `Read a Go program's embedded module graph and write it as CycloneDX 1.6.
+	Use:   "sbom <program|directory>",
+	Short: "Emit a CycloneDX bill of materials for a server binary or project.",
+	Long: `Write what a server is made of as CycloneDX 1.6.
 
-  scout sbom ./mcp-server > bom.json
+  scout sbom ./mcp-server > bom.json        # a Go binary
+  scout sbom ./my-ts-server > bom.json      # a project directory
   scout sbom mcp-server | grep unverifiable
 
-The program is resolved through PATH, the way a shell would resolve it. It
-is opened and read, never executed.
+Given a Go program, the module graph embedded in it is read. The program is
+resolved through PATH, the way a shell would resolve it, and is opened and
+read, never executed. Every dependency the toolchain linked in is emitted
+with its package URL and its h1: module checksum. The toolchain, the target
+platform, the commit and whether the tree was dirty when it was built travel
+as metadata properties, because CycloneDX has no field for them and a bill
+of materials that dropped them would say less than the binary does.
 
-Every dependency the toolchain linked in is emitted as a component with its
-package URL and its h1: module checksum, so the document is an inventory
-somebody can verify rather than a list somebody can edit. A dependency that
-carries no checksum did not come through the module proxy, and is marked
-scout:unverifiable rather than left silently short of a hash.
+Given a directory, its lockfiles are read: package-lock.json, uv.lock,
+Cargo.lock and requirements.txt, every one present. Only the directory
+itself is read, never node_modules. Each package carries the hash its
+package manager recorded. A lockfile is what the project declares was
+installed rather than what is running, and the document says so in a
+scout:evidence property.
 
-The toolchain, the target platform, the commit and whether the tree was
-dirty when it was built travel as metadata properties, because CycloneDX
-has no field for them and a bill of materials that dropped them would say
-less than the binary does.
+Either way, an entry nothing can verify (no checksum, a git or local-path
+source, a requirement with no pin or no --hash) is marked
+scout:unverifiable with the reason, rather than left silently short of a
+hash.
 
-This only works on a Go binary. Most MCP servers are Python or TypeScript,
-and for those the command says so and exits non-zero rather than writing a
-document with nothing in it.
+A program that is not a Go binary is an error, not an empty document: for
+a TypeScript, Python or Rust server, name its project directory instead.
+A server run straight from npx or uvx has no local lockfile to read.
 
 The document is reproducible: the serial number is derived from what is
 being described rather than generated at random, and SOURCE_DATE_EPOCH, if
-set, fixes the timestamp. The same binary described twice gives the same
+set, fixes the timestamp. The same input described twice gives the same
 bytes.`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// A directory is a project to read lockfiles from; anything else
+		// is a program. Decided by what is on disk rather than by a flag,
+		// because the two cannot be confused: a directory is never an
+		// executable, and a program is never read for lockfiles.
+		if info, err := os.Stat(args[0]); err == nil && info.IsDir() {
+			inv, err := supply.InspectDir(args[0])
+			if err != nil {
+				return err
+			}
+			return inv.WriteCycloneDX(os.Stdout, Version, buildTimestamp())
+		}
 		build, err := supply.Inspect(args[0])
 		if errors.Is(err, supply.ErrNotGo) {
-			// Named as the limit it is. A caller piping this into a
-			// scanner needs to know the difference between "nothing was
-			// found" and "this was never going to work here".
-			return fmt.Errorf("%w; only a Go binary carries an embedded module graph, "+
-				"and a manifest-based inventory for other ecosystems is not implemented yet", err)
+			// Named as the limit it is, with the way round it. A caller
+			// piping this into a scanner needs to know the difference
+			// between "nothing was found" and "this was never going to
+			// work here".
+			return fmt.Errorf("%w; only a Go binary carries an embedded module graph. "+
+				"For a TypeScript, Python or Rust server, name the project directory "+
+				"instead and its lockfile is read", err)
 		}
 		if err != nil {
 			return err

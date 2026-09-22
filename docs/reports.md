@@ -1,7 +1,7 @@
 ---
 # SPDX-License-Identifier: GPL-3.0-only
 description: >-
-  scout's output formats — text, Markdown, JSON, NDJSON, HTML, the in-toto attestation and the CycloneDX bill of materials — plus the report directory, the HAR export, and what telemetry holds.
+  scout's output formats — text, Markdown, JSON, NDJSON, HTML, the in-toto attestation and the CycloneDX bill of materials for a binary or a lockfile — plus the report directory, the HAR export, and what telemetry holds.
 ---
 
 # Reports and telemetry
@@ -158,11 +158,40 @@ Three things about the document are deliberate:
   `SOURCE_DATE_EPOCH`, if set, fixes the timestamp. A pipeline diffing
   yesterday's document against today's sees dependency changes, not a clock.
 
-This only works on a Go binary. Most MCP servers are Python or TypeScript,
-and for those the command says so and exits non-zero rather than writing a
-bill of materials with no materials in it — a pipeline that ingested an empty
-document and went green is the failure this avoids. A manifest-based
-inventory for the other ecosystems is not implemented.
+Most MCP servers are TypeScript or Python, and for those the executable is
+`node` or `python`, which says nothing about the server. Name the project
+directory instead and its lockfiles are read:
+
+```sh
+scout sbom ./my-ts-server > bom.json
+```
+
+| Lockfile | Hash carried | Marked `scout:unverifiable` when |
+|---|---|---|
+| `package-lock.json` (v1–v3) | The SRI `integrity`, as hex SHA-512 | No integrity, or a `file:` or git source |
+| `uv.lock` | The source distribution's SHA-256 | No artifact hash, or a git or path source |
+| `Cargo.lock` | The registry `checksum` | No checksum, or a git or path source |
+| `requirements.txt` | The single `--hash`, when there is one | No `==` pin, or a pin without `--hash` |
+
+Every lockfile present is read, and each package names the one it came from.
+Only the directory itself is read — never `node_modules`, and never a file a
+`-r` include points at. Development-only npm packages carry
+`cdx:npm:package:development`, the property CycloneDX's own npm tooling uses,
+so a consumer that already filters them filters these. A package npm
+bundled inside another's archive carries `scout:bundled` instead of a hash:
+the archive's own hash covers it, and npm records none because nothing is
+downloaded separately. A package pinned by
+several per-platform hashes and no single shared artifact carries no hash and
+is not marked: it is pinned, and there is no one artifact to name.
+
+A lockfile is weaker evidence than a binary. It is what the project declares
+was installed, not what is running, and the document says which it is in a
+`scout:evidence` property. A server run straight from `npx` or `uvx` has no
+local lockfile at all, and scout does not fetch one.
+
+A program that is not a Go binary, or a directory with no lockfile, is an
+error rather than a bill of materials with no materials in it — a pipeline
+that ingested an empty document and went green is the failure this avoids.
 
 The same read drives the `supply.buildinfo` and `supply.provenance` checks
 during a [stdio run](stdio.md), so a run and a document taken from one binary

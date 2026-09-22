@@ -42,7 +42,19 @@ project announces that a change felt big.
   diffing yesterday's document against today's sees dependency changes
   rather than a clock.
 
-  It only works on a Go binary, and for anything else it says so and
+  For a TypeScript, Python or Rust server, name the project directory
+  and its lockfiles are read instead: `package-lock.json`, `uv.lock`,
+  `Cargo.lock` and `requirements.txt`, each package with the hash its
+  package manager recorded. A requirement with no pin or no `--hash`, and
+  a git or local-path source, is marked `scout:unverifiable` with the
+  reason. A lockfile is what was declared rather than what is running,
+  and the document says so in a `scout:evidence` property.
+
+  ```sh
+  scout sbom ./my-ts-server > bom.json
+  ```
+
+  A program that is not a Go binary, or a directory with no lockfile,
   exits non-zero — a pipeline that ingested an empty bill of materials
   and went green is the failure this exists to avoid. No network, and
   the program is opened and read, never executed. No new dependency

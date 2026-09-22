@@ -133,8 +133,11 @@ func (b *Build) serialNumber() string {
 	h.Write([]byte(b.Revision))
 	h.Write([]byte{0})
 	h.Write([]byte(digestOfDeps(b)))
-	sum := h.Sum(nil)
+	return uuidURN(h.Sum(nil))
+}
 
+// uuidURN formats the first sixteen bytes of a digest as a URN.
+func uuidURN(sum []byte) string {
 	// Set the version and variant bits so the result is a well-formed
 	// UUID rather than sixteen bytes that look like one.
 	sum[6] = (sum[6] & 0x0f) | 0x50
