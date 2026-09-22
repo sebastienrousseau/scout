@@ -92,3 +92,4 @@ nav:
           - 0007 An instrument, not a gateway: adr/0007-not-a-gateway.md
           - 0008 No adversarial mode: adr/0008-no-adversarial-mode.md
           - 0009 Token counts are estimates: adr/0009-token-counts-are-estimates.md
+          - 0010 Provenance is reported, not verified: adr/0010-provenance-is-reported-not-verified.md

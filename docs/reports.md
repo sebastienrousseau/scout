@@ -189,6 +189,8 @@ was installed, not what is running, and the document says which it is in a
 `scout:evidence` property. A server run straight from `npx` or `uvx` has no
 local lockfile at all, and scout does not fetch one.
 
+### Verifying provenance
+([ADR 0010](adr/0010-provenance-is-reported-not-verified.md)). Where the
 ### Known vulnerabilities
 
 ```sh

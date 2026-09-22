@@ -455,6 +455,7 @@ project announces that a change felt big.
   scout's own mutex. Custody did not move: `Close` still owns the process,
   and every caller defers one.
 
+- **Provenance is reported, not verified** (ADR 0010). `supply.provenance`
 - **A line on stdout that is not a JSON-RPC message ends the connection and
   is recorded.** It was already fatal to the call in flight; what is new is
   that the line is kept, so the report can name the cause instead of a
