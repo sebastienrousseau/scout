@@ -1,4 +1,5 @@
 ---
+# SPDX-FileCopyrightText: 2026 Sebastien Rousseau <sebastian.rousseau@gmail.com>
 # SPDX-License-Identifier: GPL-3.0-only
 description: >-
   Why scout has no adversarial or exploit mode — not behind a flag, and not behind a separate verb — and what that closes.

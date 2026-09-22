@@ -350,7 +350,10 @@ func render(es []entry) []byte {
 	// Front matter carries the page's own meta description, so this page
 	// does not share the site-wide one with every other manual page.
 	b.WriteString("---\n")
+	// REUSE-IgnoreStart
+	b.WriteString("# SPDX-FileCopyrightText: 2026 Sebastien Rousseau <sebastian.rousseau@gmail.com>\n")
 	b.WriteString("# SPDX-License-Identifier: GPL-3.0-only\n")
+	// REUSE-IgnoreEnd
 	b.WriteString("description: >-\n")
 	b.WriteString("  Every check scout runs against an MCP server, listed by phase with its id and what it asserts. Generated from the source, so it cannot drift.\n")
 	b.WriteString("---\n\n")

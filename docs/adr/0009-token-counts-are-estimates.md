@@ -1,4 +1,5 @@
 ---
+# SPDX-FileCopyrightText: 2026 Sebastien Rousseau <sebastian.rousseau@gmail.com>
 # SPDX-License-Identifier: GPL-3.0-only
 description: >-
   Why scout reports catalogue token cost as a named estimate and does not embed a third-party tokenizer vocabulary.

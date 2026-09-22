@@ -1,4 +1,5 @@
 ---
+# SPDX-FileCopyrightText: 2026 Sebastien Rousseau <sebastian.rousseau@gmail.com>
 # SPDX-License-Identifier: GPL-3.0-only
 description: >-
   Why scout redacts secrets structurally at the recorder instead of trusting content types or pattern-matching its own output.

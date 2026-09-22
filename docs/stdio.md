@@ -1,4 +1,5 @@
 ---
+# SPDX-FileCopyrightText: 2026 Sebastien Rousseau <sebastian.rousseau@gmail.com>
 # SPDX-License-Identifier: GPL-3.0-only
 description: >-
   Diagnose an MCP server that runs as a program rather than a URL: what scout starts, which checks apply over a pipe, which cannot, and what it hands the child process.

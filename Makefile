@@ -12,7 +12,7 @@ LDFLAGS = -s -w -X $(VERSION_PKG)/cmd.Version=$(VERSION)
 export CGO_ENABLED = 0
 COVER_MIN ?= 85
 
-.PHONY: spec spec-verify web-shell all build docs test test-race vet lint format spdx-check example-check perf \
+.PHONY: spec spec-verify reuse-lint reuse-lock web-shell all build docs test test-race vet lint format spdx-check example-check perf \
         fuzz sbom coverage bench api-check checks checks-verify docs-lock \
         ecosystem ecosystem-verify commitlint ssg-check site clean help
 
@@ -127,6 +127,18 @@ spec:
 
 spec-verify:
 	go run ./scripts/specgen/main.go -check
+
+# REUSE compliance over the whole tree: every file's copyright and licence,
+# including the ones a header cannot carry. The linter is installed from a
+# hash-pinned lock, as the docs toolchain is.
+reuse-lint:
+	@command -v reuse >/dev/null 2>&1 || { \
+	  echo "reuse is missing. Install it with: python3 -m pip install --require-hashes -r .github/reuse-requirements.txt"; exit 1; }
+	reuse lint
+
+reuse-lock:
+	uv pip compile --generate-hashes --python-version 3.12 \
+	  .github/reuse-requirements.in -o .github/reuse-requirements.txt
 
 # The family manifest in internal/ecosystem is the single source; the table in
 # docs/ecosystem.md and the ecosystem.json that other repositories read are

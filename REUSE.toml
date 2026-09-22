@@ -83,3 +83,38 @@ path = ["spec/rubric/*.json", "spec/attestation/*.json"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Sebastien Rousseau <sebastian.rousseau@gmail.com>"
 SPDX-License-Identifier = "Apache-2.0"
+
+# The site and web layouts, vendored from the Scout theme in the SSG theme
+# suite (github.com/sebastienrousseau/ssg-themes.github.io) so both build in
+# CI with nothing but the ssg binary. The suite is Apache-2.0 OR MIT, and the
+# Scout theme's theme.json declares MIT, which is the option taken here.
+# "override" because the footers render a copyright line for the site they
+# build — page text about scout, not a notice about the template.
+[[annotations]]
+path = ["site/_layouts/**", "web/_layouts/**"]
+precedence = "override"
+SPDX-FileCopyrightText = "2024 - 2026 Sebastien Rousseau <sebastian.rousseau@gmail.com>"
+SPDX-License-Identifier = "MIT"
+
+# scout's own images: the README logo and the site's screenshots.
+[[annotations]]
+path = [".github/logo.png", "site/images/**", "web/images/**"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Sebastien Rousseau <sebastian.rousseau@gmail.com>"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+# Repository configuration whose formats either take no comments or are
+# rewritten by their tools: docs/requirements.txt is pip-compile output.
+[[annotations]]
+path = [
+  ".gitignore",
+  ".gitattributes",
+  ".gitleaksignore",
+  ".github/CODEOWNERS",
+  ".devcontainer/devcontainer.json",
+  "docs/requirements.txt",
+  ".github/reuse-requirements.txt",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Sebastien Rousseau <sebastian.rousseau@gmail.com>"
+SPDX-License-Identifier = "GPL-3.0-only"

@@ -1,4 +1,5 @@
 ---
+# SPDX-FileCopyrightText: 2026 Sebastien Rousseau <sebastian.rousseau@gmail.com>
 # SPDX-License-Identifier: GPL-3.0-only
 description: >-
   How to follow a scout finding back to the exact request that produced it, using the wire log, the HAR export and the recorded timings.

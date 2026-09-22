@@ -1,4 +1,5 @@
 ---
+# SPDX-FileCopyrightText: 2026 Sebastien Rousseau <sebastian.rousseau@gmail.com>
 # SPDX-License-Identifier: GPL-3.0-only
 description: >-
   Why scout sends nothing home, why that is a product guarantee rather than a current fact, and what replaces the numbers telemetry would have produced.

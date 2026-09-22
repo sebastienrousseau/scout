@@ -1,4 +1,5 @@
 ---
+# SPDX-FileCopyrightText: 2026 Sebastien Rousseau <sebastian.rousseau@gmail.com>
 # SPDX-License-Identifier: GPL-3.0-only
 description: >-
   Why the attestation schema and the scoring rubric are published under Apache-2.0 while the engine stays GPL-3.0, and what that does and does not unblock yet.

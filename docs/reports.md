@@ -1,4 +1,5 @@
 ---
+# SPDX-FileCopyrightText: 2026 Sebastien Rousseau <sebastian.rousseau@gmail.com>
 # SPDX-License-Identifier: GPL-3.0-only
 description: >-
   scout's output formats — text, Markdown, JSON, NDJSON, HTML, the in-toto attestation and the CycloneDX bill of materials for a binary or a lockfile — plus the report directory, the HAR export, and what telemetry holds.

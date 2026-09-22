@@ -42,7 +42,9 @@ func main() {
 		os.Exit(1)
 	}
 	if len(missing) > 0 {
+		// REUSE-IgnoreStart
 		fmt.Fprintln(os.Stderr, "files without an SPDX-License-Identifier in their first 5 lines:")
+		// REUSE-IgnoreEnd
 		for _, m := range missing {
 			fmt.Fprintln(os.Stderr, "  "+m)
 		}
@@ -75,9 +77,11 @@ func hasHeader(path string) bool {
 	defer f.Close()
 	sc := bufio.NewScanner(f)
 	for i := 0; i < 5 && sc.Scan(); i++ {
+		// REUSE-IgnoreStart
 		if strings.Contains(sc.Text(), "SPDX-License-Identifier:") {
 			return true
 		}
+		// REUSE-IgnoreEnd
 	}
 	return false
 }

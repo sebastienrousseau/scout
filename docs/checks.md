@@ -1,4 +1,5 @@
 ---
+# SPDX-FileCopyrightText: 2026 Sebastien Rousseau <sebastian.rousseau@gmail.com>
 # SPDX-License-Identifier: GPL-3.0-only
 description: >-
   Every check scout runs against an MCP server, listed by phase with its id and what it asserts. Generated from the source, so it cannot drift.

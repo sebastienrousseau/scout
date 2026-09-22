@@ -1,4 +1,5 @@
 ---
+# SPDX-FileCopyrightText: 2026 Sebastien Rousseau <sebastian.rousseau@gmail.com>
 # SPDX-License-Identifier: GPL-3.0-only
 description: >-
   Acceptance policies: a reviewable file that says what your organisation will accept from an MCP server, with exceptions that carry a reason and an expiry date.
