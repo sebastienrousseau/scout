@@ -17,6 +17,32 @@ project announces that a change felt big.
 
 ### Added
 
+- **`scout check --plant-canaries` says whether the server went looking
+  for credentials it was never given.** The egress witness says where a
+  server went; it cannot say what it took. The thing worth taking sits in
+  the same place on almost every developer machine.
+
+  Because scout starts the process, it decides where `HOME` points.
+  Pointing it at a scratch directory holding a decoy `.ssh/id_rsa`,
+  `.aws/credentials`, `.env` and `.netrc` turns "did it go looking" into
+  a question with an answer, and costs a well-behaved server nothing.
+  Each decoy carries a marker that exists nowhere else, so a marker
+  seen leaving is not a suspicion — it is the file, in transit, labelled.
+
+  `fs.credential_probe` reports the decoys being opened.
+  `fs.canary_exfiltrated` reports their contents leaving, in a plain
+  request body, on the server's own stderr, or handed back to scout in a
+  result.
+
+  **The instrument measures itself.** The obvious witness for "was this
+  read" is the access time moving, and it is unreliable in a way that
+  matters: macOS on APFS does not update it on an ordinary read at all,
+  and Linux mounted `noatime` never does. So `Seed` writes a probe file,
+  backdates it, reads it back and looks — and where the answer is no, the
+  check reports that it **cannot tell** rather than that nothing was
+  found. A security check that reported clean on a machine where it was
+  incapable of reporting anything else would be worse than no check.
+
 - **`scout check --watch-egress` says where the server went.** A server
   that quietly posts your tool arguments to a third host passes every
   other check: the catalogue is clean, the schemas validate, the

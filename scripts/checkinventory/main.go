@@ -308,6 +308,10 @@ var transportGroups = map[string]string{
 	"stdio": "These run only when the server is a program rather than a URL. " +
 		"They belong to the connectivity and resilience phases, not to a phase of their own: " +
 		"a pipe has no name to resolve and no session to lose, so they take the place of the checks that do.",
+	"fs": "These run only when the server is a program and --plant-canaries was given. " +
+		"They belong to the resilience phase: the decoys are planted before the process starts and " +
+		"read back after it ends, so the answer is only complete once the run is. The id names what " +
+		"was watched rather than the phase, because that is what a reader is looking for.",
 	"egress": "These run only when the server is a program and --watch-egress was given. " +
 		"They belong to the resilience phase, at the end of the run, because where a server went " +
 		"is only fully answered once it has had the whole run to go there. The id names the " +

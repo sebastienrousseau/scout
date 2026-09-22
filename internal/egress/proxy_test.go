@@ -243,3 +243,114 @@ func TestSplitTargetDefaultsThePort(t *testing.T) {
 		}
 	}
 }
+
+// TestProxyNoticesAWatchedStringLeaving is the canary's wire-side
+// witness: a marker that exists nowhere else, seen in a body on its way
+// out.
+func TestProxyNoticesAWatchedStringLeaving(t *testing.T) {
+	const marker = "scout-canary-deadbeef"
+	var received string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		received = string(b)
+	}))
+	defer upstream.Close()
+
+	p := startProxy(t, nil)
+	p.WatchFor([]string{marker})
+
+	body := "-----BEGIN OPENSSH PRIVATE KEY-----\n" + marker + "\n"
+	res, err := proxyClient(t, p).Post(upstream.URL, "text/plain", strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("through the proxy: %v", err)
+	}
+	_ = res.Body.Close()
+
+	// The body must arrive unchanged: a proxy that consumed it would
+	// break the request it exists to observe.
+	if received != body {
+		t.Errorf("the body did not survive the scan:\n got %q\nwant %q", received, body)
+	}
+
+	escaped := p.Escaped()
+	where, ok := escaped[marker]
+	if !ok {
+		t.Fatalf("the marker was not seen leaving: %+v", escaped)
+	}
+	if !strings.Contains(where, "127.0.0.1") {
+		t.Errorf("the escape does not say where it went: %q", where)
+	}
+}
+
+// TestProxyIgnoresBodiesWhenNothingIsWatched, so an ordinary run pays
+// nothing for a feature it did not ask for.
+func TestProxyIgnoresBodiesWhenNothingIsWatched(t *testing.T) {
+	var received string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		received = string(b)
+	}))
+	defer upstream.Close()
+
+	p := startProxy(t, nil)
+	res, err := proxyClient(t, p).Post(upstream.URL, "text/plain", strings.NewReader("hello"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = res.Body.Close()
+
+	if received != "hello" {
+		t.Errorf("the body did not survive: %q", received)
+	}
+	if len(p.Escaped()) != 0 {
+		t.Errorf("nothing was watched, yet something escaped: %+v", p.Escaped())
+	}
+}
+
+// TestProxyDoesNotReportAMarkerThatDidNotLeave.
+func TestProxyDoesNotReportAMarkerThatDidNotLeave(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer upstream.Close()
+
+	p := startProxy(t, nil)
+	p.WatchFor([]string{"scout-canary-never-sent"})
+
+	res, err := proxyClient(t, p).Post(upstream.URL, "text/plain", strings.NewReader("ordinary traffic"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = res.Body.Close()
+
+	if len(p.Escaped()) != 0 {
+		t.Errorf("a marker that never left was reported: %+v", p.Escaped())
+	}
+}
+
+// TestEscapedIsACopy, so a caller cannot mutate what the proxy recorded.
+func TestEscapedIsACopy(t *testing.T) {
+	p := startProxy(t, nil)
+	p.scan([]byte("x marker y"), "example.com:443")
+	p.WatchFor([]string{"marker"})
+	p.scan([]byte("x marker y"), "example.com:443")
+
+	got := p.Escaped()
+	if len(got) != 1 {
+		t.Fatalf("want one escape, got %+v", got)
+	}
+	got["marker"] = "tampered"
+	if p.Escaped()["marker"] == "tampered" {
+		t.Error("Escaped handed out the proxy's own map")
+	}
+}
+
+// TestScanRecordsTheFirstDestinationOnly: a marker leaving twice is one
+// leak, and the first place it went is the one worth reporting.
+func TestScanRecordsTheFirstDestinationOnly(t *testing.T) {
+	p := startProxy(t, nil)
+	p.WatchFor([]string{"m"})
+	p.scan([]byte("m"), "first.example:443")
+	p.scan([]byte("m"), "second.example:443")
+	if got := p.Escaped()["m"]; got != "first.example:443" {
+		t.Errorf("recorded %q, want the first destination", got)
+	}
+}

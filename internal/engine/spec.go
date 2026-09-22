@@ -185,6 +185,9 @@ type EgressSpec struct {
 	// Expect is the hosts the operator says the server should reach. A
 	// leading dot matches subdomains. Empty inventories without judging.
 	Expect []string `json:"expect,omitempty"`
+	// Canaries points the child's HOME at a scratch directory seeded with
+	// decoy credentials, so a server that goes looking can be seen.
+	Canaries bool `json:"canaries,omitempty"`
 }
 
 // PhaseSpec selects phases by name.

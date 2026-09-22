@@ -326,6 +326,65 @@ var remediations = map[string]Remediation{
 			"groups skip it too.",
 	},
 
+	"fs.credential_probe": {
+		Means: "The server opened a credential file in its home directory " +
+			"that it was never given and never asked about. scout planted " +
+			"those files: they are decoys containing nothing real, and the " +
+			"home directory the server saw was a scratch one. Nothing was " +
+			"lost here. The same code against an operator's own machine " +
+			"reads their actual keys.",
+		Steps: []Step{
+			{"Find the read",
+				"The finding names which decoys were opened. A server that " +
+					"reads ~/.ssh/id_rsa or ~/.aws/credentials has a code path " +
+					"that goes looking for credentials outside the ones it was " +
+					"configured with, and that path is worth reading."},
+			{"Ask whether it is a library",
+				"Some SDKs load ambient cloud credentials by default. That is " +
+					"still a server reaching for something nobody gave it, and " +
+					"it still deserves to be deliberate rather than a default " +
+					"nobody noticed."},
+			{"Check what left",
+				"`fs.canary_exfiltrated` answers the second half. A read with " +
+					"nothing leaving is a smaller problem than a read followed " +
+					"by a request."},
+		},
+		Note: "This rests on file access times, and a great many filesystems " +
+			"do not record them — macOS on APFS does not, and Linux mounted " +
+			"`noatime` does not. scout measures whether the witness works " +
+			"before trusting it and reports that it cannot tell rather than " +
+			"reporting a clean result it is not entitled to.",
+	},
+
+	"fs.canary_exfiltrated": {
+		Means: "The contents of a planted credential file left. This is not " +
+			"an inference: each decoy contains a string that exists nowhere " +
+			"else, and that exact string was seen in an outbound request " +
+			"body, on the server's own stderr, or handed back to scout in a " +
+			"result. The file was read and its contents were sent.",
+		Steps: []Step{
+			{"Treat it as an incident, not a finding",
+				"Whatever reads a decoy key and transmits it reads a real one " +
+					"and transmits that. The finding names the file and where " +
+					"the contents went."},
+			{"Find the code before the server runs anywhere real",
+				"It may be deliberate, it may be a logging statement that " +
+					"dumps an environment, and the two are not the same " +
+					"problem — but both send a credential somewhere it does " +
+					"not belong."},
+			{"Assume any real credential is compromised",
+				"If this server has already run against a machine with real " +
+					"keys, rotate them rather than reasoning about whether " +
+					"this particular path was taken."},
+		},
+		Note: "Seen over plain HTTP, on stderr, and on the pipe back to " +
+			"scout. A tunnel is opaque on purpose: scout reads a CONNECT " +
+			"destination and never the payload, because the alternative is " +
+			"installing a certificate authority to decrypt traffic it was " +
+			"not asked to decrypt. Over https the destination is reported by " +
+			"`egress.hosts` and the payload is not.",
+	},
+
 	"egress.undeclared_host": {
 		Means: "The server connected to a host that `--expect-egress` does " +
 			"not name. scout saw it because it started the process and " +

@@ -8,13 +8,13 @@ description: >-
 
 # The check inventory
 
-scout runs **102 checks** across **9 phases**.
+scout runs **104 checks** across **9 phases**.
 
-9 of them apply only to a server that is a program rather than a URL, and
+11 of them apply only to a server that is a program rather than a URL, and
 replace the ones that have no meaning over a pipe. A run reports every check it
 did not make, by id and with the reason, rather than leaving it out.
 
-101 of those are fixed, and 1 is a family whose id is built at run time —
+103 of those are fixed, and 1 is a family whose id is built at run time —
 one check per value the run encounters, marked `*` below.
 
 This file is generated from the source: every check is created through
@@ -171,6 +171,15 @@ These run only when the server is a program and --watch-egress was given. They b
 |---|---|
 | <span id="check-egress-hosts" data-can-fail="false"></span>`egress.hosts` | Where the server connected |
 | <span id="check-egress-undeclared_host" data-can-fail="true"></span>`egress.undeclared_host` | The server went only where it was expected to |
+
+## fs — 2 checks
+
+These run only when the server is a program and --plant-canaries was given. They belong to the resilience phase: the decoys are planted before the process starts and read back after it ends, so the answer is only complete once the run is. The id names what was watched rather than the phase, because that is what a reader is looking for.
+
+| Check | What it looks for |
+|---|---|
+| <span id="check-fs-canary_exfiltrated" data-can-fail="true"></span>`fs.canary_exfiltrated` | Nothing planted left the machine |
+| <span id="check-fs-credential_probe" data-can-fail="true"></span>`fs.credential_probe` | The server left the planted credentials alone |
 
 ## stdio — 7 checks
 

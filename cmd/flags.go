@@ -66,6 +66,7 @@ var (
 	policyFile            string
 	baselineFile          string
 	watchEgress           bool
+	plantCanaries         bool
 	expectEgress          []string
 	approveBaseline       bool
 	maxRes                int
@@ -158,6 +159,7 @@ func policyFlags() *pflag.FlagSet {
 		fs.StringVar(&policyFile, "policy", "", "judge the run against this acceptance policy file instead of the default \"any failure fails\" rule")
 		fs.BoolVar(&watchEgress, "watch-egress", false, "run a loopback proxy and report where the server connects (stdio only: it works by setting the child's environment)")
 		fs.StringArrayVar(&expectEgress, "expect-egress", nil, "a host the server is expected to reach (repeatable); a leading dot matches subdomains. Without it the destinations are listed and not judged")
+		fs.BoolVar(&plantCanaries, "plant-canaries", false, "point the server's HOME at a scratch directory seeded with decoy credentials, and report whether it read or sent them (stdio only)")
 		fs.StringVar(&baselineFile, "baseline", "", "compare the catalogue against this approved snapshot and report what changed")
 		fs.BoolVar(&approveBaseline, "approve", false, "write the catalogue this run saw to the --baseline file, approving it")
 		policySet = fs
@@ -285,7 +287,7 @@ func buildSpec(target engine.TargetSpec, onlyPhases []string) (engine.RunSpec, e
 		Version:  Version,
 		Target:   target,
 		Baseline: approved,
-		Egress:   engine.EgressSpec{Watch: watchEgress, Expect: expectEgress},
+		Egress:   engine.EgressSpec{Watch: watchEgress, Expect: expectEgress, Canaries: plantCanaries},
 		Creds: engine.CredSpec{
 			Mode: authMode, Token: token, TokenEnv: tokenEnv,
 			Headers: hdrs, Basic: basic,

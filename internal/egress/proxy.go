@@ -42,6 +42,7 @@
 package egress
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -95,8 +96,10 @@ type Proxy struct {
 
 	policy Policy
 
-	mu    sync.Mutex
-	dials map[string]*Dial
+	mu      sync.Mutex
+	dials   map[string]*Dial
+	watch   []string
+	escaped map[string]string // marker -> the destination it left for
 }
 
 // dialTimeout bounds a connection to an upstream the server named. It is
@@ -118,10 +121,11 @@ func Start(policy Policy) (*Proxy, error) {
 		return nil, fmt.Errorf("egress: listen: %w", err)
 	}
 	p := &Proxy{
-		ln:     ln,
-		start:  time.Now(),
-		policy: policy,
-		dials:  map[string]*Dial{},
+		ln:      ln,
+		start:   time.Now(),
+		policy:  policy,
+		dials:   map[string]*Dial{},
+		escaped: map[string]string{},
 	}
 	p.srv = &http.Server{
 		Handler:           http.HandlerFunc(p.serve),
@@ -200,6 +204,55 @@ func (p *Proxy) record(host, port string, tunnelled bool) bool {
 	return allowed
 }
 
+// WatchFor asks the proxy to notice these strings in outbound request
+// bodies.
+//
+// Only on the plain path. A CONNECT tunnel is opaque on purpose: scout
+// reads the destination out of the request line and never the payload,
+// because the alternative is a certificate authority on the operator's
+// machine and a diagnostic that decrypts traffic it was not asked to
+// decrypt. So a marker leaving over https is seen as a destination and
+// not as a theft — which is why the canary has a second witness that does
+// not depend on this one.
+func (p *Proxy) WatchFor(markers []string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.watch = append(p.watch, markers...)
+}
+
+// Escaped reports which watched strings were seen leaving, and where to.
+func (p *Proxy) Escaped() map[string]string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	out := make(map[string]string, len(p.escaped))
+	for k, v := range p.escaped {
+		out[k] = v
+	}
+	return out
+}
+
+// bodyScanLimit bounds how much of a request body is held in memory to
+// look at. A server sending more than this to exfiltrate a key is doing
+// something stranger than exfiltrating a key.
+const bodyScanLimit = 1 << 20 // 1 MiB
+
+// scan looks for the watched strings and records any that are leaving.
+func (p *Proxy) scan(body []byte, target string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if len(p.watch) == 0 {
+		return
+	}
+	s := string(body)
+	for _, m := range p.watch {
+		if strings.Contains(s, m) {
+			if _, seen := p.escaped[m]; !seen {
+				p.escaped[m] = target
+			}
+		}
+	}
+}
+
 func (p *Proxy) serve(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodConnect {
 		p.connect(w, r)
@@ -274,6 +327,18 @@ func (p *Proxy) forward(w http.ResponseWriter, r *http.Request) {
 	if !p.record(host, port, false) {
 		http.Error(w, "refused by scout's egress policy", http.StatusForbidden)
 		return
+	}
+
+	// Read it once, look at it, and put it back. A proxy that consumed the
+	// body would break the request it exists to observe.
+	if r.Body != nil && len(p.watch) > 0 {
+		body, err := io.ReadAll(io.LimitReader(r.Body, bodyScanLimit))
+		_ = r.Body.Close()
+		if err == nil {
+			p.scan(body, net.JoinHostPort(host, port))
+			r.Body = io.NopCloser(bytes.NewReader(body))
+			r.ContentLength = int64(len(body))
+		}
 	}
 
 	out := r.Clone(r.Context())

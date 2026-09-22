@@ -139,6 +139,7 @@ func TestInventoryGroupsAreRealPhases(t *testing.T) {
 	notPhases := map[string]string{
 		"stdio":  "checks that only a child-process run can make; they belong to net and resilience",
 		"egress": "checks that only a watched child-process run can make; they belong to resilience, at the end of the run",
+		"fs":     "checks that only a run with planted decoys can make; they belong to resilience, after the process ends",
 	}
 
 	headings := regexp.MustCompile(`(?m)^## ([a-z0-9_-]+) — \d+ checks$`).FindAllStringSubmatch(doc, -1)

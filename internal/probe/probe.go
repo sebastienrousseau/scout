@@ -23,6 +23,7 @@ import (
 	"github.com/sebastienrousseau/scout/auth"
 	"github.com/sebastienrousseau/scout/diagnostics"
 	"github.com/sebastienrousseau/scout/internal/baseline"
+	"github.com/sebastienrousseau/scout/internal/canary"
 	"github.com/sebastienrousseau/scout/internal/creds"
 	"github.com/sebastienrousseau/scout/internal/egress"
 	"github.com/sebastienrousseau/scout/internal/telemetry"
@@ -178,6 +179,13 @@ type Options struct {
 	// reach. A leading dot matches subdomains. Empty means the
 	// destinations are inventoried and not judged.
 	ExpectEgress []string
+	// PlantCanaries points the child's HOME at a scratch directory seeded
+	// with decoy credentials, so a server that goes looking for one can
+	// be seen doing it.
+	//
+	// Off by default and stdio only: it works by deciding where HOME
+	// points, which is only possible for a process scout started.
+	PlantCanaries bool
 	// Baseline is the approved catalogue to compare against, or nil to
 	// make no comparison.
 	//
@@ -225,6 +233,14 @@ type Session struct {
 
 	// Proxy is the egress witness, when one is running.
 	Proxy *egress.Proxy
+	// Canary is the planted scratch home, when one was seeded.
+	Canary *canary.Canary
+	// canaryHits is every decoy whose marker was seen in something the
+	// server said, and where. Written from the reader goroutine.
+	canaryMu   sync.Mutex
+	canaryHits map[string]string
+	// canaryErr is why there is none, when one was asked for.
+	canaryErr string
 	// egressErr is why there is no witness, when one was asked for.
 	egressErr string
 
@@ -419,6 +435,34 @@ func runStdio(ctx context.Context, opts Options) (s *Session, err error) {
 			s.Proxy = px
 			cfg.Inject = append(append([]string{}, cfg.Inject...), px.Env()...)
 			defer func() { _ = px.Close() }()
+		}
+	}
+
+	// The decoys, for the same reason and at the same moment: HOME has to
+	// be set before the process reads it.
+	if opts.PlantCanaries {
+		if cn, err := canary.Seed(""); err != nil {
+			s.canaryErr = err.Error()
+		} else {
+			s.Canary = cn
+			cfg.Inject = append(append([]string{}, cfg.Inject...), cn.Env()...)
+			if s.Proxy != nil {
+				// So a marker leaving in a plain request body is seen at
+				// the moment it leaves, rather than inferred afterwards.
+				s.Proxy.WatchFor(cn.Markers())
+			}
+			// Scanned as it arrives rather than read back off the
+			// recorder, which keeps bodies only under --capture-bodies.
+			inner := cfg.Observe
+			cfg.Observe = func(ctx context.Context, m transport.StdioMessage) {
+				s.noteCanaries(m.Received, "sent back to scout over the pipe")
+				if inner != nil {
+					inner(ctx, m)
+				}
+			}
+			// Removed after the findings are built, not here: Opened()
+			// reads the access times off these files.
+			defer func() { _ = cn.Close() }()
 		}
 	}
 	client, cerr := scout.NewStdio(ctx, scout.Config{

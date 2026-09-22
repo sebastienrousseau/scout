@@ -189,6 +189,9 @@ func phaseResilienceStdio(_ context.Context, s *Session) []Finding {
 	// has had the whole run to reach for something.
 	out = append(out, checkEgress(s)...)
 
+	// And whether it went looking for anything on the way.
+	out = append(out, checkCanaries(s)...)
+
 	// The stream is the wire. This is the single most common way a stdio
 	// server is broken, and the symptom a host reports — a hang, or a parse
 	// error naming a line the operator never wrote — never names the cause.
