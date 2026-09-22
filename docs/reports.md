@@ -372,3 +372,39 @@ reading `0/100` because the endpoint was unreachable would repeat exactly
 the mistake that contract exists to prevent.
 
 [shields]: https://shields.io/badges/endpoint-badge
+
+## Watching for drift
+
+A check tells you a server was sound when you ran it. That is a statement
+about a moment, and the threat it cannot see by construction is the one
+that waits: the server that passes review and edits its tool descriptions
+the following week is the server that gets through.
+
+```sh
+scout check "$URL" --baseline .scout/baseline.json --approve
+scout watch "$URL" --baseline .scout/baseline.json
+```
+
+A pulse is deliberately small — connect, list the catalogue, hash it,
+compare. Two requests and a string comparison, because a watcher that
+re-ran nine phases on a loop would be the abusive client scout warns
+everyone else about. Between pulses there is a timer and nothing else.
+
+`--once` takes a single pulse and exits, which is the shape a CI job
+wants. It follows the same exit-code contract as `scout check`:
+
+| Exit | Meaning |
+|---|---|
+| 0 | the catalogue is the approved one |
+| 2 | it is not, and the report says what changed |
+| 1 | scout never reached a verdict at all |
+
+An unreachable server is a `1`, never a `2`. A network blip is not a rug
+pull, and a gate that conflated them would be one people switch off.
+
+`--output ndjson` emits one event per line for a log pipeline, and
+`--approve` promotes what the watch saw once somebody has read it.
+
+Severity is by kind rather than by count — the same ladder `--baseline`
+uses. A `readOnlyHint` becoming true after approval is critical; a new
+optional property is noise.

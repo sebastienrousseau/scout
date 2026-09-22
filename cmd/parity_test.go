@@ -104,12 +104,14 @@ var specFields = map[string]string{
 // the run does, so each surface answers them its own way — a browser has
 // no --no-color and a terminal has no HTTP status code.
 var notRunFlags = map[string]string{
-	"config":  "selects the file a spec is built from, before there is a spec",
-	"profile": "selects which stored defaults to build the spec from",
-	"debug":   "process-level logging",
-	"quiet":   "process-level logging",
-	"help":    "process-level",
-	"version": "process-level",
+	"config":   "selects the file a spec is built from, before there is a spec",
+	"profile":  "selects which stored defaults to build the spec from",
+	"debug":    "process-level logging",
+	"quiet":    "process-level logging",
+	"help":     "process-level",
+	"version":  "process-level",
+	"interval": "paces a watch, which is a loop around runs rather than a property of one",
+	"once":     "ends a watch after a single pulse; it says how long to watch, not what to watch",
 	"approve": "says what to do with the result after the run, not what the run is. " +
 		"A spec that carried it would be asking whichever process received it to " +
 		"write a file somebody else named",

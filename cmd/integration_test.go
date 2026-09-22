@@ -43,6 +43,7 @@ func resetAll() {
 	verifyPolicy, policyFile = "", ""
 	baselineFile, approveBaseline = "", false
 	badgeLabel = "scout"
+	watchInterval, watchOnce = 0, false
 	watchEgress, expectEgress, plantCanaries = false, nil, false
 	// cobra remembers Changed between runs, and the help flag keeps its
 	// value, so a --help run would turn every later run into help output.

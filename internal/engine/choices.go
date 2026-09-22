@@ -88,6 +88,43 @@ func ListToolChoices(ctx context.Context, spec RunSpec, version string) ([]ToolC
 	return toolChoices(ctx, client, spec.ToolPolicy())
 }
 
+// ListCatalogue connects as the spec describes and returns the catalogue
+// itself, schemas and annotations included.
+//
+// The same two requests the selector makes, kept separate because what
+// they are for differs: a selector wants rows a person can read, and a
+// watcher wants everything a reviewer approved. Sharing the connection
+// logic and not the shape is what keeps a pulse cheap enough to run on a
+// schedule while still being a complete snapshot.
+func ListCatalogue(ctx context.Context, spec RunSpec, version string) ([]scout.Tool, error) {
+	spec = spec.WithDefaults()
+	if err := spec.Validate(); err != nil {
+		return nil, err
+	}
+	cr, err := spec.Credentials()
+	if err != nil {
+		return nil, err
+	}
+	rec := telemetry.New()
+	for _, sec := range cr.Secrets() {
+		rec.Redactor.Add(sec)
+	}
+	cfg, err := choiceConfig(spec, cr, rec, version)
+	if err != nil {
+		return nil, err
+	}
+	client, err := scout.New(cfg)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = client.Close() }()
+
+	if err := connectForChoices(ctx, client, spec, cr); err != nil {
+		return nil, err
+	}
+	return client.ListTools(ctx)
+}
+
 // choiceConfig builds the client configuration for the selector's own
 // connection, over whichever transport the spec names.
 func choiceConfig(spec RunSpec, cr *creds.Credentials, rec *telemetry.Recorder, version string) (scout.Config, error) {

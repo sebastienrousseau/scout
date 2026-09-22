@@ -17,6 +17,27 @@ project announces that a change felt big.
 
 ### Added
 
+- **`scout watch` is the part that does the remembering.** `--baseline`
+  closes the drift gap for anyone who runs it again. This runs it again.
+
+  ```sh
+  scout watch "$URL" --baseline .scout/baseline.json
+  ```
+
+  A pulse is deliberately small — connect, list the catalogue, hash it,
+  compare — because a watcher that re-ran nine phases on a loop would be
+  the abusive client scout warns everyone else about. Two requests and a
+  string comparison, which is what the content address in a snapshot was
+  for, and a timer in between rather than a polling loop. Intervals under
+  30 seconds are refused with the reason.
+
+  `--once` takes a single pulse and exits on the same contract `scout
+  check` uses: 2 when the catalogue is not the approved one, 0 when it
+  is, 1 when scout never got an answer. **An unreachable server is a 1,
+  never a 2** — a network blip is not a rug pull, and a gate that
+  conflated them is one people switch off. `--output ndjson` emits one
+  event per line; `--approve` promotes what the watch saw.
+
 - **The server's own binary now says what it is made of.** scout scored
   how a server behaves on the wire and said nothing about the artifact
   behind it, which for a platform team is the first question they are

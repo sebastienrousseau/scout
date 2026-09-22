@@ -12,6 +12,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/sebastienrousseau/scout"
 )
 
 // mixedServer lists one tool of each class, so the classification and the
@@ -235,5 +237,79 @@ func TestListToolChoicesOnAServerWithNoTools(t *testing.T) {
 	}
 	if len(got) != 0 {
 		t.Errorf("want no choices, got %+v", got)
+	}
+}
+
+// TestListCatalogueReturnsTheWholeTool: a selector wants rows a person
+// can read; a watcher wants everything a reviewer approved, schemas and
+// annotations included. Both come from the same two requests.
+func TestListCatalogueReturnsTheWholeTool(t *testing.T) {
+	srv := mixedServer(t)
+	got, err := ListCatalogue(context.Background(), RunSpec{Target: TargetSpec{Endpoint: srv.URL}}, "test")
+	if err != nil {
+		t.Fatalf("ListCatalogue: %v", err)
+	}
+	if len(got) != 3 {
+		t.Fatalf("want 3 tools, got %d", len(got))
+	}
+
+	byName := map[string]scout.Tool{}
+	for _, tl := range got {
+		byName[tl.Name] = tl
+	}
+	read, ok := byName["read_it"]
+	if !ok {
+		t.Fatal("read_it is missing")
+	}
+	// The parts a choice row throws away are exactly what a baseline
+	// needs: without the schema and the annotation there is no drift to
+	// detect.
+	if read.Annotations == nil || read.Annotations.ReadOnlyHint == nil || !*read.Annotations.ReadOnlyHint {
+		t.Errorf("the annotation did not survive: %+v", read.Annotations)
+	}
+	if len(read.InputSchema) == 0 {
+		t.Error("the input schema did not survive")
+	}
+	if read.Description == "" {
+		t.Error("the description did not survive")
+	}
+}
+
+// TestListCatalogueValidatesBeforeDialing, like the selector: a spec a run
+// would refuse is refused here too.
+func TestListCatalogueValidatesBeforeDialing(t *testing.T) {
+	for name, spec := range map[string]RunSpec{
+		"no target":    {},
+		"relative":     {Target: TargetSpec{Endpoint: "/mcp"}},
+		"unknown mode": {Target: TargetSpec{Endpoint: "https://x/mcp"}, Creds: CredSpec{Mode: "telepathy"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := ListCatalogue(context.Background(), spec, "test"); err == nil {
+				t.Error("want an error before anything is dialled")
+			}
+		})
+	}
+}
+
+// TestListCatalogueReportsAnUnreachableServer.
+func TestListCatalogueReportsAnUnreachableServer(t *testing.T) {
+	_, err := ListCatalogue(context.Background(),
+		RunSpec{Target: TargetSpec{Endpoint: "http://127.0.0.1:1/mcp"}}, "test")
+	if err == nil {
+		t.Fatal("want an error from an unreachable server")
+	}
+}
+
+// TestListCatalogueNeedsALoginWhenTheTokenIsNotStored, the one error that
+// is advice rather than a failure.
+func TestListCatalogueNeedsALoginWhenTheTokenIsNotStored(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	srv := mixedServer(t)
+	_, err := ListCatalogue(context.Background(), RunSpec{
+		Target: TargetSpec{Endpoint: srv.URL},
+		Creds:  CredSpec{Mode: "authorization-code"},
+	}, "test")
+	if err == nil || !strings.Contains(err.Error(), "scout login") {
+		t.Fatalf("want a login hint, got %v", err)
 	}
 }
