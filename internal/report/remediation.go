@@ -326,6 +326,33 @@ var remediations = map[string]Remediation{
 			"groups skip it too.",
 	},
 
+	"catalog.cache_hints": {
+		Means: "The tools/list result says nothing about being cached. Every " +
+			"client fetches your catalogue again on every session, and then " +
+			"pays for it in context on every call after that. The 2026-07-28 " +
+			"revision lets you stop the first half of that with two optional " +
+			"fields, and this server sets neither.",
+		Steps: []Step{
+			{"Set ttlMs on the list result",
+				"How many milliseconds a client may keep the answer. Minutes " +
+					"is usually right: long enough to cover a session, short " +
+					"enough that a catalogue change reaches clients the same " +
+					"day."},
+			{"Set cacheScope when the catalogue is the same for everyone",
+				"`public` lets a shared client cache one copy for all users. " +
+					"Leave it unset, or say `private`, when what a user sees " +
+					"depends on who they are -- an over-shared catalogue is a " +
+					"worse problem than a re-fetched one."},
+			{"Pair it with the catalogue's size",
+				"`catalog.budget.tokens` says what the catalogue costs to " +
+					"look at. This says whether anyone has to pay it twice."},
+		},
+		Note: "Both fields are optional, so this warns only on a catalogue " +
+			"large enough for re-fetching to cost something, and is an " +
+			"observation otherwise. It is skipped entirely before 2026-07-28, " +
+			"where there is nothing to state.",
+	},
+
 	"catalog.baseline": {
 		Means: "The catalogue is not the one recorded in the baseline file. " +
 			"Something about this server changed after somebody approved it, " +

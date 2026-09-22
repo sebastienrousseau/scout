@@ -23,7 +23,7 @@ func phaseCatalog(ctx context.Context, s *Session) []Finding {
 
 	// ---- tools ----
 	c := s.check("catalog.tools.list", "tools/list")
-	tools, err := s.Client.ListTools(pctx("tools/list"))
+	tools, cacheHints, err := s.Client.ListToolsWithHints(pctx("tools/list"))
 	switch {
 	case err != nil && caps.Tools != nil:
 		out = append(out, c.fail(Critical, "capability advertised but listing failed: "+err.Error(), "implement tools/list"))
@@ -115,6 +115,9 @@ func phaseCatalog(ctx context.Context, s *Session) []Finding {
 		// specification does not require and an agent pays for anyway.
 		out = append(out, checkCatalogueBudget(s)...)
 		out = append(out, checkParameterAmbiguity(s)...)
+
+		// Whether the server did anything about that cost.
+		out = append(out, checkCacheHints(s, cacheHints, catalogueTokens(tools))...)
 
 		// And whether this is still the catalogue somebody signed off.
 		out = append(out, checkBaseline(s)...)

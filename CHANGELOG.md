@@ -17,6 +17,23 @@ project announces that a change felt big.
 
 ### Added
 
+- **`catalog.cache_hints` asks whether the catalogue can be cached.**
+  The budget check says what a catalogue costs to look at; this says
+  whether the server did anything about it. Every client fetches the
+  catalogue again on every session and then pays for it in context on
+  every call, and the 2026-07-28 revision answers the first half of that
+  directly: any list result may carry `ttlMs`, how long a client may keep
+  it, and `cacheScope`, whether that cache may be shared.
+
+  Both fields are optional, so silence warns only on a catalogue large
+  enough for the re-fetch to cost something — the budget check's own warn
+  threshold, so the two cannot disagree — and is an observation
+  otherwise. It is skipped before 2026-07-28, where the fields do not
+  exist: reporting their absence there would be a finding about the
+  revision the operator runs rather than about the server.
+
+  `Client.ListToolsWithHints` exposes them. `ListTools` is unchanged.
+
 - **`scout badge` turns a report into a shields.io endpoint.** A score in
   a CI log is read once, by whoever ran it; the same score in a README is
   read by everyone deciding whether to point an agent at the server.

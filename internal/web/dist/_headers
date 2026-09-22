@@ -19,4 +19,4 @@
   Permissions-Policy: camera=(), geolocation=(), microphone=()
 
 /
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-UHKJbQrTMrsMrs3+TnKD+UjKesA2V/FshK1Ud+kPzDo='; style-src 'self'; img-src 'self' https: data:; font-src 'self' https:; connect-src 'self'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-ZQjF8F6xhbgxVFX6TzhX4rR1LC4mQ6kWn7FjvRF1zsA='; style-src 'self'; img-src 'self' https: data:; font-src 'self' https:; connect-src 'self'; frame-ancestors 'none'

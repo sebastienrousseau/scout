@@ -69,6 +69,19 @@ func toolWeight(t scout.Tool) int {
 	return len(b)
 }
 
+// catalogueTokens is what the catalogue costs to look at, in the same
+// estimated tokens the budget check reports.
+//
+// Shared so the cache-hint check reasons about the same number rather than
+// computing a second one that could drift from it.
+func catalogueTokens(tools []scout.Tool) int {
+	total := 0
+	for _, t := range tools {
+		total += toolWeight(t)
+	}
+	return approxTokens(total)
+}
+
 // checkCatalogueBudget measures what the catalogue costs to look at.
 func checkCatalogueBudget(s *Session) []Finding {
 	tools := s.Tools
