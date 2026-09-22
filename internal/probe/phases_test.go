@@ -639,3 +639,71 @@ func TestUnauthenticatedToolsPassesAProtectedServer(t *testing.T) {
 		t.Errorf("the detail does not say what the server answered: %s", got.Detail)
 	}
 }
+
+// TestOriginValidation. The fake is on loopback, which is exactly what DNS
+// rebinding reaches, so a server that answers a foreign Origin there
+// fails; one that refuses it passes, with the status the specification
+// names or with another refusal that is still a refusal.
+func TestOriginValidation(t *testing.T) {
+	bearer := &creds.Credentials{Mode: creds.ModeBearer, Token: "tok-1234"}
+	only := func(o *Options) { o.Only = []string{"net", "discovery", "auth", "handshake", "protocol"} }
+
+	f := newFakeServer(t)
+	f.acceptAnyToken = true
+	_, fs := run(t, f, bearer, only)
+	expect(t, fs, "protocol.origin", Pass, "403 for Origin https://scout-origin-probe.invalid")
+
+	f = newFakeServer(t)
+	f.acceptAnyToken = true
+	f.q.originStatus = http.StatusBadRequest
+	_, fs = run(t, f, bearer, only)
+	expect(t, fs, "protocol.origin", Pass, "asks for 403")
+
+	f = newFakeServer(t)
+	f.acceptAnyToken = true
+	f.q.originStatus = http.StatusBadGateway
+	_, fs = run(t, f, bearer, only)
+	expect(t, fs, "protocol.origin", Info, "neither served nor refused")
+
+	f = newFakeServer(t)
+	f.acceptAnyToken = true
+	f.q.originOpen = true
+	_, fs = run(t, f, bearer, only)
+	expect(t, fs, "protocol.origin", Fail, "on loopback")
+	if got := fs["protocol.origin"]; got.Severity != Major || len(got.Evidence) == 0 {
+		t.Errorf("an open loopback server: %+v, want a Major failure citing its request", got)
+	}
+
+	// The same server on a public address: still required, not what DNS
+	// rebinding reaches, so a warning rather than a failure.
+	orig := endpointLocality
+	endpointLocality = func(context.Context, string) (string, bool) { return "", false }
+	t.Cleanup(func() { endpointLocality = orig })
+	f = newFakeServer(t)
+	f.acceptAnyToken = true
+	f.q.originOpen = true
+	_, fs = run(t, f, bearer, only)
+	expect(t, fs, "protocol.origin", Warn, "not what DNS rebinding reaches")
+}
+
+// TestLocalEndpoint decides the severity, so each branch is pinned.
+func TestLocalEndpoint(t *testing.T) {
+	ctx := context.Background()
+	for host, want := range map[string]string{
+		"localhost":   "loopback",
+		"127.0.0.1":   "loopback",
+		"::1":         "loopback",
+		"10.1.2.3":    "a private address",
+		"192.168.0.9": "a private address",
+		"fe80::1":     "a private address",
+	} {
+		if got, ok := localEndpoint(ctx, host); !ok || got != want {
+			t.Errorf("localEndpoint(%q) = %q %v, want %q", host, got, ok, want)
+		}
+	}
+	for _, host := range []string{"8.8.8.8", "2001:4860:4860::8888", "does-not-resolve.invalid"} {
+		if got, ok := localEndpoint(ctx, host); ok {
+			t.Errorf("localEndpoint(%q) = %q, want public", host, got)
+		}
+	}
+}

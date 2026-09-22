@@ -297,6 +297,8 @@ var httpOnlyChecks = []struct{ id, title, why string }{
 		"sessions are carried in an HTTP header; over a pipe the connection is the session, so there is no id to forge"},
 	{"protocol.version_header", "Bad MCP-Protocol-Version is rejected",
 		"the protocol version travels in an HTTP header on this revision; over a pipe it travels in the body, which the dialect already builds"},
+	{"protocol.origin", "A foreign Origin is rejected",
+		"Origin is a browser's HTTP header, and DNS rebinding reaches an HTTP listener; a pipe has neither"},
 }
 
 // skipHTTPOnly names every conformance check that cannot be made over a

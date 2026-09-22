@@ -8,13 +8,13 @@ description: >-
 
 # The check inventory
 
-scout runs **107 checks** across **9 phases**.
+scout runs **108 checks** across **9 phases**.
 
 13 of them apply only to a server that is a program rather than a URL, and
 replace the ones that have no meaning over a pipe. A run reports every check it
 did not make, by id and with the reason, rather than leaving it out.
 
-106 of those are fixed, and 1 is a family whose id is built at run time —
+107 of those are fixed, and 1 is a family whose id is built at run time —
 one check per value the run encounters, marked `*` below.
 
 This file is generated from the source: every check is created through
@@ -82,7 +82,7 @@ that is what a reader sees in a report.
 | <span id="check-handshake-session" data-can-fail="false"></span>`handshake.session` | Mcp-Session-Id issued |
 | <span id="check-handshake-stateless" data-can-fail="true"></span>`handshake.stateless` | Stateless session setup |
 
-## protocol — 14 checks
+## protocol — 15 checks
 
 | Check | What it looks for |
 |---|---|
@@ -95,6 +95,7 @@ that is what a reader sees in a report.
 | <span id="check-protocol-invalid_params" data-can-fail="true"></span>`protocol.invalid_params` | tools/call without a name is rejected |
 | <span id="check-protocol-malformed_json" data-can-fail="true"></span>`protocol.malformed_json` | Malformed JSON is rejected |
 | <span id="check-protocol-mrtr" data-can-fail="true"></span>`protocol.mrtr` | Requests for client input are answerable |
+| <span id="check-protocol-origin" data-can-fail="true"></span>`protocol.origin` | A foreign Origin is rejected |
 | <span id="check-protocol-ping" data-can-fail="true"></span>`protocol.ping` | _(title computed at run time)_ |
 | <span id="check-protocol-routing_headers" data-can-fail="true"></span>`protocol.routing_headers` | Mirrored routing headers are validated |
 | <span id="check-protocol-unknown_method" data-can-fail="true"></span>`protocol.unknown_method` | Unknown method returns -32601 |

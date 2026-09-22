@@ -17,6 +17,27 @@ project announces that a change felt big.
 
 ### Added
 
+- **`protocol.origin` asks whether a web page can drive the server.** The
+  Streamable HTTP transport requires servers to validate `Origin`,
+  because DNS rebinding lets any site a user opens point a hostname at
+  `127.0.0.1` and reach a local server from their browser. scout has
+  told servers to do this since the web UI shipped, and until now never
+  checked that they did.
+
+  One ping, carrying the operator's credentials and a session, with
+  `Origin: https://scout-origin-probe.invalid` — so a refusal can only
+  be about the origin. 403 passes; another 4xx passes and says the
+  specification asks for 403. A server that answers fails as Major on
+  loopback or a private address, which is what rebinding reaches, and
+  warns on a public one, where the rule still applies and the attack
+  mostly does not. Over stdio it is skipped by name: a pipe has no
+  headers and nothing to rebind.
+
+  It came out of running the official conformance suite against a
+  correct, minimal server, where it was the one scenario that measured
+  something every server should do. Most of the rest need the suite's
+  own fixture tools, which is why scout does not wrap it as a phase.
+
 - **`scout sbom` emits a CycloneDX bill of materials.** The supply phase
   already reads a Go server's module graph out of the binary, and until
   now that graph only ever became two findings. This is the same read,
@@ -463,7 +484,7 @@ project announces that a change felt big.
   pretty-printed array put its newlines straight through the terminal
   layout, the Markdown table and the JUnit message.
 
-- **The published check count is 86**, five of which are the stdio ones. The
+- **The published check count is 108**, the stdio ones among them. The
   generator no longer counts `stdio.*` as a tenth phase — it briefly said
   "across 10 phases" while scout ran nine, which is the drift a generated
   page exists to prevent — and a new test fails when a group in the

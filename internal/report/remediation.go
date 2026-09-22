@@ -1317,6 +1317,27 @@ var remediations = map[string]Remediation{
 		},
 	},
 
+	"protocol.origin": {
+		Means: "The server answered a request whose Origin header named a site " +
+			"it has no reason to trust. Through DNS rebinding, any web page the " +
+			"user opens can point a hostname at this server's address and send it " +
+			"requests from their browser, with whatever access that network " +
+			"position gives.",
+		Steps: []Step{
+			{"Check Origin on every request, and refuse with 403",
+				"Compare it against an allowlist of the origins your clients " +
+					"actually use; a request with no Origin is a non-browser client " +
+					"and is unaffected. The Streamable HTTP transport requires it."},
+			{"Bind a local server to 127.0.0.1, not 0.0.0.0",
+				"That keeps the rest of the network out. It does not keep a " +
+					"browser on the same machine out, which is why the Origin check " +
+					"is needed as well."},
+		},
+		Note: "A public endpoint only warns: the rule still applies, but DNS " +
+			"rebinding is an attack on what a browser can reach that the " +
+			"attacker cannot, which a public server is not.",
+	},
+
 	// --- catalog -----------------------------------------------------------
 
 	"catalog.tools.list": {

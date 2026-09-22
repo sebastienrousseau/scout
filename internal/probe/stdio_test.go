@@ -276,7 +276,7 @@ func TestStdioNamesTheChecksItCannotMake(t *testing.T) {
 	_, fs := runStdioFixture(t, "serve", "net", "handshake", "protocol")
 	for _, id := range []string{
 		"protocol.accept_header", "protocol.get_stream",
-		"protocol.bogus_session", "protocol.version_header",
+		"protocol.bogus_session", "protocol.version_header", "protocol.origin",
 		"handshake.session",
 	} {
 		f, ok := fs[id]

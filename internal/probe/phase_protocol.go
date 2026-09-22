@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"strings"
 
@@ -272,7 +273,7 @@ func phaseProtocol(ctx context.Context, s *Session) []Finding {
 
 	// From here on the probes are about the HTTP binding rather than about
 	// MCP. Over a pipe they are named and skipped: a report that simply
-	// contained four fewer checks would read as a better result.
+	// contained fewer checks would read as a better result.
 	tr, overHTTP := s.Client.HTTP()
 	if !overHTTP {
 		return append(out, s.skipHTTPOnly()...)
@@ -347,7 +348,85 @@ func phaseProtocol(ctx context.Context, s *Session) []Finding {
 	default:
 		out = append(out, c.info(fmt.Sprintf("HTTP %d", hrep.Status)))
 	}
+
+	out = append(out, checkOrigin(pctx("foreign origin"), s, tr, live, liveParams))
 	return out
+}
+
+// foreignOrigin is what a page on an attacker's site would send. .invalid
+// is reserved (RFC 6761) and can never resolve, so no server can
+// legitimately list it.
+const foreignOrigin = "https://scout-origin-probe.invalid"
+
+// checkOrigin asks whether the server refuses a request from a web page
+// it did not expect.
+//
+// The Streamable HTTP transport requires servers to validate Origin,
+// because DNS rebinding lets any site a user visits point a hostname at
+// 127.0.0.1 and drive a local server from the user's browser. The request
+// carries the operator's credentials and a session, so the only thing
+// wrong with it is where it claims to come from: a rejection can be
+// attributed to the Origin and to nothing else.
+func checkOrigin(ctx context.Context, s *Session, tr *transport.Streamable, live string, liveParams any) Finding {
+	c := s.check("protocol.origin", "A foreign Origin is rejected")
+	id := tr.NextID()
+	hrep, err := tr.Do(ctx, transport.RawOptions{
+		Request: &transport.Request{JSONRPC: "2.0", ID: &id, Method: live, Params: liveJSON(liveParams)},
+		Headers: map[string]string{"Origin": foreignOrigin},
+	})
+	switch {
+	case err != nil:
+		return c.info("request failed: " + truncate(err.Error(), 100))
+	case hrep.Status == http.StatusForbidden:
+		return c.pass("403 for Origin " + foreignOrigin)
+	case hrep.Status/100 == 4:
+		// Refused, which is the property. The status is not the one the
+		// specification names, and a client cannot tell this refusal from
+		// any other 4xx, so it is said.
+		return c.pass(fmt.Sprintf("HTTP %d for Origin %s (the specification asks for 403)", hrep.Status, foreignOrigin))
+	case hrep.Status/100 != 2:
+		return c.info(fmt.Sprintf("HTTP %d; neither served nor refused", hrep.Status))
+	}
+	advice := "reject requests whose Origin is not one you expect with 403; the Streamable HTTP transport requires it"
+	if where, local := endpointLocality(ctx, s.URL.Hostname()); local {
+		return c.fail(Major,
+			fmt.Sprintf("served a request from Origin %s on %s: any web page the user opens can drive this server through DNS rebinding", foreignOrigin, where),
+			advice+", and a server on this machine or network is exactly what DNS rebinding reaches")
+	}
+	return c.warn(
+		fmt.Sprintf("served a request from Origin %s; the transport requires Origin validation, though a public endpoint is not what DNS rebinding reaches", foreignOrigin),
+		advice)
+}
+
+// endpointLocality is localEndpoint, as a variable so a test can put a
+// loopback fake on a public address.
+var endpointLocality = localEndpoint
+
+// localEndpoint reports whether a host is this machine or a private
+// network, which is what DNS rebinding reaches, and says which.
+func localEndpoint(ctx context.Context, host string) (string, bool) {
+	if host == "localhost" {
+		return "loopback", true
+	}
+	addrs := []string{host}
+	if net.ParseIP(host) == nil {
+		resolved, err := net.DefaultResolver.LookupHost(ctx, host)
+		if err != nil {
+			return "", false
+		}
+		addrs = resolved
+	}
+	for _, a := range addrs {
+		ip := net.ParseIP(a)
+		switch {
+		case ip == nil:
+		case ip.IsLoopback():
+			return "loopback", true
+		case ip.IsPrivate(), ip.IsLinkLocalUnicast():
+			return "a private address", true
+		}
+	}
+	return "", false
 }
 
 // phaseResilience checks recovery paths: session expiry and token refresh.

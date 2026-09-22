@@ -43,7 +43,7 @@ func TestFullRunClientCredentials(t *testing.T) {
 	}
 	fs := findingsByID(s)
 	expectPass := []string{"discovery.first_contact", "discovery.challenge", "discovery.prm", "discovery.prm.resource", "discovery.as", "discovery.as.pkce", "auth.registration", "auth.token", "auth.rejects_garbage",
-		"handshake.initialize", "handshake.session", "protocol.ping", "protocol.unknown_method", "protocol.id_echo", "protocol.malformed_json", "protocol.invalid_params", "protocol.unknown_tool", "protocol.bogus_session", "protocol.version_header",
+		"handshake.initialize", "handshake.session", "protocol.ping", "protocol.unknown_method", "protocol.id_echo", "protocol.malformed_json", "protocol.invalid_params", "protocol.unknown_tool", "protocol.bogus_session", "protocol.version_header", "protocol.origin",
 		"catalog.tools.list", "catalog.tools.unique", "catalog.tools.descriptions", "catalog.resources.list", "catalog.prompts.list", "execution.resources", "execution.prompts", "resilience.session_reinit", "resilience.token_refresh", "performance.ping"}
 	for _, id := range expectPass {
 		if f, ok := fs[id]; !ok || f.Status != Pass {

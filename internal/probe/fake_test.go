@@ -90,6 +90,12 @@ type quirks struct {
 	// a different kind of wrong from a tool doing it: the whole purpose of a
 	// liveness call is to be answerable with nobody present.
 	pingNeedsInput bool
+	// originOpen serves requests from any Origin, which the Streamable
+	// HTTP transport forbids. By default the fake refuses a foreign one
+	// with 403, as a correct server does; originStatus picks another
+	// refusal status.
+	originOpen   bool
+	originStatus int
 }
 
 // fakeServer is a protected MCP server with its own authorization server,
@@ -259,6 +265,14 @@ func (f *fakeServer) handle(w http.ResponseWriter, r *http.Request) {
 			f.unauthorized(w, r)
 			return
 		}
+	}
+	if o := r.Header.Get("Origin"); o != "" && !f.q.originOpen && o != f.srv.URL {
+		st := f.q.originStatus
+		if st == 0 {
+			st = http.StatusForbidden
+		}
+		w.WriteHeader(st)
+		return
 	}
 	if r.Method == http.MethodGet {
 		if f.q.getStream {
