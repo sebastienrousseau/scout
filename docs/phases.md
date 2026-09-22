@@ -98,6 +98,9 @@ MCP specification require.
 | `protocol.accept_header`, `protocol.get_stream` | informational: strictness about `Accept`, and whether GET opens a server event stream |
 | `protocol.bogus_session` | a session id the server never issued is rejected |
 | `protocol.version_header` | a bad `MCP-Protocol-Version` is rejected |
+| `protocol.tasks.unknown_id`, `protocol.tasks.capability` | for a server advertising the Tasks extension: an unknown task id gets -32602, and a client that did not declare the extension gets -32021 |
+| `protocol.tasks.undeclared` | no task is returned to a call that did not declare the extension |
+| `protocol.tasks.lifecycle` | a task created by calling a read-only tool is retrievable at once, carries the required fields, reaches a terminal state within 30 seconds and keeps it; scout cancels any task it does not see finish |
 | `protocol.origin` | a request from a foreign `Origin` is refused, as the transport requires against DNS rebinding; failing on loopback or a private address, a warning on a public host |
 
 ## catalog: Tool, resource and prompt catalog

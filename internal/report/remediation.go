@@ -1319,6 +1319,66 @@ var remediations = map[string]Remediation{
 		},
 	},
 
+	"protocol.tasks.unknown_id": {
+		Means: "The server answered tasks/get for a task id it never issued, or " +
+			"refused it with the wrong error. A client polling a mistyped or " +
+			"expired id relies on -32602 to stop; without it, it polls forever.",
+		Steps: []Step{
+			{"Return -32602 for an unknown or expired task id",
+				"The Tasks extension requires it for tasks/get. A purged task is " +
+					"allowed to be unknown; it is not allowed to look alive."},
+		},
+	},
+
+	"protocol.tasks.capability": {
+		Means: "A task method was served, or refused with the wrong code, for a " +
+			"client that did not declare the Tasks extension. -32021 is how a " +
+			"client learns what it has to declare.",
+		Steps: []Step{
+			{"Check the declared capability before the task id",
+				"Answer -32021 (Missing Required Client Capability) naming " +
+					"io.modelcontextprotocol/tasks for tasks/get, tasks/update and " +
+					"tasks/cancel from a client whose per-request capabilities omit it."},
+		},
+	},
+
+	"protocol.tasks.undeclared": {
+		Means: "The server returned a task to a client that never said it could " +
+			"handle one. That client has no way to poll for the result, so the " +
+			"call's answer is lost.",
+		Steps: []Step{
+			{"Return a task only when the request declares the extension",
+				"Capabilities are per request on this revision. Without the " +
+					"declaration, answer synchronously, or with -32021 if the call " +
+					"genuinely cannot be served without a task."},
+		},
+	},
+
+	"protocol.tasks.lifecycle": {
+		Means: "A task scout followed broke the extension's contract: not " +
+			"retrievable when its handle was returned, missing a required field, " +
+			"never reaching a terminal state, or changing after it did. To an " +
+			"agent each of these looks like a call that hangs or lies.",
+		Steps: []Step{
+			{"Create the task durably before returning its handle",
+				"tasks/get for the returned id must resolve immediately, even in " +
+					"an eventually consistent store."},
+			{"Carry every required field",
+				"taskId, status, createdAt, lastUpdatedAt and ttlMs (null for " +
+					"unlimited) on every Task; result when completed, error when " +
+					"failed, inputRequests when input_required; resultType " +
+					"\"complete\" on the tasks/get answer."},
+			{"Finish, and stay finished",
+				"A task behind a read-only call should end promptly or report " +
+					"progress in statusMessage. Once completed, failed or cancelled, " +
+					"every later tasks/get must say the same."},
+		},
+		Note: "scout follows at most one task, created by calling a read-only " +
+			"tool it has already called, and cancels any task it does not see " +
+			"finish. A server that answers synchronously is not faulted: the " +
+			"server decides per call whether to create a task.",
+	},
+
 	"protocol.origin": {
 		Means: "The server answered a request whose Origin header named a site " +
 			"it has no reason to trust. Through DNS rebinding, any web page the " +

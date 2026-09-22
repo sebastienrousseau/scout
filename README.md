@@ -1036,9 +1036,10 @@ scout is opinionated, and the opinions do not suit everyone.
   to authorize against, so a `--stdio` run refuses `--token` and reports
   discovery and auth as skipped. Test the server's HTTP deployment for
   those; everything else runs over the pipe.
-- **You need the Tasks or Apps extensions checked.** scout diagnoses the
+- **You need the Apps extension checked.** scout diagnoses the
   core protocol on both the handshake revisions and the stateless
-  `2026-07-28` one, but it does not yet exercise the optional extensions.
+  `2026-07-28` one, and follows the Tasks extension's lifecycle, but it
+  does not exercise MCP Apps.
 - **You want an agent to exercise the server.** scout's execution phase is
   deterministic: generated or supplied arguments, one call per tool. The
   `diagnostics.Model` interface exists for a model-driven probe, but no

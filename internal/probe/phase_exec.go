@@ -327,6 +327,9 @@ func phaseExecution(ctx context.Context, s *Session) []Finding {
 	// emits for the same reason: the id names the mechanism and the phase
 	// names when it could be measured.
 	out = append(out, checkMRTR(s))
+	// The Tasks extension, for the same reason: following a task needs a
+	// tool the execution phase has already called.
+	out = append(out, checkTasks(ctx, s)...)
 	return out
 }
 

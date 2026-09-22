@@ -85,6 +85,22 @@ project announces that a change felt big.
   would mean adding a dependency to the binary a security team has to
   approve in order to describe the dependencies in somebody else's.
 
+- **The Tasks extension is checked.** For a server advertising
+  `io.modelcontextprotocol/tasks`, four `protocol.tasks.*` checks ask
+  what the extension requires: an unknown task id is refused with
+  -32602; a client that did not declare the extension gets -32021; no
+  task is returned to a call that did not ask for one; and a task scout
+  creates — by calling a read-only tool it has already called — is
+  retrievable at once, carries the required fields, reaches a terminal
+  state within 30 seconds and keeps it. scout honours `pollIntervalMs`
+  between 250 ms and 5 s, and cancels any task it does not see finish.
+  A server that answers synchronously is not faulted; one on a handshake
+  revision, or not advertising the extension, is skipped by name.
+
+  Supporting it, the stateless dialect now keeps capabilities a caller
+  declares on one request, and sets `Mcp-Name` to the task id on
+  `tasks/*` requests, as the extension requires of a client.
+
 - **`attestation` is a public, Apache-2.0 package for verifying a
   statement.** The statement types and the offline verifier — `Parse`,
   `Validate`, `Covers`, `VerdictFor`, and `SubjectFor` for producers —
@@ -525,7 +541,7 @@ project announces that a change felt big.
   pretty-printed array put its newlines straight through the terminal
   layout, the Markdown table and the JUnit message.
 
-- **The published check count is 108**, the stdio ones among them. The
+- **The published check count is 112**, the stdio ones among them. The
   generator no longer counts `stdio.*` as a tenth phase — it briefly said
   "across 10 phases" while scout ran nine, which is the drift a generated
   page exists to prevent — and a new test fails when a group in the

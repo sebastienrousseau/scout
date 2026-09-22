@@ -299,3 +299,36 @@ func TestSessionedFallbackVersion(t *testing.T) {
 		t.Error("the default binding is session-based")
 	}
 }
+
+// TestPrepareBodyKeepsPerRequestCapabilities. On the stateless revision a
+// client declares capabilities per request, so one call may declare an
+// extension the others do not; the dialect's default must not overwrite it.
+func TestPrepareBodyKeepsPerRequestCapabilities(t *testing.T) {
+	d := &Stateless{ProtocolVersion: V20260728, Capabilities: json.RawMessage(`{"sampling":{}}`)}
+	declared := `{"extensions":{"io.modelcontextprotocol/tasks":{}}}`
+	rpc := &Request{Method: "tools/call", Params: json.RawMessage(`{"name":"t","_meta":{"` + MetaClientCapabilities + `":` + declared + `}}`)}
+	if err := d.PrepareBody(rpc); err != nil {
+		t.Fatal(err)
+	}
+	var params struct {
+		Meta map[string]json.RawMessage `json:"_meta"`
+	}
+	if err := json.Unmarshal(rpc.Params, &params); err != nil {
+		t.Fatal(err)
+	}
+	if got := string(params.Meta[MetaClientCapabilities]); got != declared {
+		t.Errorf("per-request capabilities were replaced: %s", got)
+	}
+
+	// Without one, the dialect's own declaration applies.
+	plain := &Request{Method: "tools/list", Params: json.RawMessage(`{}`)}
+	if err := d.PrepareBody(plain); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(plain.Params, &params); err != nil {
+		t.Fatal(err)
+	}
+	if got := string(params.Meta[MetaClientCapabilities]); got != `{"sampling":{}}` {
+		t.Errorf("default capabilities = %s", got)
+	}
+}

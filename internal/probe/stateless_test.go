@@ -46,6 +46,30 @@ type statelessOpts struct {
 	legacyExtensions string
 	// rawCapabilities replaces the capabilities object verbatim.
 	rawCapabilities string
+	// tasks, when set, makes the fake serve the Tasks extension and
+	// advertise it; each field is one way of getting it wrong.
+	tasks *taskKnobs
+}
+
+// taskKnobs are the Tasks-extension misbehaviours the fake can switch on.
+// The zero value is a correct implementation: a task for a declared call,
+// completed on the third poll, 10ms poll interval.
+type taskKnobs struct {
+	sync             bool // advertise, but answer every call synchronously
+	undeclared       bool // return a task even when the call did not declare the extension
+	ignoreCapability bool // serve tasks/get without the declared capability
+	unknownOK        bool // answer tasks/get for any id
+	wrongCode        bool // unknown id → -32603 instead of -32602
+	notDurable       bool // the first tasks/get of a new task fails
+	neverEnds        bool // stays working forever
+	inputRequired    bool // moves to input_required
+	noResult         bool // completed with no result
+	noTTL            bool // omits ttlMs
+	flip             bool // after completing, reports working again
+	declaredFails    bool // tools/call errors when the extension is declared
+	// cancels counts the tasks/cancel requests the fake received, so a test
+	// can assert that scout cleans up a task it started and did not see end.
+	cancels int
 }
 
 // statelessFake is a server on the stateless revision that validates what
@@ -57,6 +81,9 @@ func statelessFake(t *testing.T, o statelessOpts) *httptest.Server {
 	// fake keeps are shared across handler goroutines.
 	var mu sync.Mutex
 	var listCalls int
+	var taskSeq int
+	taskPolls := map[string]int{}
+	taskCancelled := map[string]bool{}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			if o.serveGETStream {
@@ -72,8 +99,9 @@ func statelessFake(t *testing.T, o statelessOpts) *httptest.Server {
 			ID     json.RawMessage `json:"id"`
 			Method string          `json:"method"`
 			Params struct {
-				Name string         `json:"name"`
-				Meta map[string]any `json:"_meta"`
+				Name   string         `json:"name"`
+				TaskID string         `json:"taskId"`
+				Meta   map[string]any `json:"_meta"`
 			} `json:"params"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -131,6 +159,9 @@ func statelessFake(t *testing.T, o statelessOpts) *httptest.Server {
 				extra += `,"extensions":` + o.legacyExtensions
 			}
 			caps := `{"tools":{}}`
+			if o.tasks != nil && o.extensions == "" {
+				o.extensions = `["io.modelcontextprotocol/tasks"]`
+			}
 			if o.extensions != "" {
 				var ids []string
 				if err := json.Unmarshal([]byte(o.extensions), &ids); err != nil {
@@ -179,7 +210,82 @@ func statelessFake(t *testing.T, o statelessOpts) *httptest.Server {
 				fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%s,"result":{"resultType":"complete","isError":true,"content":[{"type":"text","text":"no such tool"}]}}`, id)
 				return
 			}
+			if k := o.tasks; k != nil {
+				declared := declaresTasks(req.Params.Meta)
+				if declared && k.declaredFails {
+					fail(http.StatusOK, -32603, "tasks broke this")
+					return
+				}
+				if (declared || k.undeclared) && !k.sync {
+					mu.Lock()
+					taskSeq++
+					tid := fmt.Sprintf("task-%d", taskSeq)
+					taskPolls[tid] = 0
+					mu.Unlock()
+					ttl := `,"ttlMs":60000`
+					if k.noTTL {
+						ttl = ""
+					}
+					fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%s,"result":{"resultType":"task","taskId":%q,"status":"working","createdAt":"2026-09-23T10:00:00Z","lastUpdatedAt":"2026-09-23T10:00:00Z"%s,"pollIntervalMs":10}}`, id, tid, ttl)
+					return
+				}
+			}
 			fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%s,"result":{"resultType":"complete","content":[{"type":"text","text":"ok"}]}}`, id)
+		case "tasks/get", "tasks/cancel":
+			k := o.tasks
+			if k == nil {
+				fail(http.StatusOK, -32601, "method not found")
+				return
+			}
+			if !declaresTasks(req.Params.Meta) && !k.ignoreCapability {
+				fail(http.StatusOK, transport.CodeMissingClientCapability, "Missing required client capability")
+				return
+			}
+			mu.Lock()
+			polls, known := taskPolls[req.Params.TaskID]
+			if known && req.Method == "tasks/get" {
+				taskPolls[req.Params.TaskID] = polls + 1
+			}
+			if known && req.Method == "tasks/cancel" {
+				taskCancelled[req.Params.TaskID] = true
+				k.cancels++
+			}
+			cancelled := taskCancelled[req.Params.TaskID]
+			mu.Unlock()
+			switch {
+			case !known && k.unknownOK:
+				// falls through to a working answer below
+			case !known && k.wrongCode:
+				fail(http.StatusOK, -32603, "internal error")
+				return
+			case !known:
+				fail(http.StatusOK, -32602, "Failed to retrieve task: Task not found")
+				return
+			case k.notDurable && polls == 0 && req.Method == "tasks/get":
+				fail(http.StatusOK, -32602, "Failed to retrieve task: Task not found")
+				return
+			}
+			if req.Method == "tasks/cancel" {
+				fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%s,"result":{"resultType":"complete"}}`, id)
+				return
+			}
+			status, extra := "working", ""
+			switch {
+			case cancelled:
+				status = "cancelled"
+			case k.neverEnds || !known:
+			case k.inputRequired && polls >= 1:
+				status, extra = "input_required", `,"inputRequests":{"name":{"method":"elicitation/create","params":{"mode":"form","message":"Your name?","requestedSchema":{"type":"object"}}}}`
+			case k.flip && polls >= 3:
+				status = "working"
+			case polls >= 2:
+				status = "completed"
+				if !k.noResult {
+					extra = `,"result":{"content":[{"type":"text","text":"done"}],"isError":false}`
+				}
+			}
+			tid := req.Params.TaskID
+			fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%s,"result":{"resultType":"complete","taskId":%q,"status":%q,"createdAt":"2026-09-23T10:00:00Z","lastUpdatedAt":"2026-09-23T10:00:01Z","ttlMs":60000,"pollIntervalMs":10%s}}`, id, tid, status, extra)
 		case "initialize", "ping":
 			// Both were removed by this revision. A conformant server on it
 			// answers -32601, which is what the default branch does.
@@ -393,4 +499,13 @@ func TestSkipEraCheckStopsAtFirstContact(t *testing.T) {
 	if ok && f.Status != Skip {
 		t.Errorf("the era finding should record that it was skipped: %+v", f)
 	}
+}
+
+// declaresTasks reports whether a request's per-request capabilities
+// declare the Tasks extension.
+func declaresTasks(meta map[string]any) bool {
+	caps, _ := meta[transport.MetaClientCapabilities].(map[string]any)
+	ext, _ := caps["extensions"].(map[string]any)
+	_, ok := ext["io.modelcontextprotocol/tasks"]
+	return ok
 }
