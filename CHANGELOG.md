@@ -17,6 +17,23 @@ project announces that a change felt big.
 
 ### Added
 
+- **`scout badge` turns a report into a shields.io endpoint.** A score in
+  a CI log is read once, by whoever ran it; the same score in a README is
+  read by everyone deciding whether to point an agent at the server.
+
+  ```sh
+  scout check "$URL" --output json > report.json
+  scout badge report.json > badge.json
+  ```
+
+  An endpoint document rather than an image, so there is no service to
+  run and nothing to render. The colour follows the report's own grade
+  instead of re-reading the number, so the badge and the document it came
+  from cannot disagree about where a boundary is. A run that never
+  reached a verdict renders as an error rather than as a low score: a
+  badge reading `0/100` because the endpoint was unreachable would repeat
+  exactly the mistake the exit-code contract exists to prevent.
+
 - **`scout check --baseline` says what changed since you approved it.**
   A check tells you a server was sound when you ran it. It cannot tell
   you the server is still the one you reviewed, and that gap is the whole
@@ -65,7 +82,9 @@ project announces that a change felt big.
   version of the path [ADR-0005](docs/adr/0005-public-mode-is-the-same-binary.md)
   closed. Public mode refuses credentials and off-allowlist endpoints on
   the selector exactly as it does on a run, and a program is refused on
-  both. The child is started in its own process
+  both.
+
+- **Process custody over stdio.** The child is started in its own process
   group, so scout owns the tree rather than the one pid it was handed.
   Shutdown escalates — stdin closed, then `SIGTERM` to the group, then
   `SIGKILL` — and `Close` still returns having reaped everything. Putting

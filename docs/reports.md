@@ -336,3 +336,39 @@ actually ran, and the report states how many were assessed, so a high
 score on a partial run cannot be mistaken for a full one. Every
 deduction is listed with the finding that caused it. Grades: A at 90 and
 above, B at 75, C at 60, D at 40, F below.
+
+## Badges
+
+A score in a CI log is read once, by whoever ran it. The same score in a
+README is read by everyone deciding whether to point an agent at the
+server.
+
+`scout badge` turns a saved report into a [shields.io endpoint][shields]
+document — not an image, so there is no service to run and nothing to
+render:
+
+```sh
+scout check "$URL" --output json > report.json
+scout badge report.json > badge.json
+```
+
+Serve `badge.json` over HTTPS and point shields at it:
+
+```markdown
+![scout](https://img.shields.io/endpoint?url=https://example.com/badge.json)
+```
+
+It reads standard input when given no filename, and `--label` sets the
+left-hand text for a project badging more than one server.
+
+The colour comes from the report's own grade rather than from a second
+reading of the number, so the badge and the document it came from cannot
+disagree about where a boundary is: A is bright green, B green, C yellow,
+D orange, F red.
+
+A run that never reached a verdict renders as an error rather than as a
+low score. This is the same distinction the exit codes make — a badge
+reading `0/100` because the endpoint was unreachable would repeat exactly
+the mistake that contract exists to prevent.
+
+[shields]: https://shields.io/badges/endpoint-badge
