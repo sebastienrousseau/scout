@@ -549,6 +549,15 @@ project announces that a change felt big.
 
 ### Fixed
 
+- **`resilience.stateless` compared list sizes, not lists.** It asks for
+  `tools/list` on two independent connections and passed whenever both
+  returned the same number of tools, so two different catalogues of the
+  same size passed as "the same answer". It now compares every tool's
+  definition, ignoring key order, and names the tools that differ. On
+  the stateless revision lists are cacheable, so a client may serve one
+  connection's answer to another; a difference is a wrong answer for
+  somebody.
+
 - **`protocol.extensions` read extensions from the wrong place.** The
   2026-07-28 schema puts a server's extensions in
   `capabilities.extensions`, keyed by identifier; scout read a top-level
