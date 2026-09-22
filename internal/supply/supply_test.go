@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"strings"
 	"testing"
 )
@@ -122,7 +123,14 @@ func TestInspectFlagsADirtyBuild(t *testing.T) {
 // TestInspectRejectsSomethingThatIsNotAGoBinary, with an error a caller
 // can tell apart from a missing file.
 func TestInspectRejectsSomethingThatIsNotAGoBinary(t *testing.T) {
-	p := filepath.Join(t.TempDir(), "notgo")
+	name := "notgo"
+	if runtime.GOOS == "windows" {
+		// LookPath there resolves by extension, whatever the file holds,
+		// so a name without one is not found at all and the error would
+		// be about the lookup rather than about the contents.
+		name += ".exe"
+	}
+	p := filepath.Join(t.TempDir(), name)
 	if err := os.WriteFile(p, []byte("#!/bin/sh\necho hi\n"), 0o700); err != nil { //nolint:gosec // an executable fixture
 		t.Fatal(err)
 	}
@@ -191,5 +199,107 @@ func TestSummaryReadsAsASentence(t *testing.T) {
 	devel := &Build{GoVersion: "go1.27.1", Main: Module{Path: "x", Version: "(devel)"}}
 	if strings.Contains(devel.Summary(), "(devel)") {
 		t.Errorf("summary shows a placeholder version: %q", devel.Summary())
+	}
+}
+
+// TestFromBuildInfoReadsWhatTheToolchainRecorded drives the conversion
+// directly, with a synthetic record.
+//
+// The other tests here build a real binary, which is the right way to
+// test that the reading works at all — but it makes the coverage of this
+// function depend on whether a Go toolchain and a git are present, and on
+// what they chose to stamp. The conversion itself has no such excuse.
+func TestFromBuildInfoReadsWhatTheToolchainRecorded(t *testing.T) {
+	bi := &debug.BuildInfo{
+		GoVersion: "go1.27.1",
+		Main:      debug.Module{Path: "example.com/srv", Version: "v1.2.3", Sum: "h1:main="},
+		Deps: []*debug.Module{
+			{Path: "example.com/z", Version: "v0.1.0", Sum: "h1:z="},
+			{Path: "example.com/a", Version: "v2.0.0", Sum: "h1:a="},
+			nil, // the toolchain can leave holes; they are not dependencies
+			{
+				Path: "example.com/old", Version: "v0.0.1",
+				// A replaced module: what shipped is the replacement, so
+				// that is what an inventory has to name.
+				Replace: &debug.Module{Path: "example.com/new", Version: "v9.9.9", Sum: "h1:new="},
+			},
+		},
+		Settings: []debug.BuildSetting{
+			{Key: "GOOS", Value: "linux"},
+			{Key: "GOARCH", Value: "arm64"},
+			{Key: "vcs.revision", Value: "abcdef0123456789"},
+			{Key: "vcs.modified", Value: "true"},
+			{Key: "-ldflags", Value: "-s -w"}, // ignored
+		},
+	}
+
+	b := fromBuildInfo("/srv/bin", bi)
+
+	if b.Path != "/srv/bin" || b.GoVersion != "go1.27.1" {
+		t.Errorf("path/version = %q %q", b.Path, b.GoVersion)
+	}
+	if b.GOOS != "linux" || b.GOARCH != "arm64" {
+		t.Errorf("platform = %s/%s", b.GOOS, b.GOARCH)
+	}
+	if !b.HasVCS || b.Revision != "abcdef0123456789" || !b.Dirty {
+		t.Errorf("vcs = %+v", struct {
+			Has   bool
+			Rev   string
+			Dirty bool
+		}{b.HasVCS, b.Revision, b.Dirty})
+	}
+
+	if len(b.Deps) != 3 {
+		t.Fatalf("want 3 dependencies (the nil is not one), got %d: %+v", len(b.Deps), b.Deps)
+	}
+	// Sorted by import path, so two runs over one binary agree.
+	if b.Deps[0].Path != "example.com/a" || b.Deps[2].Path != "example.com/z" {
+		t.Errorf("not sorted by path: %+v", b.Deps)
+	}
+	// The replacement, not the thing it replaced.
+	var found bool
+	for _, d := range b.Deps {
+		if d.Path == "example.com/new" && d.Version == "v9.9.9" {
+			found = true
+		}
+		if d.Path == "example.com/old" {
+			t.Error("a replaced module was reported instead of its replacement")
+		}
+	}
+	if !found {
+		t.Errorf("the replacement is missing: %+v", b.Deps)
+	}
+}
+
+// TestFromBuildInfoOnACleanTarballBuild: no version-control settings at
+// all is a different state from a dirty tree, and must not read as one.
+func TestFromBuildInfoOnACleanTarballBuild(t *testing.T) {
+	b := fromBuildInfo("/srv/bin", &debug.BuildInfo{
+		GoVersion: "go1.27.1",
+		Main:      debug.Module{Path: "example.com/srv"},
+		Settings:  []debug.BuildSetting{{Key: "GOOS", Value: "darwin"}},
+	})
+	if b.HasVCS {
+		t.Error("a build with no vcs settings claimed a stamp")
+	}
+	if b.Dirty {
+		t.Error("a build with no vcs settings was reported dirty")
+	}
+	if b.Revision != "" {
+		t.Errorf("revision = %q, want empty", b.Revision)
+	}
+}
+
+// TestFromBuildInfoOnACleanCheckout.
+func TestFromBuildInfoOnACleanCheckout(t *testing.T) {
+	b := fromBuildInfo("/srv/bin", &debug.BuildInfo{
+		GoVersion: "go1.27.1",
+		Settings: []debug.BuildSetting{
+			{Key: "vcs.revision", Value: "cafe"},
+			{Key: "vcs.modified", Value: "false"},
+		},
+	})
+	if !b.HasVCS || b.Dirty || b.Revision != "cafe" {
+		t.Errorf("clean checkout read as %+v", b)
 	}
 }
