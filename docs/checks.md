@@ -8,13 +8,13 @@ description: >-
 
 # The check inventory
 
-scout runs **104 checks** across **9 phases**.
+scout runs **106 checks** across **9 phases**.
 
-11 of them apply only to a server that is a program rather than a URL, and
+13 of them apply only to a server that is a program rather than a URL, and
 replace the ones that have no meaning over a pipe. A run reports every check it
 did not make, by id and with the reason, rather than leaving it out.
 
-103 of those are fixed, and 1 is a family whose id is built at run time —
+105 of those are fixed, and 1 is a family whose id is built at run time —
 one check per value the run encounters, marked `*` below.
 
 This file is generated from the source: every check is created through
@@ -194,3 +194,12 @@ These run only when the server is a program rather than a URL. They belong to th
 | <span id="check-stdio-process" data-can-fail="true"></span>`stdio.process` | Server process is running |
 | <span id="check-stdio-stderr" data-can-fail="false"></span>`stdio.stderr` | What the server logged |
 | <span id="check-stdio-stdout_clean" data-can-fail="true"></span>`stdio.stdout_clean` | Nothing but MCP messages on stdout |
+
+## supply — 2 checks
+
+These run only when the server is a program, and read the file rather than ask the server anything. They belong to the connectivity phase, which is where scout establishes what it is talking to; the id names what was read because that is what a reader is looking for.
+
+| Check | What it looks for |
+|---|---|
+| <span id="check-supply-buildinfo" data-can-fail="false"></span>`supply.buildinfo` | What the server binary is made of |
+| <span id="check-supply-provenance" data-can-fail="true"></span>`supply.provenance` | The binary can be traced to a commit |

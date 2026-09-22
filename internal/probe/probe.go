@@ -26,6 +26,7 @@ import (
 	"github.com/sebastienrousseau/scout/internal/canary"
 	"github.com/sebastienrousseau/scout/internal/creds"
 	"github.com/sebastienrousseau/scout/internal/egress"
+	"github.com/sebastienrousseau/scout/internal/supply"
 	"github.com/sebastienrousseau/scout/internal/telemetry"
 	"github.com/sebastienrousseau/scout/trace"
 	"github.com/sebastienrousseau/scout/transport"
@@ -235,6 +236,9 @@ type Session struct {
 	Proxy *egress.Proxy
 	// Canary is the planted scratch home, when one was seeded.
 	Canary *canary.Canary
+	// Build is what the target binary is made of, when it is a Go program
+	// scout could read.
+	Build *supply.Build
 	// canaryHits is every decoy whose marker was seen in something the
 	// server said, and where. Written from the reader goroutine.
 	canaryMu   sync.Mutex

@@ -11,7 +11,7 @@
   </div>
 </section>
 <section class="readout-section" id="findings" aria-labelledby="readout-heading">
-  <div class="container readout-grid"><div class="instrument"><p class="eyebrow">{{readout_kicker}}</p><p class="target">{{readout_target}}</p><h2 id="readout-heading">{{readout_verdict}}</h2><p>{{readout_note}}</p></div><div class="score" aria-label="Diagnostic score {{readout_score}}, grade {{readout_grade}}"><strong>{{readout_score}}</strong><span>/ 104</span><b>{{readout_grade}}</b></div></div>
+  <div class="container readout-grid"><div class="instrument"><p class="eyebrow">{{readout_kicker}}</p><p class="target">{{readout_target}}</p><h2 id="readout-heading">{{readout_verdict}}</h2><p>{{readout_note}}</p></div><div class="score" aria-label="Diagnostic score {{readout_score}}, grade {{readout_grade}}"><strong>{{readout_score}}</strong><span>/ 106</span><b>{{readout_grade}}</b></div></div>
   <div class="container"><dl class="metrics"><div><dt>{{metric_one_label}}</dt><dd>{{metric_one_value}}</dd></div><div><dt>{{metric_two_label}}</dt><dd>{{metric_two_value}}</dd></div><div><dt>{{metric_three_label}}</dt><dd>{{metric_three_value}}</dd></div></dl><p class="proof-note">{{proof_note}}</p></div>
 </section>
 <section class="section" id="why" aria-labelledby="why-heading">
@@ -30,7 +30,7 @@
         <tr><th scope="row">Where the run happens</th><td class="yes">Your machine</td><td class="no">Someone else's</td><td class="yes">Your machine</td></tr>
         <tr><th scope="row">Credentials leave your boundary</th><td class="yes">Never</td><td class="no">Required</td><td class="yes">Never</td></tr>
         <tr><th scope="row">Servers on a VPN, CI runner or private address</th><td class="yes">Reachable</td><td class="no">Unroutable</td><td class="yes">Reachable</td></tr>
-        <tr><th scope="row">Checks per run</th><td class="yes">104 across 9 phases</td><td>~35 across 8 areas</td><td>Manual inspection</td></tr>
+        <tr><th scope="row">Checks per run</th><td class="yes">106 across 9 phases</td><td>~35 across 8 areas</td><td>Manual inspection</td></tr>
         <tr><th scope="row">Every finding cites its request</th><td class="yes">Yes</td><td class="no">No</td><td>By hand</td></tr>
         <tr><th scope="row">Both protocol revisions, stateless included</th><td class="yes">Yes</td><td>Partial</td><td>Yes</td></tr>
         <tr><th scope="row">Exit codes and JSON for CI</th><td class="yes">Yes</td><td class="no">No</td><td>Not its purpose</td></tr>

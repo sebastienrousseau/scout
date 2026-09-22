@@ -326,6 +326,35 @@ var remediations = map[string]Remediation{
 			"groups skip it too.",
 	},
 
+	"supply.provenance": {
+		Means: "The server binary was built from a working tree with " +
+			"uncommitted changes. Go records that as `vcs.modified=true`, " +
+			"and it means the source this binary was made from does not " +
+			"exist in the repository: no commit describes it, so no review " +
+			"of that repository describes what is actually running.",
+		Steps: []Step{
+			{"Build from a clean checkout",
+				"In CI that is usually already true. A dirty stamp on a " +
+					"release artifact almost always means it was built on " +
+					"somebody's laptop."},
+			{"Keep the revision",
+				"A binary built from a commit carries it, and that one field " +
+					"is what turns \"we reviewed the code\" into a statement " +
+					"about the thing that is running."},
+			{"Where dependencies carry no checksum, find out why",
+				"A module with no `h1:` sum did not come through the module " +
+					"proxy and the checksum database never saw it — a local " +
+					"`replace` or a vendored tree. Neither can be verified " +
+					"after the fact."},
+		},
+		Note: "Read out of the binary with `debug/buildinfo`, so it is one " +
+			"of the few things in this report the server cannot influence by " +
+			"answering differently. Only for a stdio target: an endpoint is a " +
+			"URL, and a URL is not a file scout can open. A build from a " +
+			"source archive carries no stamp at all, which is reported as an " +
+			"observation rather than as a dirty build.",
+	},
+
 	"fs.credential_probe": {
 		Means: "The server opened a credential file in its home directory " +
 			"that it was never given and never asked about. scout planted " +

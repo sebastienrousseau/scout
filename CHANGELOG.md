@@ -17,6 +17,30 @@ project announces that a change felt big.
 
 ### Added
 
+- **The server's own binary now says what it is made of.** scout scored
+  how a server behaves on the wire and said nothing about the artifact
+  behind it, which for a platform team is the first question they are
+  asked.
+
+  For a Go server it needs no new dependency and no network: a Go binary
+  carries its own module graph — every dependency with its version and
+  `h1:` checksum, the toolchain, the target platform, and, when it was
+  built from a checkout, the commit and whether the tree was clean.
+  `supply.buildinfo` reports the inventory; `supply.provenance` reports
+  whether it can be traced to a commit.
+
+  **A dirty build is the finding worth having.** `vcs.modified=true`
+  means the source it was made from does not exist in the repository, so
+  no review of that repository describes what is running. A build from a
+  source archive carries no stamp at all, which is an observation rather
+  than a dirty build, and the two are not conflated.
+
+  Read out of the file, so it is one of the few things in the report the
+  server cannot influence by answering differently. stdio only: an
+  endpoint is a URL, and a URL is not a file scout can open. A server
+  that is not a Go binary is reported as such — most are Python or
+  TypeScript, and a manifest-based inventory for those is separate work.
+
 - **`scout check --plant-canaries` says whether the server went looking
   for credentials it was never given.** The egress witness says where a
   server went; it cannot say what it took. The thing worth taking sits in

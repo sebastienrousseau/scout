@@ -308,6 +308,9 @@ var transportGroups = map[string]string{
 	"stdio": "These run only when the server is a program rather than a URL. " +
 		"They belong to the connectivity and resilience phases, not to a phase of their own: " +
 		"a pipe has no name to resolve and no session to lose, so they take the place of the checks that do.",
+	"supply": "These run only when the server is a program, and read the file rather than ask the " +
+		"server anything. They belong to the connectivity phase, which is where scout establishes what " +
+		"it is talking to; the id names what was read because that is what a reader is looking for.",
 	"fs": "These run only when the server is a program and --plant-canaries was given. " +
 		"They belong to the resilience phase: the decoys are planted before the process starts and " +
 		"read back after it ends, so the answer is only complete once the run is. The id names what " +

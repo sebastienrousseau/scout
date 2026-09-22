@@ -137,6 +137,11 @@ func phaseNetStdio(ctx context.Context, s *Session) []Finding {
 	}
 	out = append(out, c.ev(cmd).pass(fmt.Sprintf("pid %d", s.Pipe.PID())))
 
+	// What the program is, before anything about how it behaves. Read off
+	// the file, so it is the one part of the report the server cannot
+	// influence by answering differently.
+	out = append(out, checkSupplyChain(s)...)
+
 	// Not a judgement on the server: a statement of what scout passed it,
 	// because a server that behaves differently in this run than in the
 	// operator's own shell almost always differs here. An HTTP run has no
