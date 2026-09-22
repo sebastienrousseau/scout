@@ -47,11 +47,6 @@ type ServerCapabilities struct {
 		ListChanged bool `json:"listChanged,omitempty"`
 	} `json:"prompts,omitempty"`
 	Logging *struct{} `json:"logging,omitempty"`
-	// Extensions the server supports, keyed by reverse-DNS identifier, with
-	// that extension's settings as the value; an empty object means
-	// supported with no settings. Defined by the 2026-07-28 revision, which
-	// is where a client looks for them.
-	Extensions map[string]json.RawMessage `json:"extensions,omitempty"`
 }
 
 type initializeParams struct {

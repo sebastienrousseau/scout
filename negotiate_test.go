@@ -407,8 +407,15 @@ func TestExtensionIDsReadsCapabilities(t *testing.T) {
 	if len(got) != 2 || got[0] != "com.example.mcp/billing" || got[1] != "io.modelcontextprotocol/tasks" {
 		t.Errorf("ExtensionIDs = %v, want the two capability keys, sorted", got)
 	}
-	if string(d.Capabilities.Extensions["com.example.mcp/billing"]) != `{"tier":"gold"}` {
-		t.Errorf("settings were not kept: %s", d.Capabilities.Extensions["com.example.mcp/billing"])
+	if string(d.ExtensionSettings["com.example.mcp/billing"]) != `{"tier":"gold"}` {
+		t.Errorf("settings were not kept: %s", d.ExtensionSettings["com.example.mcp/billing"])
+	}
+	var bad DiscoverResult
+	if err := json.Unmarshal([]byte(`{"serverInfo":{"name":"s","version":"1"},"capabilities":{"extensions":["not","an","object"]}}`), &bad); err != nil {
+		t.Fatalf("one malformed field lost the whole result: %v", err)
+	}
+	if !bad.ExtensionsMalformed || bad.ExtensionIDs() != nil || bad.ServerInfo.Name != "s" {
+		t.Errorf("malformed extensions: %+v", bad)
 	}
 	var nilResult *DiscoverResult
 	if nilResult.ExtensionIDs() != nil {

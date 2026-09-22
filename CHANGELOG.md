@@ -541,7 +541,8 @@ project announces that a change felt big.
   `capabilities.extensions` (`DiscoverResult.ExtensionIDs`), and a server
   that advertises only in the top-level list gets a warning, because no
   client following the specification will see those extensions.
-  `ServerCapabilities.Extensions` is new. The test fake had the same
+  `DiscoverResult.ExtensionSettings` is new; it is not on
+  `ServerCapabilities`, which must stay comparable. The test fake had the same
   misreading, which is why the tests never caught it.
 
 - **A stdio server was reported as running for as long as anything it

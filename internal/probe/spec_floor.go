@@ -60,6 +60,10 @@ func checkExtensions(s *Session) Finding {
 		return c.skip("the server does not implement server/discover, so it advertises nothing")
 	}
 
+	if s.Era.Discovered.ExtensionsMalformed {
+		return c.warn("capabilities.extensions is present but is not an object, so no client can read which extensions the server supports",
+			"make capabilities.extensions an object keyed by extension identifier, with a settings object as each value ({} for none)")
+	}
 	ids := s.Era.Discovered.ExtensionIDs()
 	if len(ids) == 0 {
 		if misplaced := s.Era.Discovered.Extensions; len(misplaced) > 0 {

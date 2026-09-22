@@ -193,6 +193,19 @@ func TestExtensionIdentifierShape(t *testing.T) {
 	// capabilities.extensions, so a client following the specification
 	// sees a server with none. An earlier version of this check read the
 	// top-level list and so reported correct servers as having nothing.
+	t.Run("not an object", func(t *testing.T) {
+		s := runStateless(t, statelessFake(t, statelessOpts{
+			rawCapabilities: `{"tools":{},"extensions":["io.modelcontextprotocol/tasks"]}`,
+		}), nil)
+		f, ok := findingByID(s, "protocol.extensions")
+		if !ok {
+			t.Fatal("protocol.extensions is missing")
+		}
+		if f.Status != Warn || !strings.Contains(f.Detail, "not an object") {
+			t.Fatalf("got %s: %s", f.Status, f.Detail)
+		}
+	})
+
 	t.Run("misplaced", func(t *testing.T) {
 		s := runStateless(t, statelessFake(t, statelessOpts{
 			legacyExtensions: `["io.modelcontextprotocol/tasks"]`,

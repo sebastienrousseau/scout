@@ -44,6 +44,8 @@ type statelessOpts struct {
 	// which no specification defines.
 	extensions       string
 	legacyExtensions string
+	// rawCapabilities replaces the capabilities object verbatim.
+	rawCapabilities string
 }
 
 // statelessFake is a server on the stateless revision that validates what
@@ -140,6 +142,9 @@ func statelessFake(t *testing.T, o statelessOpts) *httptest.Server {
 				}
 				b, _ := json.Marshal(map[string]any{"tools": map[string]any{}, "extensions": obj})
 				caps = string(b)
+			}
+			if o.rawCapabilities != "" {
+				caps = o.rawCapabilities
 			}
 			switch {
 			case o.metaServerInfo:
