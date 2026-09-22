@@ -184,6 +184,11 @@ func phaseResilienceStdio(_ context.Context, s *Session) []Finding {
 		out = append(out, c.pass("still running after the last request"))
 	}
 
+	// Where it went while it was doing all that. Here rather than in an
+	// earlier phase because the answer is only complete once the server
+	// has had the whole run to reach for something.
+	out = append(out, checkEgress(s)...)
+
 	// The stream is the wire. This is the single most common way a stdio
 	// server is broken, and the symptom a host reports — a hang, or a parse
 	// error naming a line the operator never wrote — never names the cause.

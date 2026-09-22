@@ -43,6 +43,7 @@ func resetAll() {
 	verifyPolicy, policyFile = "", ""
 	baselineFile, approveBaseline = "", false
 	badgeLabel = "scout"
+	watchEgress, expectEgress = false, nil
 	// cobra remembers Changed between runs, and the help flag keeps its
 	// value, so a --help run would turn every later run into help output.
 	reset := func(f *pflagFlag) {

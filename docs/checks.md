@@ -8,13 +8,13 @@ description: >-
 
 # The check inventory
 
-scout runs **100 checks** across **9 phases**.
+scout runs **102 checks** across **9 phases**.
 
-7 of them apply only to a server that is a program rather than a URL, and
+9 of them apply only to a server that is a program rather than a URL, and
 replace the ones that have no meaning over a pipe. A run reports every check it
 did not make, by id and with the reason, rather than leaving it out.
 
-99 of those are fixed, and 1 is a family whose id is built at run time —
+101 of those are fixed, and 1 is a family whose id is built at run time —
 one check per value the run encounters, marked `*` below.
 
 This file is generated from the source: every check is created through
@@ -162,6 +162,15 @@ that is what a reader sees in a report.
 | <span id="check-resilience-session_reinit" data-can-fail="true"></span>`resilience.session_reinit` | Client recovers from a lost session |
 | <span id="check-resilience-stateless" data-can-fail="true"></span>`resilience.stateless` | Requests do not depend on the connection |
 | <span id="check-resilience-token_refresh" data-can-fail="true"></span>`resilience.token_refresh` | Token source can renew |
+
+## egress — 2 checks
+
+These run only when the server is a program and --watch-egress was given. They belong to the resilience phase, at the end of the run, because where a server went is only fully answered once it has had the whole run to go there. The id names the observation rather than the phase, because that is what a reader is looking for.
+
+| Check | What it looks for |
+|---|---|
+| <span id="check-egress-hosts" data-can-fail="false"></span>`egress.hosts` | Where the server connected |
+| <span id="check-egress-undeclared_host" data-can-fail="true"></span>`egress.undeclared_host` | The server went only where it was expected to |
 
 ## stdio — 7 checks
 

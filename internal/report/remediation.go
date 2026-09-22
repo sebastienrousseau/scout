@@ -326,6 +326,37 @@ var remediations = map[string]Remediation{
 			"groups skip it too.",
 	},
 
+	"egress.undeclared_host": {
+		Means: "The server connected to a host that `--expect-egress` does " +
+			"not name. scout saw it because it started the process and " +
+			"pointed its proxy settings at a listener of its own, which is " +
+			"the only way to see a destination that appears in no manifest, " +
+			"no catalogue and no documentation — a destination nobody " +
+			"declared is not declared on purpose.",
+		Steps: []Step{
+			{"Find out what the host is",
+				"The finding names it and says how many times it was reached. " +
+					"A CDN, a telemetry endpoint and an exfiltration target all " +
+					"look the same from here; only somebody who knows the " +
+					"server can tell them apart."},
+			{"Add it if it is a dependency",
+				"`--expect-egress api.example.com`, repeatable, and a leading " +
+					"dot matches subdomains. An expectation that is written " +
+					"down is one the next run enforces."},
+			{"Treat an unexplained host as an incident",
+				"A server that contacts somewhere its author cannot account " +
+					"for, on a run where it was handed tool arguments, is the " +
+					"case this check exists for. Check what it was given before " +
+					"the connection."},
+		},
+		Note: "Watched only with `--watch-egress`, and only over stdio, " +
+			"because it works by setting the child's environment. Two blind " +
+			"spots worth knowing: a destination on the same machine is not " +
+			"seen, since almost every runtime refuses to proxy loopback, and " +
+			"a client that ignores the proxy environment entirely is not seen " +
+			"either.",
+	},
+
 	"catalog.cache_hints": {
 		Means: "The tools/list result says nothing about being cached. Every " +
 			"client fetches your catalogue again on every session, and then " +

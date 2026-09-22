@@ -17,6 +17,32 @@ project announces that a change felt big.
 
 ### Added
 
+- **`scout check --watch-egress` says where the server went.** A server
+  that quietly posts your tool arguments to a third host passes every
+  other check: the catalogue is clean, the schemas validate, the
+  annotations are honest, and the destination appears in no document
+  anywhere, because not appearing is the point.
+
+  You do not need a packet capture to see where a subprocess dials — you
+  need to be the thing it dials through. scout runs a loopback proxy and
+  points the child's `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY` at it.
+  `CONNECT` hands over the hostname in clear text before any handshake,
+  so there is no certificate authority, no interception, and nothing read
+  that the server sent.
+
+  `egress.hosts` inventories the destinations and does not judge them: a
+  GitHub server talks to GitHub, and scout cannot know which host is
+  legitimate for a server it was handed five seconds ago. Supply
+  `--expect-egress` and the same evidence becomes a gate —
+  `egress.undeclared_host` fails on anything the operator did not name, a
+  leading dot matching subdomains.
+
+  stdio only, because it works by setting the child's environment. Two
+  blind spots, documented rather than discovered later: a destination on
+  the same machine is not seen, since almost every runtime refuses to
+  proxy loopback, and a client that ignores the proxy environment is not
+  seen either.
+
 - **`catalog.cache_hints` asks whether the catalogue can be cached.**
   The budget check says what a catalogue costs to look at; this says
   whether the server did anything about it. Every client fetches the

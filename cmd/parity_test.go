@@ -64,7 +64,9 @@ var specFields = map[string]string{
 	// else named. Spec.Gate rather than Spec.Policy: PolicySpec already
 	// means what scout may do to the server, and this is what the operator
 	// will accept back.
-	"baseline": "Baseline",
+	"baseline":      "Baseline",
+	"watch-egress":  "Egress.Watch",
+	"expect-egress": "Egress.Expect",
 
 	"policy": "Gate",
 

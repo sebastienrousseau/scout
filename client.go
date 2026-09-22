@@ -114,6 +114,11 @@ type StdioConfig struct {
 	// PassEnv names variables to forward from the caller's environment, for
 	// a server that legitimately needs one.
 	PassEnv []string
+	// Inject are KEY=VALUE pairs scout adds about itself, after Env and
+	// PassEnv and overriding either. It carries the proxy settings the
+	// egress witness needs the child to honour; it is not a second way to
+	// pass the caller's environment through.
+	Inject []string
 	// Observe, when set, is called after every exchange. It is how a
 	// diagnostic records a pipe the way it records HTTP traffic, so a
 	// finding over stdio can cite the message that produced it.
@@ -319,6 +324,7 @@ func newStdioClient(ctx context.Context, cfg Config) (*Client, error) {
 		Dir:     cfg.Stdio.Dir,
 		Env:     cfg.Stdio.Env,
 		PassEnv: cfg.Stdio.PassEnv,
+		Inject:  cfg.Stdio.Inject,
 		Observe: cfg.Stdio.Observe,
 	})
 	if err != nil {

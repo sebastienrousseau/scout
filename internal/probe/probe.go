@@ -24,6 +24,7 @@ import (
 	"github.com/sebastienrousseau/scout/diagnostics"
 	"github.com/sebastienrousseau/scout/internal/baseline"
 	"github.com/sebastienrousseau/scout/internal/creds"
+	"github.com/sebastienrousseau/scout/internal/egress"
 	"github.com/sebastienrousseau/scout/internal/telemetry"
 	"github.com/sebastienrousseau/scout/trace"
 	"github.com/sebastienrousseau/scout/transport"
@@ -165,6 +166,18 @@ type Options struct {
 	MaxPrompts   int
 	// ToolArgs overrides generated arguments per tool.
 	ToolArgs map[string]map[string]any
+	// WatchEgress runs a loopback proxy and points the child at it, so
+	// the run can report where the server connected.
+	//
+	// Only meaningful over stdio: an endpoint scout did not start has an
+	// environment scout never set. Off by default, because it changes the
+	// environment the server runs in and that is not something to do to
+	// somebody's server without being asked.
+	WatchEgress bool
+	// ExpectEgress is the hosts the operator says the server should
+	// reach. A leading dot matches subdomains. Empty means the
+	// destinations are inventoried and not judged.
+	ExpectEgress []string
 	// Baseline is the approved catalogue to compare against, or nil to
 	// make no comparison.
 	//
@@ -209,6 +222,11 @@ type Session struct {
 	// Snapshot is the catalogue this run saw, set when a baseline was
 	// supplied. It is what --approve promotes.
 	Snapshot *baseline.Snapshot
+
+	// Proxy is the egress witness, when one is running.
+	Proxy *egress.Proxy
+	// egressErr is why there is no witness, when one was asked for.
+	egressErr string
 
 	// Pipe is the child-process transport, or nil over HTTP. It is the one
 	// place a phase asks which kind of run this is.
@@ -388,6 +406,21 @@ func runStdio(ctx context.Context, opts Options) (s *Session, err error) {
 
 	cfg := *opts.Stdio
 	cfg.Observe = s.recordPipe(s.command())
+
+	// Before the process, because the address has to be in the
+	// environment the process is started with. A proxy that failed to
+	// listen is not a reason to abandon the run: every other check still
+	// has something to say, and the egress checks report that they could
+	// not watch.
+	if opts.WatchEgress {
+		if px, err := egress.Start(nil); err != nil {
+			s.egressErr = err.Error()
+		} else {
+			s.Proxy = px
+			cfg.Inject = append(append([]string{}, cfg.Inject...), px.Env()...)
+			defer func() { _ = px.Close() }()
+		}
+	}
 	client, cerr := scout.NewStdio(ctx, scout.Config{
 		Stdio:      &cfg,
 		ClientInfo: scout.Implementation{Name: "scout", Version: opts.Version},

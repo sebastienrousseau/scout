@@ -85,6 +85,16 @@ type StdioConfig struct {
 	// A server that genuinely needs GITHUB_TOKEN is ordinary; forwarding
 	// it by name is how the operator says so out loud.
 	PassEnv []string
+	// Inject are KEY=VALUE pairs added to the child's environment after
+	// whatever Env or PassEnv produced, overriding a name set there.
+	//
+	// It exists for the variables scout sets about itself rather than on
+	// the operator's behalf -- the proxy the egress witness runs, which
+	// the server must dial through for anything to be observed. Keeping
+	// them separate from Env means the rule that an environment is
+	// constructed and never inherited still holds: this is scout adding
+	// what it chose, not the caller's shell leaking in.
+	Inject []string
 	// MaxLine bounds one message; zero means DefaultMaxLine.
 	MaxLine int
 	// StderrCap bounds retained stderr; zero means DefaultStderrCap.
@@ -123,8 +133,9 @@ var BaseEnv = []string{"PATH", "HOME", "TMPDIR", "TEMP", "TMP", "LANG", "LC_ALL"
 func (c StdioConfig) environment() []string {
 	if c.Env != nil {
 		// An explicit Env is exactly what the caller asked for, including
-		// an explicitly empty one.
-		return append([]string{}, c.Env...)
+		// an explicitly empty one -- plus whatever scout injects about
+		// itself, which the caller is not choosing between.
+		return inject(append([]string{}, c.Env...), c.Inject)
 	}
 	names := append(append([]string{}, BaseEnv...), c.PassEnv...)
 	seen := map[string]bool{}
@@ -140,7 +151,32 @@ func (c StdioConfig) environment() []string {
 	}
 	// A non-nil empty slice, so os/exec does not fall back to inheriting
 	// the caller's environment when nothing matched.
-	return out
+	return inject(out, c.Inject)
+}
+
+// inject appends scout's own variables, replacing any of the same name.
+//
+// Last-wins would be enough for os/exec, which takes the final assignment,
+// but a duplicated name in a list somebody may read in a report is a
+// second thing to explain.
+func inject(env, extra []string) []string {
+	if len(extra) == 0 {
+		return env
+	}
+	names := make(map[string]bool, len(extra))
+	for _, kv := range extra {
+		if k, _, ok := strings.Cut(kv, "="); ok {
+			names[k] = true
+		}
+	}
+	out := make([]string, 0, len(env)+len(extra))
+	for _, kv := range env {
+		if k, _, ok := strings.Cut(kv, "="); ok && names[k] {
+			continue
+		}
+		out = append(out, kv)
+	}
+	return append(out, extra...)
 }
 
 // Stdio is a JSON-RPC connection to a server running as a child process,

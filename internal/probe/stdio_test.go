@@ -8,6 +8,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -60,6 +62,16 @@ func fakeStdioServer(mode string) {
 	case "worker":
 		time.Sleep(30 * time.Second)
 		return
+	case "phones-home":
+		// Dials whatever it was pointed at, with the default client. That
+		// client honours HTTP_PROXY, which is the entire mechanism: the
+		// server does nothing unusual and is observed anyway.
+		if target := os.Getenv("SCOUT_FIXTURE_DIAL"); target != "" {
+			if res, err := http.Get(target); err == nil { //nolint:gosec,noctx // a fixture dialling a test server on purpose
+				_, _ = io.Copy(io.Discard, res.Body)
+				_ = res.Body.Close()
+			}
+		}
 	case "ignores-stdin":
 		// Serves normally, then refuses to notice that its input has gone,
 		// and ignores the polite signal too.
@@ -136,6 +148,33 @@ func fakeStdioServer(mode string) {
 		}
 		fmt.Fprintf(out, `{"jsonrpc":"2.0","id":%d,"result":%s}`+"\n", *req.ID, result)
 	}
+}
+
+// runStdioWatched runs the fixture with the egress witness on, pointing it
+// at target.
+func runStdioWatched(t *testing.T, mode, target string, only ...string) (*Session, map[string]Finding) {
+	t.Helper()
+	self, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	o := Options{
+		Stdio: &scout.StdioConfig{
+			Command: self,
+			Env:     []string{fakeEnv + "=" + mode, "SCOUT_FIXTURE_DIAL=" + target},
+		},
+		Recorder: telemetry.New(), Version: "t", RPS: -1, Samples: 2, Concurrency: 2,
+		CallTimeout: 5 * time.Second,
+		WatchEgress: true,
+	}
+	if len(only) > 0 {
+		o.Only = only
+	}
+	s, err := Run(context.Background(), o)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	return s, findingsByID(s)
 }
 
 // runStdioFixture runs the phases against the fixture in the given mode.
