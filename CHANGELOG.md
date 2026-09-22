@@ -460,6 +460,9 @@ project announces that a change felt big.
   that the line is kept, so the report can name the cause instead of a
   timeout.
 
+- **Token counts stay named estimates** (ADR 0009). No tokenizer
+  vocabulary is embedded: model families tokenize differently and several
+  tokenizers are unpublished, so an exact count against one public
 - **`Report.Target` carries `transport` and, for a stdio run, `command`.** A
   consumer comparing two reports has to be able to tell which kind of run it
   is reading: they do not contain the same checks, and the difference is not

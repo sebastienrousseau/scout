@@ -146,7 +146,9 @@ var remediations = map[string]Remediation{
 		},
 		Note: "The token figure is an estimate — scout counts characters and divides " +
 			"by four, and says so in the finding. The byte count beside it is exact; " +
-			"tokenise that with your own model if you need the precise number.",
+			"tokenise that with your own model if you need the precise number. " +
+			"Model families tokenize differently and several tokenizers are " +
+			"unpublished, so scout embeds none (ADR 0009).",
 	},
 
 	"catalog.semantic.ambiguity": {

@@ -91,3 +91,4 @@ nav:
           - 0006 scout never phones home: adr/0006-no-client-telemetry.md
           - 0007 An instrument, not a gateway: adr/0007-not-a-gateway.md
           - 0008 No adversarial mode: adr/0008-no-adversarial-mode.md
+          - 0009 Token counts are estimates: adr/0009-token-counts-are-estimates.md

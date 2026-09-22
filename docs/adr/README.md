@@ -30,3 +30,4 @@ made on a weaker basis than it appeared.
 | [0006](0006-no-client-telemetry.md) | scout contains no client-side telemetry, and *0 bytes uploaded* is a product guarantee | Accepted |
 | [0007](0007-not-a-gateway.md) | scout measures servers and is never in the data path between an agent and one | Accepted |
 | [0008](0008-no-adversarial-mode.md) | scout contains no adversarial or exploit probes, in any command | Accepted |
+| [0009](0009-token-counts-are-estimates.md) | Token counts are named estimates; no tokenizer vocabulary is embedded | Accepted |
