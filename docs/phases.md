@@ -98,6 +98,7 @@ MCP specification require.
 | `protocol.accept_header`, `protocol.get_stream` | informational: strictness about `Accept`, and whether GET opens a server event stream |
 | `protocol.bogus_session` | a session id the server never issued is rejected |
 | `protocol.version_header` | a bad `MCP-Protocol-Version` is rejected |
+| `protocol.origin` | a request from a foreign `Origin` is refused, as the transport requires against DNS rebinding; failing on loopback or a private address, a warning on a public host |
 
 ## catalog: Tool, resource and prompt catalog
 

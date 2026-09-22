@@ -339,13 +339,13 @@ names it and quotes the line. The others cover the process starting, the
 process surviving the run, what it logged on stderr, and what environment
 it was given.
 
-**Two phases and five checks have no subject over a pipe, and every one of
+**Two phases and six checks have no subject over a pipe, and every one of
 them is reported as skipped with the reason.** Authorization discovery and
 credentials do not apply: there is no origin to authorize against, so
-`--token` is refused rather than quietly ignored. Four protocol probes are
-about HTTP headers, and `handshake.session` is about a session a pipe does
-not have. A run that silently contained fewer checks would read as a better
-result than it is.
+`--token` is refused rather than quietly ignored. Five protocol probes are
+about HTTP headers or the HTTP listener, and `handshake.session` is about a
+session a pipe does not have. A run that silently contained fewer checks
+would read as a better result than it is.
 
 `connect`, `tools` and `call` take `--stdio` too. For `call`, the tool comes
 before `--` and the server after it:
@@ -1030,9 +1030,10 @@ scout is opinionated, and the opinions do not suit everyone.
   a `$ref` that points at another document (it reports one as unchecked
   rather than passing it over), and it does not check `pattern` or `format`.
   A contract that leans on those needs a full validator.
-- **Your server is stdio-only.** scout tests the Streamable HTTP
-  transport. A bridge can expose a stdio server over HTTP, but the
-  transport findings then describe the bridge.
+- **You need a stdio server's authorization tested.** A pipe has no origin
+  to authorize against, so a `--stdio` run refuses `--token` and reports
+  discovery and auth as skipped. Test the server's HTTP deployment for
+  those; everything else runs over the pipe.
 - **You need the Tasks or Apps extensions checked.** scout diagnoses the
   core protocol on both the handshake revisions and the stateless
   `2026-07-28` one, but it does not yet exercise the optional extensions.
