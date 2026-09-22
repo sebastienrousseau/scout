@@ -5,7 +5,6 @@ package supply
 
 import (
 	"crypto/sha256"
-	"encoding/json"
 	"fmt"
 	"io"
 	"time"
@@ -15,6 +14,11 @@ import (
 // same shape a Go binary's is written in, so a consumer reads both the
 // same way.
 func (inv *Inventory) WriteCycloneDX(w io.Writer, scoutVersion string, now time.Time) error {
+	return WriteBOM(w, inv.BOM(scoutVersion, now))
+}
+
+// BOM builds the document without writing it.
+func (inv *Inventory) BOM(scoutVersion string, now time.Time) BOM {
 	doc := BOM{
 		Schema:       "http://cyclonedx.org/schema/bom-" + bomSpec + ".schema.json",
 		BOMFormat:    bomFormat,
@@ -34,9 +38,7 @@ func (inv *Inventory) WriteCycloneDX(w io.Writer, scoutVersion string, now time.
 	for _, p := range inv.Packages {
 		doc.Components = append(doc.Components, p.component("library"))
 	}
-	enc := json.NewEncoder(w)
-	enc.SetIndent("", "  ")
-	return enc.Encode(doc)
+	return doc
 }
 
 // metadataProperties say where the inventory came from, and what kind of
@@ -83,6 +85,7 @@ func (p Package) component(kind string) BOMComponent {
 		Version: p.Version,
 		PURL:    p.purl(),
 		Hashes:  p.Hashes,
+		private: p.Local,
 	}
 	c.BOMRef = c.PURL
 	if p.Unverifiable != "" {

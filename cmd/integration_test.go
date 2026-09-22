@@ -23,6 +23,7 @@ import (
 
 	"github.com/sebastienrousseau/scout/internal/diag"
 	"github.com/sebastienrousseau/scout/internal/engine"
+	"github.com/sebastienrousseau/scout/internal/supply"
 )
 
 // resetAll restores every package-level flag variable and command state.
@@ -43,6 +44,7 @@ func resetAll() {
 	verifyPolicy, policyFile = "", ""
 	baselineFile, approveBaseline = "", false
 	badgeLabel = "scout"
+	sbomOSV, sbomOSVURL = false, supply.DefaultOSVEndpoint
 	watchInterval, watchOnce = 0, false
 	watchEgress, expectEgress, plantCanaries = false, nil, false
 	// cobra remembers Changed between runs, and the help flag keeps its

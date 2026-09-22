@@ -6,6 +6,9 @@ package cmd
 import (
 	"encoding/json"
 	"errors"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -226,5 +229,99 @@ func TestSBOMIsReproducible(t *testing.T) {
 	second, _ := run(t, "sbom", self)
 	if first != second {
 		t.Error("the same binary described twice gave different bytes")
+	}
+}
+
+// fakeOSVServer answers every package with one advisory, and records
+// what it was asked.
+func fakeOSVServer(t *testing.T) (string, *[]string) {
+	t.Helper()
+	var sent []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/v1/querybatch":
+			var req struct {
+				Queries []struct {
+					Package struct{ PURL string } `json:"package"`
+				} `json:"queries"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&req)
+			results := make([]map[string]any, len(req.Queries))
+			for i, q := range req.Queries {
+				sent = append(sent, q.Package.PURL)
+				results[i] = map[string]any{"vulns": []map[string]string{{"id": "GHSA-test"}}}
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"results": results})
+		case strings.HasPrefix(r.URL.Path, "/v1/vulns/"):
+			_, _ = io.WriteString(w, `{"id":"GHSA-test","summary":"a test advisory","database_specific":{"severity":"HIGH"}}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	return srv.URL, &sent
+}
+
+// TestSBOMWithOSVAddsAdvisoriesAndSaysWhatItSent. What leaves the machine
+// is announced on stderr before it leaves, and the document on stdout
+// stays pure JSON.
+func TestSBOMWithOSVAddsAdvisoriesAndSaysWhatItSent(t *testing.T) {
+	endpoint, sent := fakeOSVServer(t)
+	dir := t.TempDir()
+	lock := "httpx==0.27.2\n"
+	if err := os.WriteFile(filepath.Join(dir, "requirements.txt"), []byte(lock), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	out, stderr, code := runCapturingStderr(t, "sbom", dir, "--osv", "--osv-url", endpoint)
+	if code != 0 {
+		t.Fatalf("exit %d:\n%s\n%s", code, out, stderr)
+	}
+	var doc struct {
+		Vulnerabilities []struct {
+			ID      string
+			Affects []struct{ Ref string }
+			Ratings []struct{ Severity string }
+		} `json:"vulnerabilities"`
+	}
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatalf("stdout is not the document: %v\n%s", err, out)
+	}
+	if len(doc.Vulnerabilities) != 1 || doc.Vulnerabilities[0].Affects[0].Ref != "pkg:pypi/httpx@0.27.2" {
+		t.Fatalf("vulnerabilities = %+v", doc.Vulnerabilities)
+	}
+	if strings.Join(*sent, ",") != "pkg:pypi/httpx@0.27.2" {
+		t.Errorf("sent %v", *sent)
+	}
+	if !strings.Contains(stderr, "sending 1 package URLs to "+endpoint) {
+		t.Errorf("the egress was not announced:\n%s", stderr)
+	}
+}
+
+// TestSBOMWithoutOSVMakesNoRequest. Off by default is the guarantee.
+func TestSBOMWithoutOSVMakesNoRequest(t *testing.T) {
+	_, sent := fakeOSVServer(t)
+	out, code := run(t, "sbom", selfPath(t))
+	if code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	if len(*sent) != 0 || strings.Contains(out, "vulnerabilities") {
+		t.Errorf("a document without --osv looked something up: sent %v", *sent)
+	}
+}
+
+// TestSBOMOSVURLWithoutOSVIsRefused rather than silently ignored.
+func TestSBOMOSVURLWithoutOSVIsRefused(t *testing.T) {
+	out, code := run(t, "sbom", selfPath(t), "--osv-url", "https://mirror.example")
+	if code == 0 || out != "" {
+		t.Fatalf("exit %d, stdout:\n%s", code, out)
+	}
+}
+
+// TestSBOMFailsWhenTheLookupFails rather than writing a document that
+// reads as clean.
+func TestSBOMFailsWhenTheLookupFails(t *testing.T) {
+	out, code := run(t, "sbom", selfPath(t), "--osv", "--osv-url", "http://mirror.corp.example")
+	if code == 0 || out != "" {
+		t.Fatalf("exit %d, stdout:\n%s", code, out)
 	}
 }

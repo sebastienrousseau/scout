@@ -142,10 +142,11 @@ func TestTheSerialTracksWhatChanged(t *testing.T) {
 func TestDependenciesCarryPurlsAndChecksums(t *testing.T) {
 	doc, _ := emit(t, sampleBuild())
 
-	if len(doc.Components) != 2 {
-		t.Fatalf("want two components, got %d", len(doc.Components))
+	// The standard library, then the two modules.
+	if len(doc.Components) != 3 {
+		t.Fatalf("want three components, got %d", len(doc.Components))
 	}
-	cobra := doc.Components[0]
+	cobra := componentNamed(t, doc, "github.com/spf13/cobra")
 	if cobra.Type != "library" {
 		t.Errorf("type = %q, want library", cobra.Type)
 	}
@@ -186,7 +187,7 @@ func TestAMalformedSumIsMarkedNotDropped(t *testing.T) {
 func TestAnUnverifiableDependencySaysSo(t *testing.T) {
 	doc, _ := emit(t, sampleBuild())
 
-	vendored := doc.Components[1]
+	vendored := componentNamed(t, doc, "example.com/vendored")
 	if len(vendored.Hashes) != 0 {
 		t.Errorf("a module with no sum was given a hash: %+v", vendored.Hashes)
 	}
@@ -262,16 +263,55 @@ func TestNoVCSStampSaysNothingRatherThanClean(t *testing.T) {
 
 // TestAToolchainBinaryStillProducesAValidDocument. `go` itself has no main
 // module path and no dependencies; emitting a document with an empty
-// component object would fail validation for no reason.
+// component object would fail validation for no reason. Its standard
+// library is still in it, and is still listed.
 func TestAToolchainBinaryStillProducesAValidDocument(t *testing.T) {
-	doc, raw := emit(t, &Build{GoVersion: "go1.27.1"})
+	doc, _ := emit(t, &Build{GoVersion: "go1.27.1"})
 
 	if doc.Metadata.Component != nil {
 		t.Errorf("a nameless main module became a component: %+v", doc.Metadata.Component)
 	}
+	if len(doc.Components) != 1 || doc.Components[0].Name != "stdlib" {
+		t.Errorf("components = %+v, want only the standard library", doc.Components)
+	}
+	_, raw := emit(t, &Build{})
 	if strings.Contains(raw, `"components"`) {
 		t.Errorf("an empty component list was written:\n%s", raw)
 	}
+}
+
+// TestTheStandardLibraryIsAComponent. It is linked into every Go binary,
+// appears in no module list, and is where most Go advisories are.
+func TestTheStandardLibraryIsAComponent(t *testing.T) {
+	doc, _ := emit(t, sampleBuild())
+	std := componentNamed(t, doc, "stdlib")
+	if std.Version != "1.27.1" || std.PURL != "pkg:golang/stdlib@1.27.1" {
+		t.Errorf("stdlib = %+v", std)
+	}
+	if hasProperty(std.Properties, "scout:unverifiable") {
+		t.Error("the standard library was marked unverifiable; it has no module checksum to carry")
+	}
+	for _, v := range []string{"go1.27.1 X:boringcrypto", "go1.27.1"} {
+		if c, ok := (&Build{GoVersion: v}).stdlibComponent(); !ok || c.Version != "1.27.1" {
+			t.Errorf("%q gave %+v %v", v, c, ok)
+		}
+	}
+	for _, v := range []string{"", "devel go1.28-abcdef", "go", "gofoo"} {
+		if _, ok := (&Build{GoVersion: v}).stdlibComponent(); ok {
+			t.Errorf("%q named a standard library release", v)
+		}
+	}
+}
+
+func componentNamed(t *testing.T, doc BOM, name string) BOMComponent {
+	t.Helper()
+	for _, c := range doc.Components {
+		if c.Name == name {
+			return c
+		}
+	}
+	t.Fatalf("no component named %s in %+v", name, doc.Components)
+	return BOMComponent{}
 }
 
 func TestPurl(t *testing.T) {

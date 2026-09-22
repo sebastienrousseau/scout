@@ -81,6 +81,10 @@ type Package struct {
 	// Bundled marks a package shipped inside another's archive, which
 	// that archive's hash covers.
 	Bundled bool `json:"bundled,omitempty"`
+	// Local marks a package installed from a path or a git URL rather
+	// than a registry: no public database knows it, and its name may be
+	// internal.
+	Local bool `json:"local,omitempty"`
 	// Source is the lockfile the entry came from.
 	Source string `json:"source"`
 }
@@ -131,6 +135,7 @@ func InspectDir(dir string) (*Inventory, error) {
 				if len(first.Hashes) == 0 && len(p.Hashes) > 0 {
 					first.Hashes, first.Unverifiable, first.Bundled = p.Hashes, "", false
 				}
+				first.Local = first.Local && p.Local
 				continue
 			}
 			seen[key] = len(inv.Packages)

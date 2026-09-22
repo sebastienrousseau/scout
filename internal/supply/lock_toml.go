@@ -145,6 +145,7 @@ func parseCargoLock(data []byte) ([]Package, *Package, error) {
 		} else {
 			p.Unverifiable = cargoUnverifiable(source, sum)
 		}
+		p.Local = !strings.HasPrefix(source, "registry+") && !strings.HasPrefix(source, "sparse+")
 		out = append(out, p)
 	}
 	var root *Package
@@ -211,9 +212,9 @@ func parseUVLock(data []byte) ([]Package, *Package, error) {
 		case len(wheels) > 0:
 			// Pinned, with no single artifact to name.
 		case strings.Contains(source, "git"):
-			p.Unverifiable = "a git dependency; uv records the commit, not an artifact hash"
+			p.Unverifiable, p.Local = "a git dependency; uv records the commit, not an artifact hash", true
 		case strings.Contains(source, "path") || strings.Contains(source, "directory"):
-			p.Unverifiable = "installed from a local path; no index hash exists"
+			p.Unverifiable, p.Local = "installed from a local path; no index hash exists", true
 		default:
 			p.Unverifiable = "no artifact hash in uv.lock"
 		}

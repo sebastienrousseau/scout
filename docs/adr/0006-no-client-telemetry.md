@@ -57,7 +57,8 @@ project's own rules, not a feature.
 The guarantee is bounded and the bound is stated rather than implied: scout
 makes requests to the server under test, to the authorization server that
 server names, and to an OTLP collector or a report directory the operator
-configures explicitly. Those are the run. Nothing else leaves the machine,
+configures explicitly. Those are the run. (A fourth, asked for by flag, was
+added on 2026-09-22; see the amendment below.) Nothing else leaves the machine,
 and nothing at all goes to anywhere scout's authors control.
 
 `scoutmcp.io` is a website and carries ordinary website analytics. A
@@ -95,3 +96,26 @@ points at **their own** collector, which `--otlp-endpoint` already is.
 
 The line that must not move: scout never sends anything to an endpoint
 scout's authors control.
+
+## Amendment — 2026-09-22: vulnerability lookup
+
+`scout sbom --osv` asks OSV which advisories affect the packages in a bill
+of materials. That is a destination the bound above did not list, so it is
+recorded here rather than added quietly.
+
+It stays inside the decision for the same reason `--otlp-endpoint` does:
+the operator asks for it explicitly, by flag, on the run where it happens.
+It is off by default, and nothing else in scout makes the request. It is
+announced on stderr before anything is sent, and it is recorded in the
+document it produced. What is sent is package URLs and nothing else: no
+hashes, no paths, no project name, nothing about the server under test.
+Components that did not come from a public registry are never sent, because
+their names may be internal and no public database could match them.
+`--osv-url` points the lookup at a mirror for an operator who cannot send
+even public package names outside their network.
+
+The OSV API is run by Google, not by scout's authors, so the line above
+does not move. The bound now reads: the server under test, the
+authorization server it names, an OTLP collector or report directory the
+operator configures, and a vulnerability database the operator asks for by
+flag.

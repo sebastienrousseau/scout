@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/sebastienrousseau/scout/internal/diag"
 	"github.com/sebastienrousseau/scout/internal/supply"
 	"github.com/spf13/cobra"
 )
@@ -61,10 +62,23 @@ A program that is not a Go binary is an error, not an empty document: for
 a TypeScript, Python or Rust server, name its project directory instead.
 A server run straight from npx or uvx has no local lockfile to read.
 
+With --osv, every component from a public registry is looked up in OSV and
+the advisories that affect it are added as CycloneDX vulnerabilities. This
+is the only network access the command makes, and it is off by default.
+What is sent is package URLs and nothing else: no hashes, no paths, no
+project name. Components from a local path, a git URL or a Go module that
+never went through the public proxy are never sent. Where even public
+package names are confidential, --osv-url points the lookup at a mirror.
+A failed lookup fails the command rather than writing a document that
+reads as clean.
+
+  scout sbom ./my-ts-server --osv > bom.json
+
 The document is reproducible: the serial number is derived from what is
 being described rather than generated at random, and SOURCE_DATE_EPOCH, if
 set, fixes the timestamp. The same input described twice gives the same
-bytes.`,
+bytes, unless --osv is given: the advisories are the database's answer on
+the day.`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// A directory is a project to read lockfiles from; anything else
@@ -76,7 +90,7 @@ bytes.`,
 			if err != nil {
 				return err
 			}
-			return inv.WriteCycloneDX(os.Stdout, Version, buildTimestamp())
+			return writeSBOM(cmd, inv.BOM(Version, buildTimestamp()))
 		}
 		build, err := supply.Inspect(args[0])
 		if errors.Is(err, supply.ErrNotGo) {
@@ -91,8 +105,39 @@ bytes.`,
 		if err != nil {
 			return err
 		}
-		return build.WriteCycloneDX(os.Stdout, Version, buildTimestamp())
+		return writeSBOM(cmd, build.BOM(Version, buildTimestamp()))
 	},
+}
+
+var (
+	sbomOSV    bool
+	sbomOSVURL string
+)
+
+func init() {
+	sbomCmd.Flags().BoolVar(&sbomOSV, "osv", false,
+		"look every public package up in OSV and add the advisories that affect it; the only network access this command makes")
+	sbomCmd.Flags().StringVar(&sbomOSVURL, "osv-url", supply.DefaultOSVEndpoint,
+		"the OSV API to ask, for a mirror when package names are confidential; https, or http to this machine")
+}
+
+// writeSBOM adds advisories when asked, then writes the document.
+func writeSBOM(cmd *cobra.Command, doc supply.BOM) error {
+	if sbomOSV {
+		// Said before it happens, and on stderr, so stdout stays the
+		// document: what is about to leave the machine, and where to.
+		diag.Infof("sbom: sending %d package URLs to %s (--osv); nothing else leaves this machine",
+			supply.Queryable(&doc), sbomOSVURL)
+		if err := (supply.OSV{Endpoint: sbomOSVURL}).Annotate(cmd.Context(), &doc); err != nil {
+			return err
+		}
+		diag.Infof("sbom: %d advisories affect this inventory", len(doc.Vulnerabilities))
+	} else if cmd.Flags().Changed("osv-url") {
+		// A mirror named without --osv would otherwise be silently
+		// ignored, and the operator would believe they had asked.
+		return errors.New("--osv-url names where to look; add --osv to look")
+	}
+	return supply.WriteBOM(os.Stdout, doc)
 }
 
 // buildTimestamp honours SOURCE_DATE_EPOCH.
@@ -109,7 +154,7 @@ func buildTimestamp() time.Time {
 		// A malformed value is the caller asking for reproducibility and
 		// getting it wrong, which is worth saying out loud rather than
 		// silently answering with the wall clock.
-		fmt.Fprintf(os.Stderr, "scout: ignoring SOURCE_DATE_EPOCH=%q: not an integer\n", v)
+		diag.Warnf("ignoring SOURCE_DATE_EPOCH=%q: not an integer", v)
 	}
 	return time.Now().UTC()
 }

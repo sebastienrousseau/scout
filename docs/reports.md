@@ -189,6 +189,36 @@ was installed, not what is running, and the document says which it is in a
 `scout:evidence` property. A server run straight from `npx` or `uvx` has no
 local lockfile at all, and scout does not fetch one.
 
+### Known vulnerabilities
+
+```sh
+scout sbom ./my-ts-server --osv > bom.json
+```
+
+`--osv` looks every component up in [OSV](https://osv.dev/) and adds the
+advisories that affect it as CycloneDX `vulnerabilities`, each pointing at
+the components it affects, with its aliases, its CVSS vectors and the
+database's own severity. A Go binary's document includes its standard
+library as a component, because a server built with an old toolchain
+carries that toolchain's `net/http` whatever its `go.mod` says.
+
+It is the only network access `scout sbom` makes, and it is off unless
+asked for ([ADR 0006](adr/0006-no-client-telemetry.md) records where it
+sits). Before anything is sent, stderr says how many package URLs are
+going where. Package URLs are all that is sent — no hashes, no paths, no
+project name — and components that did not come from a public registry
+(a local path, a git URL, a Go module with no proxy checksum) are never
+sent at all. If even public package names are confidential, point
+`--osv-url` at a mirror; it must be https, or http to this machine, and a
+redirect to another host is refused.
+
+A lookup that fails fails the command. A document missing its
+vulnerabilities because the database was unreachable would read as clean.
+Withdrawn advisories are left out. Each advisory's text is bounded, because
+whoever filed it wrote it. The document records the endpoint asked and the
+counts in `scout:osv-*` properties, and it is no longer byte-reproducible:
+the advisories are the database's answer on the day.
+
 A program that is not a Go binary, or a directory with no lockfile, is an
 error rather than a bill of materials with no materials in it — a pipeline
 that ingested an empty document and went green is the failure this avoids.

@@ -135,9 +135,9 @@ func npmPackage(name, version, integrity, resolved string, dev bool) Package {
 	case strings.TrimSpace(integrity) != "":
 		p.Unverifiable = "integrity value in package-lock.json is not a well-formed SRI hash"
 	case strings.HasPrefix(resolved, "file:"), strings.HasPrefix(version, "file:"):
-		p.Unverifiable = "installed from a local path; no registry hash exists"
+		p.Unverifiable, p.Local = "installed from a local path; no registry hash exists", true
 	case strings.HasPrefix(resolved, "git"), strings.HasPrefix(version, "git"):
-		p.Unverifiable = "installed from a git URL; no registry hash exists"
+		p.Unverifiable, p.Local = "installed from a git URL; no registry hash exists", true
 	default:
 		p.Unverifiable = "no integrity hash in package-lock.json"
 	}

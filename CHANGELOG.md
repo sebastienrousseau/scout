@@ -63,6 +63,25 @@ project announces that a change felt big.
   would mean adding a dependency to the binary a security team has to
   approve in order to describe the dependencies in somebody else's.
 
+- **`scout sbom --osv` says which of those dependencies are known to be
+  broken.** Every component from a public registry is looked up in OSV,
+  and the advisories that affect it are added to the document as
+  CycloneDX vulnerabilities, with aliases, CVSS vectors and severity. A
+  Go binary's document now lists its standard library as a component,
+  because that is where most Go advisories are.
+
+  ```sh
+  scout sbom ./my-ts-server --osv > bom.json
+  ```
+
+  It is the only network access the command makes and it is off by
+  default. What is sent is announced on stderr first, and it is package
+  URLs only; a component from a local path, a git URL or a private Go
+  module is never sent. `--osv-url` points at a mirror for teams whose
+  package names cannot leave the network. A failed lookup fails the
+  command rather than writing a document that reads as clean. ADR 0006
+  carries an amendment recording the new destination.
+
 - **`execution.payload_size` measures what an answer costs the caller.**
   The catalogue budget measures what a server costs to look at; this
   measures what it costs to use. A tool result is not a file somebody

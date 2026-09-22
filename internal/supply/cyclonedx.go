@@ -44,6 +44,9 @@ type BOM struct {
 	Version      int            `json:"version"`
 	Metadata     BOMMetadata    `json:"metadata"`
 	Components   []BOMComponent `json:"components,omitempty"`
+	// Vulnerabilities are filled only when the operator asked for a
+	// lookup; a document written without one says nothing about them.
+	Vulnerabilities []BOMVulnerability `json:"vulnerabilities,omitempty"`
 }
 
 // BOMMetadata says who produced the document and what it describes.
@@ -75,6 +78,11 @@ type BOMComponent struct {
 	BOMRef     string        `json:"bom-ref,omitempty"`
 	Hashes     []BOMHash     `json:"hashes,omitempty"`
 	Properties []BOMProperty `json:"properties,omitempty"`
+
+	// private marks a component whose name should not leave the machine
+	// in a vulnerability lookup: it did not come from a public registry,
+	// so no public database can know it, and its name may be internal.
+	private bool
 }
 
 // BOMHash is a checksum in the form CycloneDX expects.
@@ -94,6 +102,12 @@ type BOMProperty struct {
 // scoutVersion identifies the tool in the metadata, because a bill of
 // materials whose producer is anonymous is one nobody can date or trust.
 func (b *Build) WriteCycloneDX(w io.Writer, scoutVersion string, now time.Time) error {
+	return WriteBOM(w, b.BOM(scoutVersion, now))
+}
+
+// BOM builds the document without writing it, so a caller can add to it
+// first.
+func (b *Build) BOM(scoutVersion string, now time.Time) BOM {
 	doc := BOM{
 		Schema:      "http://cyclonedx.org/schema/bom-" + bomSpec + ".schema.json",
 		BOMFormat:   bomFormat,
@@ -110,13 +124,51 @@ func (b *Build) WriteCycloneDX(w io.Writer, scoutVersion string, now time.Time) 
 			Properties: b.metadataProperties(),
 		},
 	}
+	if c, ok := b.stdlibComponent(); ok {
+		doc.Components = append(doc.Components, c)
+	}
 	for _, d := range b.Deps {
 		doc.Components = append(doc.Components, component(d, "library"))
 	}
+	return doc
+}
 
+// WriteBOM encodes a document.
+func WriteBOM(w io.Writer, doc BOM) error {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	return enc.Encode(doc)
+}
+
+// stdlibComponent describes the standard library linked into the binary.
+//
+// It is in every Go binary and in none of its module list, and it is
+// where most Go advisories are: a server built with an old toolchain
+// carries that toolchain's net/http whatever its go.mod says. Its version
+// is the toolchain's, which the binary records exactly.
+func (b *Build) stdlibComponent() (BOMComponent, bool) {
+	// "go1.27.1", possibly followed by " X:experiment". A development
+	// toolchain ("devel go1.28-abcdef") has no release to name.
+	fields := strings.Fields(b.GoVersion)
+	if len(fields) == 0 || !strings.HasPrefix(fields[0], "go") {
+		return BOMComponent{}, false
+	}
+	v := strings.TrimPrefix(fields[0], "go")
+	if v == "" || v[0] < '0' || v[0] > '9' {
+		return BOMComponent{}, false
+	}
+	c := BOMComponent{
+		Type:    "library",
+		Name:    "stdlib",
+		Version: v,
+		PURL:    purl(Module{Path: "stdlib", Version: v}),
+		Properties: []BOMProperty{{
+			Name:  "scout:go-stdlib",
+			Value: "the Go standard library linked into the binary; its version is the toolchain's",
+		}},
+	}
+	c.BOMRef = c.PURL
+	return c, true
 }
 
 // serialNumber is a URN derived from what the document describes.
@@ -202,6 +254,10 @@ func component(m Module, kind string) BOMComponent {
 		c.BOMRef = m.Path
 	}
 	h, ok := hashFromSum(m.Sum)
+	// No checksum means the module did not come through the public
+	// proxy, so no public database has heard of it, and its import path
+	// may be one a company would rather keep to itself.
+	c.private = strings.TrimSpace(m.Sum) == ""
 	switch {
 	case ok:
 		c.Hashes = []BOMHash{h}
