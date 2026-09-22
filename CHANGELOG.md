@@ -17,6 +17,22 @@ project announces that a change felt big.
 
 ### Added
 
+- **`execution.payload_size` measures what an answer costs the caller.**
+  The catalogue budget measures what a server costs to look at; this
+  measures what it costs to use. A tool result is not a file somebody
+  downloads — it goes into the model's context, whole, on the call that
+  asked for it, and the caller cannot refuse delivery: by the time the
+  size is known the answer has already arrived.
+
+  What separates a large answer from a broken one is whether the server
+  knows it is large. A result that paginates, truncates, or says it was
+  cut is reported as an observation, because the size is then a choice
+  somebody made. Only a large result with no sign of being bounded is
+  worth acting on.
+
+  It costs no extra request: the execution phase already made these
+  calls and already counted the bytes.
+
 - **Performance is a gate now, not an adjective.** "Fast" is
   unfalsifiable; budgets with a red build are the only version of a
   performance claim that survives a year of commits.

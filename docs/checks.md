@@ -8,13 +8,13 @@ description: >-
 
 # The check inventory
 
-scout runs **106 checks** across **9 phases**.
+scout runs **107 checks** across **9 phases**.
 
 13 of them apply only to a server that is a program rather than a URL, and
 replace the ones that have no meaning over a pipe. A run reports every check it
 did not make, by id and with the reason, rather than leaving it out.
 
-105 of those are fixed, and 1 is a family whose id is built at run time —
+106 of those are fixed, and 1 is a family whose id is built at run time —
 one check per value the run encounters, marked `*` below.
 
 This file is generated from the source: every check is created through
@@ -132,12 +132,13 @@ that is what a reader sees in a report.
 | <span id="check-catalog-tools-title" data-can-fail="false"></span>`catalog.tools.title` | Tools have a human title |
 | <span id="check-catalog-tools-unique" data-can-fail="true"></span>`catalog.tools.unique` | Tool names are unique |
 
-## execution — 7 checks
+## execution — 8 checks
 
 | Check | What it looks for |
 |---|---|
 | <span id="check-execution-content" data-can-fail="true"></span>`execution.content` | Results validate against outputSchema |
 | <span id="check-execution-error_guidance" data-can-fail="true"></span>`execution.error_guidance` | Rejected calls say how to succeed |
+| <span id="check-execution-payload_size" data-can-fail="true"></span>`execution.payload_size` | Results leave room for the conversation |
 | <span id="check-execution-policy" data-can-fail="false"></span>`execution.policy` | Safety policy |
 | <span id="check-execution-prompts" data-can-fail="true"></span>`execution.prompts` | Prompt rendering |
 | <span id="check-execution-resources" data-can-fail="true"></span>`execution.resources` | Resource reads |

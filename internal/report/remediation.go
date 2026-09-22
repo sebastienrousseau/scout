@@ -503,6 +503,34 @@ var remediations = map[string]Remediation{
 			"cries wolf over one is a gate somebody switches off.",
 	},
 
+	"execution.payload_size": {
+		Means: "A tool answered with more text than a caller can afford. A " +
+			"result is not a file somebody downloads: it goes into the " +
+			"model's context, whole, on the call that asked for it. A " +
+			"hundred kilobytes is a large share of a small window spent on " +
+			"one reply, and the caller cannot refuse delivery -- by the time " +
+			"the size is known, the answer has already arrived.",
+		Steps: []Step{
+			{"Page it",
+				"Return a cursor and let the caller ask for more. A tool that " +
+					"expects to be called again is one a model can use " +
+					"without gambling its whole window on the first call."},
+			{"Or truncate it and say so",
+				"A result cut at a sensible size with a line admitting it was " +
+					"cut is honest and usable. One that is silently complete " +
+					"but enormous is neither."},
+			{"Or hand back a reference",
+				"For genuinely large output, return a resource URI the caller " +
+					"can fetch in parts, rather than inlining it."},
+		},
+		Note: "A large result that says it was paginated or truncated is " +
+			"reported as an observation rather than a warning: the size is " +
+			"then a choice somebody made. Only a large result with no sign of " +
+			"being bounded is worth acting on. Nothing here costs an extra " +
+			"request -- the execution phase already made these calls and " +
+			"already counted the bytes.",
+	},
+
 	"execution.error_guidance": {
 		Means: "A tool rejected a call and the rejection said nothing the " +
 			"caller could act on — a bare \"error\", or an internal stack " +
