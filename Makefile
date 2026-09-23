@@ -181,9 +181,14 @@ api-check:
 	if [ -z "$$tag" ]; then echo "api-check: no release tag yet, nothing to compare"; exit 0; fi; \
 	out=$$(go run golang.org/x/exp/cmd/gorelease@latest -base="$$tag" 2>&1); rc=$$?; \
 	printf '%s\n' "$$out"; \
-	if printf '%s' "$$out" | grep -qiE 'incompatible changes'; then \
-	  echo "api-check: the public API changed incompatibly against $$tag"; exit 1; \
-	fi; \
+	accepted=$$(sed -n 's/^\([^#[:space:]][^[:space:]]*\).*/\1/p' .api-check-accepted 2>/dev/null); \
+	for pkg in $$(printf '%s\n' "$$out" | awk '/^# /{pkg=$$2} /^## incompatible changes/{print pkg}'); do \
+	  if printf '%s\n' "$$accepted" | grep -qx "$$pkg"; then \
+	    echo "api-check: $$pkg changed incompatibly against $$tag; accepted in .api-check-accepted"; \
+	  else \
+	    echo "api-check: the public API of $$pkg changed incompatibly against $$tag"; exit 1; \
+	  fi; \
+	done; \
 	if [ $$rc -ne 0 ] && ! printf '%s' "$$out" | grep -q 'Cannot suggest a release version'; then \
 	  echo "api-check: gorelease failed against $$tag"; exit $$rc; \
 	fi; \

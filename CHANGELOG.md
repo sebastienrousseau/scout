@@ -49,6 +49,9 @@ project announces that a change felt big.
   `scout/attestation` remains as a deprecated forwarder, so an existing
   importer keeps compiling and accepts exactly the same statements. One
   new direct dependency, first-party and standard-library only.
+  `make api-check` reports the aliases as an identity change, which is
+  what apidiff sees and not a break; `.api-check-accepted` names the
+  package and the reason for this release, and fails on anything else.
 
 ## [0.0.3] — 2026-09-23
 
