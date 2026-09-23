@@ -839,6 +839,7 @@ them off unless you know why you are turning one on; see
 | `--allow-load` | off | Run the burst unthrottled to test the server's rate limiting |
 | `--max-resources` | `25` | Max resources to read |
 | `--max-prompts` | `25` | Max prompts to render |
+| `--soak` | `0` | After the run, call the fastest tool that succeeded this many more times and report the trend in the server's resident memory (stdio only, read on Linux; at least `100`; paced by `--rps`) |
 
 ### Output Options
 

@@ -79,6 +79,7 @@ Every flag of `scout check` is a setting. The ones people set in a file:
 | `fill-optional` | false | also generate optional schema properties |
 | `allow-load` | false | run the burst unthrottled |
 | `max-resources`, `max-prompts` | 25 | caps for reads and renders |
+| `soak` | 0 | extra calls of one tool after the run, with the server's resident memory sampled after each; stdio only, at least 100 |
 | `output` | `text` | `text`, `json`, `md`, `ndjson` |
 | `report-dir` | | write every format plus telemetry here |
 | `capture-bodies`, `events`, `verbose`, `no-color` | false | output detail |

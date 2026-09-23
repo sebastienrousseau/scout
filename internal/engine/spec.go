@@ -172,6 +172,12 @@ type PacingSpec struct {
 	AllowLoad    bool          `json:"allow_load,omitempty"`
 	MaxResources int           `json:"max_resources,omitempty"`
 	MaxPrompts   int           `json:"max_prompts,omitempty"`
+	// Soak repeats the fastest successful tool call this many more times
+	// after the run and reports the trend in the server's resident memory.
+	// Zero is off. It needs a program to run, since the memory read is of
+	// a process scout started, and at least probe.SoakMinCalls calls for a
+	// trend to mean anything.
+	Soak int `json:"soak,omitempty"`
 }
 
 // EgressSpec says whether to watch a server's outbound connections, and
@@ -343,6 +349,12 @@ func (s RunSpec) Validate() error {
 		// Asked for and silently not done would read as a server that
 		// survives its dependencies failing.
 		return errors.New("--fault-upstream fails a server's connections through a proxy it is started with, so it needs a program to run (--stdio); an endpoint scout did not start cannot be pointed at one")
+	}
+	if s.Pacing.Soak > 0 && !s.Target.Stdio() {
+		return errors.New("--soak reads the resident memory of a process scout started, so it needs a program to run (--stdio); an endpoint's memory is not scout's to read")
+	}
+	if s.Pacing.Soak > 0 && s.Pacing.Soak < probe.SoakMinCalls {
+		return fmt.Errorf("--soak %d is too short to fit a trend through; ask for at least %d calls", s.Pacing.Soak, probe.SoakMinCalls)
 	}
 	if !s.Output.Format.Valid() {
 		return fmt.Errorf("output format %q is not one of %v", s.Output.Format, Formats)

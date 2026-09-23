@@ -16,6 +16,25 @@ project announces that a change felt big.
 
 ## [Unreleased]
 
+### Added
+
+- **`--soak N` asks whether the server's memory settles.** The fastest
+  tool that succeeded is called `N` more times in sequence, and the
+  resident memory of the server's process group is read from `/proc`
+  after each. The first tenth of the samples is dropped as warm-up and a
+  least-squares line is fitted through the rest; `resilience.soak_memory`
+  fails as Major when the line explains most of the variation and adds
+  up to at least a mebibyte and 5% of where it started, or when the
+  server stops answering or exits part way through. A collector's
+  sawtooth has a slope and no fit; a warm-up has a fit and no slope
+  after the cut. The measurement is the slope, never the peak.
+
+  Stdio only, since the memory read is of a process scout started, and
+  read on Linux; elsewhere the check is skipped by name, never passed.
+  It needs at least 100 calls, is paced by `--rps` like every other
+  call, and is recorded in the attestation's plan so `--reproduce`
+  repeats it. 120 checks.
+
 ## [0.0.3] — 2026-09-23
 
 ### Added

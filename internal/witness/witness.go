@@ -38,6 +38,25 @@ import (
 // reads. It is a reason to skip, never a clean result.
 var ErrUnsupported = errors.New("witness: only Linux publishes a process's sockets and open files under /proc")
 
+// ErrGone means no process in the group was there to read: the server has
+// exited, or was never in the group scout was told to watch.
+var ErrGone = errors.New("witness: no process in the group")
+
+// parseStatmResident reads the resident-set size, in pages, from one
+// process's /proc/<pid>/statm. The file is seven integers on one line and
+// the second is the resident count; anything else is not a statm line.
+func parseStatmResident(line string) (int64, bool) {
+	fields := strings.Fields(line)
+	if len(fields) < 2 {
+		return 0, false
+	}
+	n, err := strconv.ParseInt(fields[1], 10, 64)
+	if err != nil || n < 0 {
+		return 0, false
+	}
+	return n, true
+}
+
 // Conn is one socket with a remote end.
 type Conn struct {
 	Proto  string `json:"proto"`

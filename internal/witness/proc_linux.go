@@ -87,3 +87,46 @@ func Take(pgid int) (Snapshot, error) {
 	}
 	return s, nil
 }
+
+// RSS sums the resident-set size, in bytes, of every process in the group.
+//
+// It reads /proc/<pid>/statm rather than status: statm is seven integers on
+// one line, which is the cheapest thing /proc publishes about memory, and
+// a soak samples it after every call. A process that exits between the
+// listing and the read is skipped, as Take skips it. Shared pages are
+// counted once per process that maps them, which overstates a group of
+// forked workers and does not affect a trend.
+func RSS(pgid int) (int64, error) {
+	entries, err := os.ReadDir(procRoot)
+	if err != nil {
+		return 0, err
+	}
+	var total int64
+	found := false
+	for _, e := range entries {
+		if _, err := strconv.Atoi(e.Name()); err != nil {
+			continue
+		}
+		stat, err := os.ReadFile(filepath.Join(procRoot, e.Name(), "stat"))
+		if err != nil {
+			continue
+		}
+		if g, err := parseStatPgrp(string(stat)); err != nil || g != pgid {
+			continue
+		}
+		statm, err := os.ReadFile(filepath.Join(procRoot, e.Name(), "statm"))
+		if err != nil {
+			continue
+		}
+		pages, ok := parseStatmResident(string(statm))
+		if !ok {
+			continue
+		}
+		found = true
+		total += pages * int64(os.Getpagesize())
+	}
+	if !found {
+		return 0, ErrGone
+	}
+	return total, nil
+}

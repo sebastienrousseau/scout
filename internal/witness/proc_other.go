@@ -7,3 +7,6 @@ package witness
 
 // Take reports that this platform has no /proc to read.
 func Take(int) (Snapshot, error) { return Snapshot{}, ErrUnsupported }
+
+// RSS reports that this platform has no /proc to read.
+func RSS(int) (int64, error) { return 0, ErrUnsupported }

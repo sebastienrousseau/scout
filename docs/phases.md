@@ -215,6 +215,27 @@ snaps shut at the handshake; that cannot be built from outside, because
 Landlock and seccomp are restrictions a process applies to itself.
 Off Linux the three are skipped by name.
 
+With `--soak N`, the run asks the one question fifty requests cannot: does
+the server's memory settle, or does every call leave something behind? The
+fastest tool that succeeded in the execution phase is called `N` more times
+in sequence, paced by `--rps` like every other call, and the resident
+memory of the server's process group is read from `/proc` after each. The
+first tenth of the samples is dropped as warm-up — a runtime that grows its
+heap for a few dozen calls and then holds is behaving well — and a
+least-squares line is fitted through the rest.
+
+| Finding | Checks |
+|---|---|
+| `resilience.soak_memory` | the line through resident memory against call number is not a leak: it explains less than 60% of the variation, or adds up to less than a mebibyte and less than 5% of where the window started. A line that does both fails as major, as does a server that stops answering or exits part way through |
+
+The measurement is the slope, not the peak: a collector's sawtooth has a
+slope and no fit, and a warm-up has a fit and no slope after the cut. It
+needs at least 100 calls, a program to run (the memory read is of a process
+scout started, so `--soak` without `--stdio` is refused), and Linux to read
+it on; elsewhere it is skipped by name. At the default pacing a thousand
+calls take about eight minutes; `--rps 0` removes the throttle for a server
+you own.
+
 With `--fault-upstream`, the run ends by asking what an agent sees when a
 server's dependency is down. The proxy `--watch-egress` points the server
 at (the flag implies it) holds every new connection open without answering,
