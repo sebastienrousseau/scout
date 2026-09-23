@@ -56,6 +56,9 @@
         "judgedAgainst": {
           "$ref": "#/$defs/Basis"
         },
+        "plan": {
+          "$ref": "#/$defs/Plan"
+        },
         "ranAt": {
           "format": "date-time",
           "type": "string"
@@ -110,6 +113,41 @@
         "name",
         "version",
         "reportSchemaVersion"
+      ],
+      "type": "object"
+    },
+    "Plan": {
+      "properties": {
+        "arch": {
+          "type": "string"
+        },
+        "credentials": {
+          "type": "string"
+        },
+        "credentialsByValue": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "kernel": {
+          "type": "string"
+        },
+        "os": {
+          "type": "string"
+        },
+        "spec": {
+          "items": {
+            "type": "integer"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "spec",
+        "credentials",
+        "os",
+        "arch"
       ],
       "type": "object"
     },

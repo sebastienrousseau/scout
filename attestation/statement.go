@@ -109,6 +109,32 @@ type Evaluation struct {
 	// TraceID ties the statement to the telemetry the run recorded, for
 	// anyone who kept it.
 	TraceID string `json:"traceId,omitempty"`
+	// Plan is how the run was made, so the producer can make it again and
+	// report the difference. A statement about a live service cannot be
+	// reproduced byte for byte — the service moves — but the measurement
+	// can be, and the difference between two measurements made the same way
+	// is drift.
+	Plan *Plan `json:"plan,omitempty"`
+}
+
+// Plan records what a producer needs to repeat a measurement. It never
+// carries a secret value: credentials given by value are named, not
+// recorded, so a repeat has to be given them again.
+type Plan struct {
+	// Spec is the producer's own run specification. It is opaque to other
+	// consumers and specific to the Instrument that wrote it.
+	Spec json.RawMessage `json:"spec"`
+	// Credentials is the credential mode the run used: "none", "bearer",
+	// "client-credentials" or "authorization-code".
+	Credentials string `json:"credentials"`
+	// ByValue names the credentials the run was given by value, such as
+	// "token" or "header X-API-Key".
+	ByValue []string `json:"credentialsByValue,omitempty"`
+	// OS, Arch and Kernel describe the machine the run was made from, which
+	// can change what a stdio server does.
+	OS     string `json:"os"`
+	Arch   string `json:"arch"`
+	Kernel string `json:"kernel,omitempty"`
 }
 
 // Target identifies the evaluated server without disclosing credentials.

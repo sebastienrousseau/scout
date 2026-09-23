@@ -104,6 +104,7 @@ scout verify attestation.json \
 | `--max-fail N` | at most N checks failed |
 | `--min-score N` | the score is at least N. A run that assessed nothing carries no score, and a missing score never counts as zero |
 | `--against FILE` | no check is worse than in that earlier statement about the same target |
+| `--reproduce` | no check is worse when the recorded run is made again, against `--endpoint` |
 
 A gate applies because the flag was given, not because of its value:
 `--max-fail 0` is the strictest form of that gate, and omitting the flag asks
@@ -127,6 +128,36 @@ Two statements about different targets are refused rather than compared:
 the difference between two servers is not drift. The comparison is
 `attestation.Compare` in the Apache-2.0 package, so a gateway can run the
 same check without scout.
+
+### Repeating the recorded run
+
+```sh
+scout verify approved.json --reproduce --endpoint https://mcp.example.com/mcp \
+  --token-env MCP_TOKEN
+```
+
+A statement written by `scout check` records its plan: the run
+specification with every secret value removed, the credential mode, the
+names of anything given by value (`token`, `header X-API-Key`,
+`param tenant`), and the operating system, architecture and kernel. A live
+service cannot give the same answer twice, but the measurement can be made
+the same way twice. `--reproduce` makes it again and gates on what got
+worse, exactly as `--against` does.
+
+It is the one form of `verify` that contacts anything, and a statement can
+come from anyone, so it takes from the statement only how the server was
+measured — phases, pacing, which tools with which arguments, egress
+watching, the baseline — and nothing that decides what scout may touch:
+
+| Taken from | What |
+|---|---|
+| `--endpoint` | the target. It must be named, the statement must cover it, and the plan must be about the same target as the statement's subject |
+| this command line | credentials, with the flags `scout check` takes. A plan's recorded environment-variable names are never read: a hostile statement could otherwise choose which of your secrets to send to an endpoint it chose |
+| this command line | permissions (`--allow-mutations`, `--allow-destructive`, `--insecure-*`, `--allow-resource-mismatch`, `--skip-era-check`). They must match the recorded run exactly, because a comparison between runs allowed different things measures the permissions |
+
+A run that sent no credentials sends none again, whatever the environment
+holds. A statement made before plans were recorded, or from a report
+assembled by hand, has no plan and is refused.
 
 For anything an organisation has to agree on, `--policy` takes a file instead
 — reviewable, versioned, and able to carry exceptions with a reason and an

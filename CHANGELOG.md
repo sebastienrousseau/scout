@@ -130,6 +130,21 @@ project announces that a change felt big.
   mutating tool twice to test this, because the effect of a call is not
   something it can observe from outside.
 
+- **`scout verify --reproduce` repeats the recorded run.** A statement
+  from `scout check` now carries its plan: the run specification with
+  every secret value removed, the credential mode, the names of anything
+  given by value, and the OS, architecture and kernel. `--reproduce`
+  makes the same measurement again and gates on what got worse, as
+  `--against` does. It contacts only a target named with `--endpoint`
+  that the statement covers, takes credentials and permissions from its
+  own command line and never from the statement, and refuses a plan that
+  asks for permissions it was not given or names a different target from
+  the subject.
+
+  ```sh
+  scout verify approved.json --reproduce --endpoint https://mcp.example.com/mcp
+  ```
+
 - **`scout verify --against` gates on drift.** Two statements about the
   same target are compared check by check, and the gate fails when any
   check got worse — pass or info to warn or fail, or warn to fail — even

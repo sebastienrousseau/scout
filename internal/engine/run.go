@@ -94,6 +94,7 @@ func Run(ctx context.Context, spec RunSpec, sink Sink) *Result {
 	res.Session, res.Err = sess, runErr
 	if sess != nil {
 		res.Report = report.Build(sess, spec.Version, spec.Output.WithEvents || spec.Output.ReportDir != "")
+		res.Report.Plan = spec.Plan(rec.Redactor)
 	}
 	if spec.Gate != nil && res.Report != nil {
 		g := spec.Gate.Evaluate(policy.FromReport(res.Report), time.Now())

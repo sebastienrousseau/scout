@@ -110,7 +110,7 @@ var (
 var verifyCmd = &cobra.Command{
 	Use:   "verify <attestation.json>",
 	Short: "Check an attestation offline, and gate on what it says.",
-	Long: `Validate a scout attestation without contacting anything.
+	Long: `Validate a scout attestation. Only --reproduce contacts anything.
 
 By default this answers one question: can the statement be believed? It
 parses, its subject digest still covers the target it names, its subject is
@@ -143,6 +143,20 @@ later run did not assess, and checks it newly measured are listed. The
 score delta is shown only when both were judged under the same rubric.
 
   scout verify today.json --against approved.json
+
+--reproduce repeats the run the statement records and gates on what got
+worse since. A live service cannot give the same answer twice, but the
+measurement can be made the same way twice, and the difference is drift:
+
+  scout verify approved.json --reproduce --endpoint https://mcp.example.com/mcp \
+    --token-env MCP_TOKEN
+
+It is the one form of verify that contacts anything, so it runs only
+against a target named with --endpoint that the statement covers, and it
+takes from the statement only how the server was measured. Credentials
+come from this command line, never from the statement, which records no
+secret and whose recorded variable names are not read. Permissions such
+as --allow-mutations must be given again and must match the recorded run.
 
 For anything an organisation has to agree on, use a file instead:
 
@@ -177,6 +191,12 @@ with this.`,
 
 		if strings.TrimSpace(verifyAgainst) != "" {
 			if err := compareAgainst(st, verifyAgainst, &res); err != nil {
+				return err
+			}
+		}
+
+		if verifyReproduce {
+			if err := reproduce(cmd.Context(), st, &res); err != nil {
 				return err
 			}
 		}
@@ -238,6 +258,9 @@ type verification struct {
 	// Against is how the statement differs from the earlier one named by
 	// --against, when it was given.
 	Against *attestation.Delta `json:"against,omitempty"`
+	// Reproduced is how a repeat of the recorded run differs from the
+	// statement, when --reproduce was given.
+	Reproduced *attestation.Delta `json:"reproduced,omitempty"`
 	// Policy is the acceptance policy's answer, when --policy was given. A
 	// separate field rather than more entries in Gates: a flag is one
 	// person's condition on one command line, and a policy is a document
@@ -493,4 +516,6 @@ func init() {
 	f.StringVar(&verifyOutput, "output", "text", "output format: text or json")
 	f.StringVar(&verifyPolicy, "policy", "", "also judge the statement against this acceptance policy file")
 	f.StringVar(&verifyAgainst, "against", "", "an earlier statement about the same target; fail when any check got worse")
+	f.AddFlagSet(reproduceFlags())
+	f.AddFlagSet(credFlags())
 }

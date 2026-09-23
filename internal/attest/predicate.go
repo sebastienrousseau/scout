@@ -87,6 +87,9 @@ type Score = attestation.Score
 // ErrNoSuchCheck is attestation.ErrNoSuchCheck.
 var ErrNoSuchCheck = attestation.ErrNoSuchCheck
 
+// Plan is attestation.Plan.
+type Plan = attestation.Plan
+
 // Parse reads and validates a statement; see attestation.Parse.
 func Parse(b []byte) (*Statement, error) { return attestation.Parse(b) }
 
@@ -129,6 +132,7 @@ func From(r *report.Report) (*Statement, error) {
 		Took:    time.Duration(r.Duration).Round(time.Millisecond).String(),
 		Blocked: r.Blocked,
 		TraceID: r.TraceID,
+		Plan:    r.Plan,
 		Counts: Counts{
 			Pass: r.Counts.Pass, Warn: r.Counts.Warn, Fail: r.Counts.Fail,
 			Skip: r.Counts.Skip, Info: r.Counts.Info,

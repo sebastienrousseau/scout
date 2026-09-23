@@ -41,6 +41,7 @@ func resetAll() {
 	logLevel = "info"
 	verifyEndpoint, verifyTransport, verifyRequire = "", "http", nil
 	verifyAgainst = ""
+	verifyReproduce, reproPerm = false, reproducePermissions{}
 	overlapOutput = "text"
 	verifyMaxFail, verifyMinScore, verifyOutput = 0, 0.0, "text"
 	verifyPolicy, policyFile = "", ""
