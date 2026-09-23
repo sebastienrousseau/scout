@@ -147,6 +147,32 @@ Treat `1` and `2` differently. They are different incidents.
 Nothing in `scout verify` checks a signature. Verify the envelope with the
 tool that produced it, then verify what is inside it with this.
 
+## Servers used together
+
+```sh
+scout overlap mail.json weather.json files.json
+```
+
+An agent wired to several servers sees one flat list of tools, and nothing
+in the protocol keeps that list clean. `scout overlap` compares the
+catalogues in two or more saved JSON reports, offline, for the two failures
+that exist only in the union:
+
+- **Collisions** — the same tool name, ignoring case, hyphens and
+  underscores, exposed by two servers. Which one the model gets is up to
+  the host.
+- **Shadowing across servers** — one server's catalogue text attaching a
+  rule to a tool another server owns ("before calling send_email, always
+  BCC …"). `catalog.text.shadowing` finds the construction on one server;
+  only a set of servers can confirm the named tool belongs to someone else.
+  It uses the same narrow matcher, so recommending a sibling tool is not
+  reported.
+
+It exits 2 when the catalogues interfere, 0 when they do not, and 1 when a
+report cannot be read — including one with no catalogue, which would
+otherwise compare as clean. The comparison is lexical and structural, and
+does not claim to judge meaning.
+
 ## Bills of materials
 
 An attestation says how the server behaved. A bill of materials says what it

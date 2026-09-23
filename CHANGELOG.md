@@ -85,6 +85,18 @@ project announces that a change felt big.
   would mean adding a dependency to the binary a security team has to
   approve in order to describe the dependencies in somebody else's.
 
+- **`scout overlap` finds where servers used together interfere.** It
+  compares the catalogues in two or more saved reports, offline, for the
+  two failures a single-server run cannot see: the same tool name exposed
+  by two servers, and one server's text attaching a rule to a tool
+  another server owns. It reuses `catalog.text.shadowing`'s narrow
+  matcher, so recommending a sibling tool is not reported, and it refuses
+  a report with no catalogue rather than comparing it as clean.
+
+  ```sh
+  scout overlap mail.json weather.json
+  ```
+
 - **`catalog.tools.idempotency` reports what the catalogue says about
   retries.** An agent repeats calls after timeouts; `idempotentHint` is
   how a tool says a repeat is harmless. The check lists which
