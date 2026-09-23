@@ -67,6 +67,7 @@ var (
 	baselineFile          string
 	watchEgress           bool
 	plantCanaries         bool
+	faultUpstream         bool
 	expectEgress          []string
 	approveBaseline       bool
 	maxRes                int
@@ -159,6 +160,7 @@ func policyFlags() *pflag.FlagSet {
 		fs.StringVar(&policyFile, "policy", "", "judge the run against this acceptance policy file instead of the default \"any failure fails\" rule")
 		fs.BoolVar(&watchEgress, "watch-egress", false, "run a loopback proxy and report where the server connects (stdio only: it works by setting the child's environment)")
 		fs.StringArrayVar(&expectEgress, "expect-egress", nil, "a host the server is expected to reach (repeatable); a leading dot matches subdomains. Without it the destinations are listed and not judged")
+		fs.BoolVar(&faultUpstream, "fault-upstream", false, "end the run by failing every connection the server makes and calling tools that succeeded, to see whether they fail or hang (stdio only; implies --watch-egress)")
 		fs.BoolVar(&plantCanaries, "plant-canaries", false, "point the server's HOME at a scratch directory seeded with decoy credentials, and report whether it read or sent them (stdio only)")
 		fs.StringVar(&baselineFile, "baseline", "", "compare the catalogue against this approved snapshot and report what changed")
 		fs.BoolVar(&approveBaseline, "approve", false, "write the catalogue this run saw to the --baseline file, approving it")
@@ -229,21 +231,9 @@ func buildSpec(target engine.TargetSpec, onlyPhases []string) (engine.RunSpec, e
 	if err != nil {
 		return engine.RunSpec{}, err
 	}
-	hdrs := map[string]string{}
-	for _, h := range headers {
-		k, v, err := creds.ParseHeader(h)
-		if err != nil {
-			return engine.RunSpec{}, err
-		}
-		hdrs[k] = v
-	}
-	prm := url.Values{}
-	for _, p := range params {
-		k, v, err := creds.ParseParam(p)
-		if err != nil {
-			return engine.RunSpec{}, err
-		}
-		prm.Add(k, v)
+	cs, err := credSpec()
+	if err != nil {
+		return engine.RunSpec{}, err
 	}
 	phases := phasesOnly
 	if len(onlyPhases) > 0 {
@@ -287,15 +277,8 @@ func buildSpec(target engine.TargetSpec, onlyPhases []string) (engine.RunSpec, e
 		Version:  Version,
 		Target:   target,
 		Baseline: approved,
-		Egress:   engine.EgressSpec{Watch: watchEgress, Expect: expectEgress, Canaries: plantCanaries},
-		Creds: engine.CredSpec{
-			Mode: authMode, Token: token, TokenEnv: tokenEnv,
-			Headers: hdrs, Basic: basic,
-			ClientID: clientID, ClientSecret: clientSecret, ClientSecretEnv: clientSecretEnv,
-			ClientMetadataURL: clientMetadataURL, Scope: scope, Params: prm,
-			TokenURL: tokenURL, AuthURL: authURL, Resource: resource,
-			RedirectPort: redirectPort, TokenAuthMethod: tokenAuthMethod,
-		},
+		Egress:   engine.EgressSpec{Watch: watchEgress || faultUpstream, Expect: expectEgress, Canaries: plantCanaries, FaultUpstream: faultUpstream},
+		Creds:    cs,
 		Policy: engine.PolicySpec{
 			AllowMutations: allowMutations, AllowDestructive: allowDestructive,
 			Only: onlyTools, Deny: denyTools, ToolArgs: overrides,
@@ -317,6 +300,34 @@ func buildSpec(target engine.TargetSpec, onlyPhases []string) (engine.RunSpec, e
 		},
 	}
 	return spec.WithDefaults(), nil
+}
+
+// credSpec is the credential half of the spec, from the credential flags.
+func credSpec() (engine.CredSpec, error) {
+	hdrs := map[string]string{}
+	for _, h := range headers {
+		k, v, err := creds.ParseHeader(h)
+		if err != nil {
+			return engine.CredSpec{}, err
+		}
+		hdrs[k] = v
+	}
+	prm := url.Values{}
+	for _, p := range params {
+		k, v, err := creds.ParseParam(p)
+		if err != nil {
+			return engine.CredSpec{}, err
+		}
+		prm.Add(k, v)
+	}
+	return engine.CredSpec{
+		Mode: authMode, Token: token, TokenEnv: tokenEnv,
+		Headers: hdrs, Basic: basic,
+		ClientID: clientID, ClientSecret: clientSecret, ClientSecretEnv: clientSecretEnv,
+		ClientMetadataURL: clientMetadataURL, Scope: scope, Params: prm,
+		TokenURL: tokenURL, AuthURL: authURL, Resource: resource,
+		RedirectPort: redirectPort, TokenAuthMethod: tokenAuthMethod,
+	}, nil
 }
 
 // buildCreds turns the credential flags and environment into a model.

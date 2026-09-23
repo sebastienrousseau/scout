@@ -68,6 +68,7 @@ var specFields = map[string]string{
 	"watch-egress":   "Egress.Watch",
 	"expect-egress":  "Egress.Expect",
 	"plant-canaries": "Egress.Canaries",
+	"fault-upstream": "Egress.FaultUpstream",
 
 	"policy": "Gate",
 

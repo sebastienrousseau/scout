@@ -94,6 +94,7 @@ func Run(ctx context.Context, spec RunSpec, sink Sink) *Result {
 	res.Session, res.Err = sess, runErr
 	if sess != nil {
 		res.Report = report.Build(sess, spec.Version, spec.Output.WithEvents || spec.Output.ReportDir != "")
+		res.Report.Plan = spec.Plan(rec.Redactor)
 	}
 	if spec.Gate != nil && res.Report != nil {
 		g := spec.Gate.Evaluate(policy.FromReport(res.Report), time.Now())
@@ -130,9 +131,10 @@ func (s RunSpec) probeOptions(cr *creds.Credentials, rec *telemetry.Recorder, si
 		MaxPrompts:    s.Pacing.MaxPrompts,
 		ToolArgs:      s.Policy.ToolArgs,
 		Baseline:      s.Baseline,
-		WatchEgress:   s.Egress.Watch,
+		WatchEgress:   s.Egress.Watch || s.Egress.FaultUpstream,
 		ExpectEgress:  s.Egress.Expect,
 		PlantCanaries: s.Egress.Canaries,
+		FaultUpstream: s.Egress.FaultUpstream,
 
 		Only: s.Phases.Only,
 		Skip: s.Phases.Skip,

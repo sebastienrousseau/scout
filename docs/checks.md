@@ -1,4 +1,5 @@
 ---
+# SPDX-FileCopyrightText: 2026 Sebastien Rousseau <sebastian.rousseau@gmail.com>
 # SPDX-License-Identifier: GPL-3.0-only
 description: >-
   Every check scout runs against an MCP server, listed by phase with its id and what it asserts. Generated from the source, so it cannot drift.
@@ -8,13 +9,13 @@ description: >-
 
 # The check inventory
 
-scout runs **107 checks** across **9 phases**.
+scout runs **119 checks** across **9 phases**.
 
-13 of them apply only to a server that is a program rather than a URL, and
+16 of them apply only to a server that is a program rather than a URL, and
 replace the ones that have no meaning over a pipe. A run reports every check it
 did not make, by id and with the reason, rather than leaving it out.
 
-106 of those are fixed, and 1 is a family whose id is built at run time —
+118 of those are fixed, and 1 is a family whose id is built at run time —
 one check per value the run encounters, marked `*` below.
 
 This file is generated from the source: every check is created through
@@ -36,7 +37,7 @@ that is what a reader sees in a report.
 | <span id="check-net-tls-cert" data-can-fail="true"></span>`net.tls.cert` | Certificate validity window |
 | <span id="check-net-tls-version" data-can-fail="true"></span>`net.tls.version` | TLS version is 1.2 or newer |
 
-## discovery — 14 checks
+## discovery — 16 checks
 
 | Check | What it looks for |
 |---|---|
@@ -48,6 +49,8 @@ that is what a reader sees in a report.
 | <span id="check-discovery-challenge" data-can-fail="true"></span>`discovery.challenge` | WWW-Authenticate challenge |
 | <span id="check-discovery-challenge-scope" data-can-fail="false"></span>`discovery.challenge.scope` | Challenge advertises required scope |
 | <span id="check-discovery-creds_unused" data-can-fail="true"></span>`discovery.creds_unused` | Credentials supplied to an open server |
+| <span id="check-discovery-dpop" data-can-fail="true"></span>`discovery.dpop` | Proof-of-possession tokens (DPoP, RFC 9449) |
+| <span id="check-discovery-enterprise_managed" data-can-fail="true"></span>`discovery.enterprise_managed` | Enterprise-Managed Authorization (ID-JAG) |
 | <span id="check-discovery-first_contact" data-can-fail="true"></span>`discovery.first_contact` | Unauthenticated first contact |
 | <span id="check-discovery-override" data-can-fail="false"></span>`discovery.override` | Discovery bypassed by --token-url |
 | <span id="check-discovery-override-build" data-can-fail="true"></span>`discovery.override.build` | Override endpoints |
@@ -82,7 +85,7 @@ that is what a reader sees in a report.
 | <span id="check-handshake-session" data-can-fail="false"></span>`handshake.session` | Mcp-Session-Id issued |
 | <span id="check-handshake-stateless" data-can-fail="true"></span>`handshake.stateless` | Stateless session setup |
 
-## protocol — 14 checks
+## protocol — 19 checks
 
 | Check | What it looks for |
 |---|---|
@@ -95,13 +98,18 @@ that is what a reader sees in a report.
 | <span id="check-protocol-invalid_params" data-can-fail="true"></span>`protocol.invalid_params` | tools/call without a name is rejected |
 | <span id="check-protocol-malformed_json" data-can-fail="true"></span>`protocol.malformed_json` | Malformed JSON is rejected |
 | <span id="check-protocol-mrtr" data-can-fail="true"></span>`protocol.mrtr` | Requests for client input are answerable |
+| <span id="check-protocol-origin" data-can-fail="true"></span>`protocol.origin` | A foreign Origin is rejected |
 | <span id="check-protocol-ping" data-can-fail="true"></span>`protocol.ping` | _(title computed at run time)_ |
 | <span id="check-protocol-routing_headers" data-can-fail="true"></span>`protocol.routing_headers` | Mirrored routing headers are validated |
+| <span id="check-protocol-tasks-capability" data-can-fail="false"></span>`protocol.tasks.capability` | Task methods require the declared capability |
+| <span id="check-protocol-tasks-lifecycle" data-can-fail="false"></span>`protocol.tasks.lifecycle` | A task reaches a terminal state and keeps it |
+| <span id="check-protocol-tasks-undeclared" data-can-fail="false"></span>`protocol.tasks.undeclared` | No task is returned to a client that did not ask for one |
+| <span id="check-protocol-tasks-unknown_id" data-can-fail="false"></span>`protocol.tasks.unknown_id` | An unknown task id is refused |
 | <span id="check-protocol-unknown_method" data-can-fail="true"></span>`protocol.unknown_method` | Unknown method returns -32601 |
 | <span id="check-protocol-unknown_tool" data-can-fail="true"></span>`protocol.unknown_tool` | Unknown tool is reported |
 | <span id="check-protocol-version_header" data-can-fail="false"></span>`protocol.version_header` | Bad MCP-Protocol-Version is rejected |
 
-## catalog — 26 checks
+## catalog — 27 checks
 
 | Check | What it looks for |
 |---|---|
@@ -126,6 +134,7 @@ that is what a reader sees in a report.
 | <span id="check-catalog-tools-annotation_honesty" data-can-fail="true"></span>`catalog.tools.annotation_honesty` | readOnlyHint agrees with what the tool says it does |
 | <span id="check-catalog-tools-annotations" data-can-fail="true"></span>`catalog.tools.annotations` | Tools declare behaviour annotations |
 | <span id="check-catalog-tools-descriptions" data-can-fail="true"></span>`catalog.tools.descriptions` | Every tool has a useful description |
+| <span id="check-catalog-tools-idempotency" data-can-fail="true"></span>`catalog.tools.idempotency` | Tools say whether a repeated call is safe |
 | <span id="check-catalog-tools-input_schema" data-can-fail="true"></span>`catalog.tools.input_schema` | inputSchema is a JSON Schema object |
 | <span id="check-catalog-tools-list" data-can-fail="true"></span>`catalog.tools.list` | tools/list |
 | <span id="check-catalog-tools-output_schema" data-can-fail="true"></span>`catalog.tools.output_schema` | Tools declare outputSchema |
@@ -156,13 +165,14 @@ that is what a reader sees in a report.
 | <span id="check-performance-tools" data-can-fail="true"></span>`performance.tools` | Tool latency profile |
 | <span id="check-performance-warmup" data-can-fail="false"></span>`performance.warmup` | Cold vs warm call |
 
-## resilience — 3 checks
+## resilience — 4 checks
 
 | Check | What it looks for |
 |---|---|
 | <span id="check-resilience-session_reinit" data-can-fail="true"></span>`resilience.session_reinit` | Client recovers from a lost session |
 | <span id="check-resilience-stateless" data-can-fail="true"></span>`resilience.stateless` | Requests do not depend on the connection |
 | <span id="check-resilience-token_refresh" data-can-fail="true"></span>`resilience.token_refresh` | Token source can renew |
+| <span id="check-resilience-upstream_down" data-can-fail="true"></span>`resilience.upstream_down` | Tool calls with every upstream unreachable |
 
 ## egress — 2 checks
 
@@ -182,7 +192,7 @@ These run only when the server is a program and --plant-canaries was given. They
 | <span id="check-fs-canary_exfiltrated" data-can-fail="true"></span>`fs.canary_exfiltrated` | Nothing planted left the machine |
 | <span id="check-fs-credential_probe" data-can-fail="true"></span>`fs.credential_probe` | The server left the planted credentials alone |
 
-## stdio — 7 checks
+## stdio — 10 checks
 
 These run only when the server is a program rather than a URL. They belong to the connectivity and resilience phases, not to a phase of their own: a pipe has no name to resolve and no session to lose, so they take the place of the checks that do.
 
@@ -192,6 +202,9 @@ These run only when the server is a program rather than a URL. They belong to th
 | <span id="check-stdio-clean_exit" data-can-fail="true"></span>`stdio.clean_exit` | Server stopped when its input closed |
 | <span id="check-stdio-environment" data-can-fail="false"></span>`stdio.environment` | Environment handed to the server |
 | <span id="check-stdio-no_zombie" data-can-fail="true"></span>`stdio.no_zombie` | The server left nothing running |
+| <span id="check-stdio-post_init_connections" data-can-fail="true"></span>`stdio.post_init_connections` | No connection nobody asked for, after the handshake |
+| <span id="check-stdio-post_init_processes" data-can-fail="false"></span>`stdio.post_init_processes` | Processes started after the handshake |
+| <span id="check-stdio-post_init_writes" data-can-fail="true"></span>`stdio.post_init_writes` | No writes outside the working directory, after the handshake |
 | <span id="check-stdio-process" data-can-fail="true"></span>`stdio.process` | Server process is running |
 | <span id="check-stdio-stderr" data-can-fail="false"></span>`stdio.stderr` | What the server logged |
 | <span id="check-stdio-stdout_clean" data-can-fail="true"></span>`stdio.stdout_clean` | Nothing but MCP messages on stdout |

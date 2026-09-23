@@ -202,11 +202,17 @@ func (d *Stateless) PrepareBody(rpc *Request) error {
 		}
 	}
 	meta[MetaProtocolVersion] = d.Version()
-	caps := d.Capabilities
-	if len(caps) == 0 {
-		caps = json.RawMessage("{}")
+	// Capabilities are per request on this revision, so a caller may
+	// declare different ones for one call — an extension exercised on a
+	// single request — and what it wrote is kept. Otherwise the dialect's
+	// own declaration applies.
+	if _, ok := meta[MetaClientCapabilities]; !ok {
+		caps := d.Capabilities
+		if len(caps) == 0 {
+			caps = json.RawMessage("{}")
+		}
+		meta[MetaClientCapabilities] = caps
 	}
-	meta[MetaClientCapabilities] = caps
 	if d.ClientInfo.Name != "" {
 		meta[MetaClientInfo] = d.ClientInfo
 	}
@@ -248,6 +254,12 @@ var methodsWithName = map[string]string{
 	"tools/call":     "name",
 	"prompts/get":    "name",
 	"resources/read": "uri",
+	// The Tasks extension requires the task id in Mcp-Name, so an
+	// intermediary can route every request about a task to the instance
+	// holding its state.
+	"tasks/get":    "taskId",
+	"tasks/update": "taskId",
+	"tasks/cancel": "taskId",
 }
 
 // targetName extracts the value Mcp-Name must carry for rpc, if any.

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/sebastienrousseau/scout/attestation"
 	"github.com/sebastienrousseau/scout/internal/attest"
 )
 
@@ -382,4 +383,96 @@ func itoa(n int) string {
 		return "-" + string(d)
 	}
 	return string(d)
+}
+
+// TestVerifyAgainstAnEarlierStatement. Drift is judged check by check: the
+// later statement is the same run with one passing check recorded as a
+// failure, so it must be reported as having regressed on exactly that
+// check.
+func TestVerifyAgainstAnEarlierStatement(t *testing.T) {
+	_, _, statement := attestFixture(t)
+	earlier := writeTemp(t, "earlier.json", statement)
+
+	st, err := attest.Parse([]byte(statement))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var failing string
+	for i, v := range st.Predicate.Verdicts {
+		if v.Status == "pass" {
+			failing = v.ID
+			st.Predicate.Verdicts[i].Status, st.Predicate.Verdicts[i].Severity = "fail", "major"
+			st.Predicate.Counts.Pass--
+			st.Predicate.Counts.Fail++
+			break
+		}
+	}
+	if failing == "" {
+		t.Fatal("the fixture run passed no check, so there is nothing to regress")
+	}
+	b, err := st.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	later := writeTemp(t, "later.json", string(b))
+
+	t.Run("regressed", func(t *testing.T) {
+		out, code := run(t, "verify", later, "--against", earlier)
+		if code != 2 {
+			t.Fatalf("a regression passed the gate (exit %d):\n%s", code, out)
+		}
+		if !strings.Contains(out, failing+" pass→fail (major)") || !strings.Contains(out, "worse") {
+			t.Errorf("the output does not name the regression:\n%s", out)
+		}
+	})
+
+	t.Run("unchanged", func(t *testing.T) {
+		out, code := run(t, "verify", earlier, "--against", earlier)
+		if code != 0 || !strings.Contains(out, "no check got worse") {
+			t.Fatalf("exit %d:\n%s", code, out)
+		}
+	})
+
+	t.Run("json", func(t *testing.T) {
+		out, code := run(t, "verify", later, "--against", earlier, "--output", "json")
+		if code != 2 {
+			t.Fatalf("exit %d", code)
+		}
+		var v struct {
+			Against struct {
+				Regressed []struct{ ID, From, To string } `json:"regressed"`
+			} `json:"against"`
+		}
+		if err := json.Unmarshal([]byte(out), &v); err != nil {
+			t.Fatalf("not JSON: %v\n%s", err, out)
+		}
+		if len(v.Against.Regressed) != 1 || v.Against.Regressed[0].ID != failing {
+			t.Errorf("against = %+v", v.Against)
+		}
+	})
+
+	// Two different servers have no drift between them, only differences,
+	// and presenting those as drift is the worse mistake.
+	t.Run("another target", func(t *testing.T) {
+		other, err := attest.Parse(b)
+		if err != nil {
+			t.Fatal(err)
+		}
+		other.Predicate.Target.Endpoint = "https://other.example.com/mcp"
+		other.Subject = []attest.Subject{attestation.SubjectFor(other.Predicate.Target)}
+		ob, _ := other.Marshal()
+		out, code := run(t, "verify", later, "--against", writeTemp(t, "other.json", string(ob)))
+		if code != 1 || out != "" {
+			t.Fatalf("exit %d, stdout:\n%s", code, out)
+		}
+	})
+
+	t.Run("unreadable", func(t *testing.T) {
+		if _, code := run(t, "verify", later, "--against", writeTemp(t, "bad.json", "{")); code != 1 {
+			t.Errorf("exit %d", code)
+		}
+		if _, code := run(t, "verify", later, "--against", filepath.Join(t.TempDir(), "absent.json")); code != 1 {
+			t.Errorf("exit %d", code)
+		}
+	})
 }

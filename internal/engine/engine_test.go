@@ -162,6 +162,7 @@ func TestValidate(t *testing.T) {
 		"bad format":        {Target: TargetSpec{Endpoint: "https://x/mcp"}, Output: OutputSpec{Format: "pdf"}},
 		"unknown phase":     {Target: TargetSpec{Endpoint: "https://x/mcp"}, Phases: PhaseSpec{Only: []string{"nonsense"}}},
 		"unknown skip":      {Target: TargetSpec{Endpoint: "https://x/mcp"}, Phases: PhaseSpec{Skip: []string{"nonsense"}}},
+		"fault over http":   {Target: TargetSpec{Endpoint: "https://x/mcp"}, Egress: EgressSpec{FaultUpstream: true}},
 	}
 	for name, spec := range cases {
 		s := spec

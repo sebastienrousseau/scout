@@ -33,7 +33,7 @@ func TestResultType(t *testing.T) {
 // than issuing its own request. scout surfaces it instead of answering:
 // there is no user to elicit from and no model to sample.
 func TestInputRequiredIsSurfaced(t *testing.T) {
-	body := `{"jsonrpc":"2.0","id":1,"result":{"resultType":"input_required","inputRequests":[{"id":"r1","method":"elicitation/create","params":{"message":"which account?"}}]}}`
+	body := `{"jsonrpc":"2.0","id":1,"result":{"resultType":"input_required","inputRequests":{"r1":{"method":"elicitation/create","params":{"message":"which account?"}}},"requestState":"opaque"}}`
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(body))
@@ -49,8 +49,12 @@ func TestInputRequiredIsSurfaced(t *testing.T) {
 	if !errors.As(err, &ir) {
 		t.Fatalf("want ErrInputRequired, got %v", err)
 	}
-	if len(ir.Result.InputRequests) != 1 || ir.Result.InputRequests[0].Method != "elicitation/create" {
-		t.Errorf("input requests = %+v", ir.Result.InputRequests)
+	if len(ir.Result.InputRequests) != 1 || ir.Result.InputRequests[0].Method != "elicitation/create" ||
+		ir.Result.InputRequests[0].ID != "r1" {
+		t.Errorf("input requests = %+v; the id should come from the key", ir.Result.InputRequests)
+	}
+	if ir.Result.RequestState != "opaque" || ir.Result.ListForm {
+		t.Errorf("requestState %q, listForm %v", ir.Result.RequestState, ir.Result.ListForm)
 	}
 	if !strings.Contains(ir.Error(), "elicitation/create") {
 		t.Errorf("the message should name what was asked for: %s", ir.Error())
@@ -67,8 +71,38 @@ func TestAsInputRequired(t *testing.T) {
 	if _, ok := AsInputRequired("x", json.RawMessage(`{"resultType":"input_required","inputRequests":"bad"}`)); ok {
 		t.Error("an undecodable input_required body must not be claimed")
 	}
-	if _, ok := AsInputRequired("x", json.RawMessage(`{"resultType":"input_required","inputRequests":[]}`)); !ok {
+	if _, ok := AsInputRequired("x", json.RawMessage(`{"resultType":"input_required","inputRequests":{}}`)); !ok {
 		t.Error("a well-formed input_required must be recognised")
+	}
+	// Only requestState: the specification requires at least one of the two.
+	ir, ok := AsInputRequired("x", json.RawMessage(`{"resultType":"input_required","requestState":"s"}`))
+	if !ok || len(ir.Result.InputRequests) != 0 || ir.Result.RequestState != "s" {
+		t.Errorf("a state-only result: %+v %v", ir, ok)
+	}
+}
+
+// TestInputRequestsAreSortedByKey, so two runs against one server report
+// the same order.
+func TestInputRequestsAreSortedByKey(t *testing.T) {
+	ir, ok := AsInputRequired("x", json.RawMessage(`{"resultType":"input_required","inputRequests":{"b":{"method":"roots/list"},"a":{"method":"sampling/createMessage"}}}`))
+	if !ok || len(ir.Result.InputRequests) != 2 || ir.Result.InputRequests[0].ID != "a" || ir.Result.InputRequests[1].ID != "b" {
+		t.Fatalf("got %+v", ir)
+	}
+}
+
+// TestTheListFormIsReadAndFlagged. No revision defines an array here, but
+// servers send one; it is read so a report can say what was asked, and
+// flagged so it can say the shape is wrong.
+func TestTheListFormIsReadAndFlagged(t *testing.T) {
+	ir, ok := AsInputRequired("x", json.RawMessage(`{"resultType":"input_required","inputRequests":[{"id":"r1","method":"elicitation/create"}]}`))
+	if !ok || !ir.Result.ListForm || len(ir.Result.InputRequests) != 1 || ir.Result.InputRequests[0].ID != "r1" {
+		t.Fatalf("got %+v %v", ir, ok)
+	}
+	if _, ok := AsInputRequired("x", json.RawMessage(`{"resultType":"input_required","inputRequests":[1,2]}`)); ok {
+		t.Error("a list of non-objects was accepted")
+	}
+	if _, ok := AsInputRequired("x", json.RawMessage(`{"resultType":"input_required","inputRequests":{"a":7}}`)); ok {
+		t.Error("an object of non-objects was accepted")
 	}
 }
 
@@ -297,5 +331,38 @@ func TestSessionedFallbackVersion(t *testing.T) {
 	s.SetDialect(nil)
 	if !s.Dialect().Stateful() {
 		t.Error("the default binding is session-based")
+	}
+}
+
+// TestPrepareBodyKeepsPerRequestCapabilities. On the stateless revision a
+// client declares capabilities per request, so one call may declare an
+// extension the others do not; the dialect's default must not overwrite it.
+func TestPrepareBodyKeepsPerRequestCapabilities(t *testing.T) {
+	d := &Stateless{ProtocolVersion: V20260728, Capabilities: json.RawMessage(`{"sampling":{}}`)}
+	declared := `{"extensions":{"io.modelcontextprotocol/tasks":{}}}`
+	rpc := &Request{Method: "tools/call", Params: json.RawMessage(`{"name":"t","_meta":{"` + MetaClientCapabilities + `":` + declared + `}}`)}
+	if err := d.PrepareBody(rpc); err != nil {
+		t.Fatal(err)
+	}
+	var params struct {
+		Meta map[string]json.RawMessage `json:"_meta"`
+	}
+	if err := json.Unmarshal(rpc.Params, &params); err != nil {
+		t.Fatal(err)
+	}
+	if got := string(params.Meta[MetaClientCapabilities]); got != declared {
+		t.Errorf("per-request capabilities were replaced: %s", got)
+	}
+
+	// Without one, the dialect's own declaration applies.
+	plain := &Request{Method: "tools/list", Params: json.RawMessage(`{}`)}
+	if err := d.PrepareBody(plain); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(plain.Params, &params); err != nil {
+		t.Fatal(err)
+	}
+	if got := string(params.Meta[MetaClientCapabilities]); got != `{"sampling":{}}` {
+		t.Errorf("default capabilities = %s", got)
 	}
 }

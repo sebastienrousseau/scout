@@ -1,0 +1,107 @@
+// SPDX-FileCopyrightText: 2026 Sebastien Rousseau <sebastian.rousseau@gmail.com>
+// SPDX-License-Identifier: GPL-3.0-only
+
+//go:build linux
+
+package witness
+
+import (
+	"net"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"syscall"
+	"testing"
+	"time"
+)
+
+const helperEnv = "SCOUT_WITNESS_HELPER"
+
+// TestMain lets the test binary run as the observed process: it connects a
+// UDP socket to a documentation-only address (no packet needs to go
+// anywhere for a UDP connect), opens a file for writing, and waits.
+func TestMain(m *testing.M) {
+	if path := os.Getenv(helperEnv); path != "" {
+		c, err := net.Dial("udp", "192.0.2.1:9")
+		if err != nil {
+			os.Exit(3)
+		}
+		f, err := os.Create(path)
+		if err != nil {
+			os.Exit(4)
+		}
+		_, _ = os.Stdout.WriteString("ready\n")
+		time.Sleep(20 * time.Second)
+		_ = c.Close()
+		_ = f.Close()
+		return
+	}
+	os.Exit(m.Run())
+}
+
+func TestTakeSeesAProcessGroupsSocketsAndWrites(t *testing.T) {
+	self, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "written")
+	cmd := exec.Command(self) //nolint:gosec // this test binary, re-executed
+	cmd.Env = append(os.Environ(), helperEnv+"="+path)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	out, err := cmd.StdoutPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
+	buf := make([]byte, 6)
+	if _, err := out.Read(buf); err != nil {
+		t.Fatalf("the helper never got ready: %v", err)
+	}
+
+	s, err := Take(cmd.Process.Pid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := s.Processes[cmd.Process.Pid]; !ok {
+		t.Errorf("the process is not in its own group: %v", s.Processes)
+	}
+	var sawUDP bool
+	for _, c := range s.Conns {
+		if c.Proto == "udp" && c.Remote == "192.0.2.1:9" {
+			sawUDP = true
+		}
+	}
+	if !sawUDP {
+		t.Errorf("the connected UDP socket was not seen: %+v", s.Conns)
+	}
+	if !s.Writes[path] {
+		t.Errorf("the file open for writing was not seen: %v", s.Writes)
+	}
+
+	// Through the watcher: all of it was open at the baseline, so nothing
+	// is reported.
+	w, err := Start(cmd.Process.Pid, 50*time.Millisecond)
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(150 * time.Millisecond)
+	if o := w.Stop(); len(o.Conns)+len(o.Writes)+len(o.Processes) != 0 || o.Samples == 0 {
+		t.Errorf("bootstrap was reported as behaviour: %+v", o)
+	}
+}
+
+func TestTakeOnAGroupThatDoesNotExist(t *testing.T) {
+	s, err := Take(1 << 30)
+	if err != nil || len(s.Processes) != 0 {
+		t.Errorf("Take = %+v, %v", s, err)
+	}
+	old := procRoot
+	procRoot = filepath.Join(t.TempDir(), "absent")
+	t.Cleanup(func() { procRoot = old })
+	if _, err := Take(1); err == nil {
+		t.Error("an unreadable /proc was not an error")
+	}
+}

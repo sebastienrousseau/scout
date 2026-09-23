@@ -1,4 +1,5 @@
 ---
+# SPDX-FileCopyrightText: 2026 Sebastien Rousseau <sebastian.rousseau@gmail.com>
 # SPDX-License-Identifier: GPL-3.0-only
 description: >-
   Why scout sends nothing home, why that is a product guarantee rather than a current fact, and what replaces the numbers telemetry would have produced.
@@ -57,7 +58,9 @@ project's own rules, not a feature.
 The guarantee is bounded and the bound is stated rather than implied: scout
 makes requests to the server under test, to the authorization server that
 server names, and to an OTLP collector or a report directory the operator
-configures explicitly. Those are the run. Nothing else leaves the machine,
+configures explicitly. Those are the run. (A fourth and a fifth, each asked
+for by flag, were added on 2026-09-22 and 2026-09-23; see the amendments
+below.) Nothing else leaves the machine,
 and nothing at all goes to anywhere scout's authors control.
 
 `scoutmcp.io` is a website and carries ordinary website analytics. A
@@ -95,3 +98,54 @@ points at **their own** collector, which `--otlp-endpoint` already is.
 
 The line that must not move: scout never sends anything to an endpoint
 scout's authors control.
+
+## Amendment — 2026-09-22: vulnerability lookup
+
+`scout sbom --osv` asks OSV which advisories affect the packages in a bill
+of materials. That is a destination the bound above did not list, so it is
+recorded here rather than added quietly.
+
+It stays inside the decision for the same reason `--otlp-endpoint` does:
+the operator asks for it explicitly, by flag, on the run where it happens.
+It is off by default, and nothing else in scout makes the request. It is
+announced on stderr before anything is sent, and it is recorded in the
+document it produced. What is sent is package URLs and nothing else: no
+hashes, no paths, no project name, nothing about the server under test.
+Components that did not come from a public registry are never sent, because
+their names may be internal and no public database could match them.
+`--osv-url` points the lookup at a mirror for an operator who cannot send
+even public package names outside their network.
+
+The OSV API is run by Google, not by scout's authors, so the line above
+does not move. The bound now reads: the server under test, the
+authorization server it names, an OTLP collector or report directory the
+operator configures, and a vulnerability database the operator asks for by
+flag.
+
+## Amendment — 2026-09-23: explanations from a model
+
+`scout explain report.json --model NAME` sends a saved report's failures
+and warnings to a language model and prints its explanations beside
+scout's own guidance. That is a destination the bound did not list, so it
+is recorded here.
+
+It is held to the vulnerability lookup's terms. It is asked for by
+`--model` on the command where it happens; an API key that is merely
+present in the environment sends nothing, because a key exported for
+other tools is not a request. It is announced on stderr, naming the
+destination, before anything is sent. What is sent is each finding's id,
+title, status, severity and detail as the saved report records them, and
+the remediation text scout ships — not the evidence, the telemetry, the
+authentication summary or the rest of the report. It is sent only over
+TLS, or plain HTTP to this machine, and `--api-url` points it at a proxy
+or gateway an organisation already runs for model traffic. Without
+`--model`, `scout explain` is offline and still complete.
+
+The model's answer is untrusted in the same way the server's text is:
+bounded, attributed to the model by name, and unable to change a status,
+a severity or a check id, which are copied from the report.
+
+The bound now reads: the server under test, the authorization server it
+names, an OTLP collector or report directory the operator configures, a
+vulnerability database the operator asks for by flag, and a model the
+operator asks for by flag.

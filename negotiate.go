@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"sort"
 
 	"github.com/sebastienrousseau/scout/trace"
 	"github.com/sebastienrousseau/scout/transport"
@@ -59,11 +60,41 @@ type DiscoverResult struct {
 	Instructions string             `json:"instructions,omitempty"`
 	// SupportedVersions lists the protocol revisions the server speaks.
 	SupportedVersions []string `json:"supportedVersions,omitempty"`
-	// Extensions the server advertises, by reverse-DNS identifier.
+	// Extensions is a top-level list of identifiers some servers send. It is
+	// not where the specification puts extensions — that is
+	// Capabilities.Extensions, which ExtensionIDs reads — and no client
+	// following the specification looks here. It is kept so a report can
+	// say a server advertised its extensions somewhere nobody will see them.
 	Extensions []string `json:"extensions,omitempty"`
+	// ExtensionSettings are the extensions the server advertises in
+	// capabilities.extensions — where the 2026-07-28 revision puts them —
+	// keyed by reverse-DNS identifier, with each one's settings as the
+	// value; an empty object means supported with no settings. It lives
+	// here rather than on ServerCapabilities, which is shared with the
+	// handshake revisions and must stay comparable.
+	ExtensionSettings map[string]json.RawMessage `json:"-"`
+	// ExtensionsMalformed is true when capabilities.extensions was present
+	// but not an object. The rest of the result is still read: one bad
+	// field is a finding about that field, not a reason to lose the
+	// server's identity and version list.
+	ExtensionsMalformed bool `json:"-"`
 	// Meta is the result's _meta, kept raw so reserved keys scout does not
 	// model are still visible in the report.
 	Meta map[string]json.RawMessage `json:"_meta,omitempty"`
+}
+
+// ExtensionIDs returns the extensions the server advertises where the
+// specification puts them, in capabilities.extensions, sorted.
+func (d *DiscoverResult) ExtensionIDs() []string {
+	if d == nil || len(d.ExtensionSettings) == 0 {
+		return nil
+	}
+	ids := make([]string, 0, len(d.ExtensionSettings))
+	for id := range d.ExtensionSettings {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	return ids
 }
 
 // UnmarshalJSON decodes a server/discover result and settles where the
@@ -81,6 +112,17 @@ func (d *DiscoverResult) UnmarshalJSON(b []byte) error {
 			if err := json.Unmarshal(raw, &p.ServerInfo); err != nil {
 				return fmt.Errorf("decoding _meta %s: %w", transport.MetaServerInfo, err)
 			}
+		}
+	}
+	var caps struct {
+		Capabilities struct {
+			Extensions json.RawMessage `json:"extensions"`
+		} `json:"capabilities"`
+	}
+	if json.Unmarshal(b, &caps) == nil && len(caps.Capabilities.Extensions) > 0 &&
+		string(caps.Capabilities.Extensions) != "null" {
+		if json.Unmarshal(caps.Capabilities.Extensions, &p.ExtensionSettings) != nil {
+			p.ExtensionSettings, p.ExtensionsMalformed = nil, true
 		}
 	}
 	*d = DiscoverResult(p)

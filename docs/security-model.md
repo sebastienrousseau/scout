@@ -1,4 +1,5 @@
 ---
+# SPDX-FileCopyrightText: 2026 Sebastien Rousseau <sebastian.rousseau@gmail.com>
 # SPDX-License-Identifier: GPL-3.0-only
 description: >-
   scout's security model and assurance case: the trust boundary, the threat model, structural redaction, and what each release guarantees.
@@ -120,6 +121,12 @@ is passed.
 is called, and every probe test runs under the default policy.
 [ADR-0004](adr/0004-read-only-by-default.md).
 
+There is no adversarial mode to enable: no flag or command sends
+exploit-shaped input to a server's tools
+([ADR-0008](adr/0008-no-adversarial-mode.md)). What scout sends is protocol
+conformance probes, calls permitted by the policy above, and one request
+with an invalid token.
+
 ### C4. Server output cannot flood or corrupt the report
 
 **Argument.** Every string the server chooses — tool names, descriptions,
@@ -190,6 +197,10 @@ driven by `scripts/fuzz.sh` and `.github/workflows/fuzz.yml`.
   removes the throttle on purpose and is the operator's decision.
 - **Rate-limit exhaustion of the operator's own quota** on a shared
   authorization server.
+- **Injection and request-forgery testing of the server's tools.** scout
+  contains no adversarial probes and will not
+  ([ADR-0008](adr/0008-no-adversarial-mode.md)). That testing belongs to
+  dedicated security tooling under a scoped, authorised engagement.
 
 ## 5. Assumptions
 

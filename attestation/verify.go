@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Sebastien Rousseau <sebastian.rousseau@gmail.com>
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: Apache-2.0
 
-package attest
+package attestation
 
 import (
 	"encoding/json"
@@ -17,7 +17,7 @@ import (
 func Parse(b []byte) (*Statement, error) {
 	var s Statement
 	if err := json.Unmarshal(b, &s); err != nil {
-		return nil, fmt.Errorf("attest: not a statement: %w", err)
+		return nil, fmt.Errorf("attestation: not a statement: %w", err)
 	}
 	if err := s.Validate(); err != nil {
 		return nil, err
@@ -138,7 +138,7 @@ func (s *Statement) Validate() error {
 	}
 
 	if len(problems) > 0 {
-		return fmt.Errorf("attest: %s", strings.Join(problems, "; "))
+		return fmt.Errorf("attestation: %s", strings.Join(problems, "; "))
 	}
 	return nil
 }
@@ -147,7 +147,7 @@ func (s *Statement) Validate() error {
 // not carry. It is its own error because "the server failed this" and "this
 // was never measured" are different answers and a policy engine must not
 // conflate them.
-var ErrNoSuchCheck = errors.New("attest: the statement carries no verdict for that check")
+var ErrNoSuchCheck = errors.New("attestation: the statement carries no verdict for that check")
 
 // VerdictFor returns the outcome recorded for a check id.
 func (s *Statement) VerdictFor(id string) (Verdict, error) {

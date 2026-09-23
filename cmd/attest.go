@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sebastienrousseau/scout/attestation"
 	"github.com/sebastienrousseau/scout/internal/attest"
 	"github.com/sebastienrousseau/scout/internal/policy"
 	"github.com/sebastienrousseau/scout/internal/report"
@@ -101,14 +102,15 @@ var (
 	// validated against the report formats and can be set from a config
 	// file's defaults, and neither applies to a command that renders a
 	// verification rather than a report.
-	verifyOutput string
-	verifyPolicy string
+	verifyOutput  string
+	verifyPolicy  string
+	verifyAgainst string
 )
 
 var verifyCmd = &cobra.Command{
 	Use:   "verify <attestation.json>",
 	Short: "Check an attestation offline, and gate on what it says.",
-	Long: `Validate a scout attestation without contacting anything.
+	Long: `Validate a scout attestation. Only --reproduce contacts anything.
 
 By default this answers one question: can the statement be believed? It
 parses, its subject digest still covers the target it names, its subject is
@@ -124,6 +126,7 @@ met:
   --max-fail N      at most N checks may have failed
   --min-score N     the score must be at least N
   --endpoint URL    the statement must be about this target
+  --against FILE    no check may be worse than in this earlier statement
 
 A gate applies because the flag was given, not because of its value:
 --max-fail 0 is the strictest form of that gate, and omitting the flag is
@@ -131,6 +134,29 @@ how you ask for no gate at all.
 
   scout verify attestation.json --endpoint https://mcp.example.com/mcp \
     --require auth.unauthenticated_tools --max-fail 0
+
+--against compares two statements about the same target, check by check.
+Drift is a delta rather than a threshold: a score that did not move can
+hide one check that went from pass to fail beside another that went the
+other way. Checks that got worse fail the gate; improvements, checks the
+later run did not assess, and checks it newly measured are listed. The
+score delta is shown only when both were judged under the same rubric.
+
+  scout verify today.json --against approved.json
+
+--reproduce repeats the run the statement records and gates on what got
+worse since. A live service cannot give the same answer twice, but the
+measurement can be made the same way twice, and the difference is drift:
+
+  scout verify approved.json --reproduce --endpoint https://mcp.example.com/mcp \
+    --token-env MCP_TOKEN
+
+It is the one form of verify that contacts anything, so it runs only
+against a target named with --endpoint that the statement covers, and it
+takes from the statement only how the server was measured. Credentials
+come from this command line, never from the statement, which records no
+secret and whose recorded variable names are not read. Permissions such
+as --allow-mutations must be given again and must match the recorded run.
 
 For anything an organisation has to agree on, use a file instead:
 
@@ -162,6 +188,18 @@ with this.`,
 			return err
 		}
 		res := gate(st, cmd.Flags())
+
+		if strings.TrimSpace(verifyAgainst) != "" {
+			if err := compareAgainst(st, verifyAgainst, &res); err != nil {
+				return err
+			}
+		}
+
+		if verifyReproduce {
+			if err := reproduce(cmd.Context(), st, &res); err != nil {
+				return err
+			}
+		}
 
 		// Applied to the same subject the flags were, so the two cannot
 		// disagree about what the statement said.
@@ -217,6 +255,12 @@ type verification struct {
 	// failing run says which condition was not met rather than only that
 	// one was not.
 	Gates []gateResult `json:"gates,omitempty"`
+	// Against is how the statement differs from the earlier one named by
+	// --against, when it was given.
+	Against *attestation.Delta `json:"against,omitempty"`
+	// Reproduced is how a repeat of the recorded run differs from the
+	// statement, when --reproduce was given.
+	Reproduced *attestation.Delta `json:"reproduced,omitempty"`
 	// Policy is the acceptance policy's answer, when --policy was given. A
 	// separate field rather than more entries in Gates: a flag is one
 	// person's condition on one command line, and a policy is a document
@@ -321,6 +365,58 @@ func gate(st *attest.Statement, flags *pflag.FlagSet) verification {
 	return v
 }
 
+// compareAgainst adds the drift gate. Two statements about different targets
+// are refused rather than compared: the delta between two servers is not
+// drift, and presenting it as drift would be the more dangerous mistake.
+func compareAgainst(st *attest.Statement, path string, v *verification) error {
+	b, err := os.ReadFile(path) // #nosec G304 -- the caller named the file
+	if err != nil {
+		return err
+	}
+	earlier, err := attest.Parse(b)
+	if err != nil {
+		return fmt.Errorf("--against %s: %w", path, err)
+	}
+	t := st.Predicate.Target
+	if !earlier.Covers(t.Transport, t.Endpoint) {
+		e := earlier.Predicate.Target
+		return fmt.Errorf("--against %s is about %s %s, and this statement is about %s %s; there is no drift between two different servers",
+			path, e.Transport, e.Endpoint, t.Transport, t.Endpoint)
+	}
+	d := attestation.Compare(earlier, st)
+	v.Against = &d
+	detail := fmt.Sprintf("no check got worse since %s", earlier.Predicate.RanAt.UTC().Format("2006-01-02T15:04:05Z"))
+	if d.Regression() {
+		detail = fmt.Sprintf("%d check(s) got worse since %s: %s", len(d.Regressed),
+			earlier.Predicate.RanAt.UTC().Format("2006-01-02T15:04:05Z"), changeList(d.Regressed))
+	}
+	v.Gates = append(v.Gates, gateResult{Gate: "against", Met: !d.Regression(), Detail: detail})
+	if d.Regression() {
+		v.OK = false
+	}
+	return nil
+}
+
+// changeList renders changes as "id pass→fail (major)".
+func changeList(cs []attestation.Change) string {
+	parts := make([]string, 0, len(cs))
+	for _, c := range cs {
+		from, to := c.From, c.To
+		if from == "" {
+			from = "absent"
+		}
+		if to == "" {
+			to = "absent"
+		}
+		s := fmt.Sprintf("%s %s→%s", c.ID, from, to)
+		if c.ToSeverity != "" && to == "fail" {
+			s += " (" + c.ToSeverity + ")"
+		}
+		parts = append(parts, s)
+	}
+	return strings.Join(parts, ", ")
+}
+
 // writeVerification prints the human rendering: what the statement is about,
 // then every gate, then the answer.
 func writeVerification(w io.Writer, v verification) {
@@ -341,6 +437,26 @@ func writeVerification(w io.Writer, v verification) {
 	}
 	if v.Blocked != "" {
 		p("blocked    %s\n", v.Blocked)
+	}
+	if d := v.Against; d != nil {
+		p("\nagainst the earlier statement\n")
+		for _, row := range []struct {
+			label string
+			cs    []attestation.Change
+		}{
+			{"worse", d.Regressed}, {"better", d.Improved}, {"severity", d.SeverityChanged},
+			{"no longer assessed", d.Unassessed}, {"newly measured", d.Added},
+		} {
+			if len(row.cs) > 0 {
+				p("  %-20s %s\n", row.label, changeList(row.cs))
+			}
+		}
+		switch {
+		case d.ScoreFrom != nil && d.ScoreTo != nil:
+			p("  %-20s %.1f → %.1f\n", "score", *d.ScoreFrom, *d.ScoreTo)
+		case !d.Comparable:
+			p("  %-20s judged under a different rubric or check inventory; scores not compared\n", "score")
+		}
 	}
 	if len(v.Gates) == 0 {
 		p("\nthe statement is valid. No gate was asked for, so nothing was judged.\n")
@@ -399,4 +515,7 @@ func init() {
 	f.Float64Var(&verifyMinScore, "min-score", 0, "fail when the score is below this")
 	f.StringVar(&verifyOutput, "output", "text", "output format: text or json")
 	f.StringVar(&verifyPolicy, "policy", "", "also judge the statement against this acceptance policy file")
+	f.StringVar(&verifyAgainst, "against", "", "an earlier statement about the same target; fail when any check got worse")
+	f.AddFlagSet(reproduceFlags())
+	f.AddFlagSet(credFlags())
 }

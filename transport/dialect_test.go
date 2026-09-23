@@ -92,6 +92,9 @@ func TestStatelessMirrorsTargetName(t *testing.T) {
 		{"tools/call", "get_weather", map[string]any{"name": "get_weather", "arguments": map[string]any{"city": "Paris"}}},
 		{"prompts/get", "summarise", map[string]any{"name": "summarise"}},
 		{"resources/read", "file:///a/b.json", map[string]any{"uri": "file:///a/b.json"}},
+		{"tasks/get", "786512e2-9e0d", map[string]any{"taskId": "786512e2-9e0d"}},
+		{"tasks/update", "786512e2-9e0d", map[string]any{"taskId": "786512e2-9e0d", "inputResponses": map[string]any{}}},
+		{"tasks/cancel", "786512e2-9e0d", map[string]any{"taskId": "786512e2-9e0d"}},
 		{"tools/list", "", map[string]any{}},
 	}
 	for _, c := range cases {

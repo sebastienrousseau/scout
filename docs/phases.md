@@ -1,4 +1,5 @@
 ---
+# SPDX-FileCopyrightText: 2026 Sebastien Rousseau <sebastian.rousseau@gmail.com>
 # SPDX-License-Identifier: GPL-3.0-only
 description: >-
   The nine phases of a scout run, in order — what each one probes on an MCP server, and how its findings turn into a score.
@@ -55,6 +56,8 @@ what is observed.
 | `discovery.as` | RFC 8414 or OpenID discovery for each listed authorization server |
 | `discovery.as.https`, `discovery.as.pkce`, `discovery.as.grants` | TLS on the authorization server, S256 advertised, grant types |
 | `discovery.registration` | Client ID Metadata Documents or dynamic registration offered |
+| `discovery.dpop` | DPoP (RFC 9449) as the metadata and the 401 describe it: asymmetric proof algorithms only; a resource that requires bound tokens names algorithms at its authorization server and a `DPoP` challenge. Read, not exercised; absence is info while MCP's profile is a draft |
+| `discovery.enterprise_managed` | the Enterprise-Managed Authorization grant profile (ID-JAG): when advertised, `grant_types_supported` must include the JWT bearer grant it is presented with. Read, not exercised |
 | `discovery.override` | discovery bypassed because `--token-url` was given |
 
 ## auth: Credentials and token
@@ -97,6 +100,10 @@ MCP specification require.
 | `protocol.accept_header`, `protocol.get_stream` | informational: strictness about `Accept`, and whether GET opens a server event stream |
 | `protocol.bogus_session` | a session id the server never issued is rejected |
 | `protocol.version_header` | a bad `MCP-Protocol-Version` is rejected |
+| `protocol.tasks.unknown_id`, `protocol.tasks.capability` | for a server advertising the Tasks extension: an unknown task id gets -32602, and a client that did not declare the extension gets -32021 |
+| `protocol.tasks.undeclared` | no task is returned to a call that did not declare the extension |
+| `protocol.tasks.lifecycle` | a task created by calling a read-only tool is retrievable at once, carries the required fields, reaches a terminal state within 30 seconds and keeps it; scout cancels any task it does not see finish |
+| `protocol.origin` | a request from a foreign `Origin` is refused, as the transport requires against DNS rebinding; failing on loopback or a private address, a warning on a public host |
 
 ## catalog: Tool, resource and prompt catalog
 
@@ -109,6 +116,7 @@ Lists everything; invokes nothing.
 | `catalog.tools.descriptions` | every tool has a description of at least 20 characters |
 | `catalog.tools.input_schema` | `inputSchema` describes an object |
 | `catalog.tools.annotations` | tools declare `readOnlyHint`/`destructiveHint`; unannotated tools are treated as destructive |
+| `catalog.tools.idempotency` | information: which state-changing tools declare `idempotentHint`, and which leave it at the specification's default of "not safe to repeat"; a read-only tool declaring it is not idempotent is a warning |
 | `catalog.tools.output_schema` | tools declare `outputSchema` |
 | `catalog.resources.uris`, `catalog.resources.mime`, `catalog.resources.templates` | absolute URIs, mime types, template listing |
 | `catalog.prompts.descriptions` | prompts and their arguments are described |
@@ -161,10 +169,18 @@ is not something a maintainer can act on and `…<U+202E>nothing…` is.
 | Finding | Checks |
 |---|---|
 | `performance.ping` | `--samples` pings: p50, p95, max |
-| `performance.tools` | every tool that succeeded, repeated `--samples` times; p95 above 2 s warns |
+| `performance.tools` | tools that succeeded, repeated `--samples` times — all of them up to ten, otherwise the five slowest plus five picked by a seed from the target, so two runs repeat the same tools; p95 above 2 s warns |
 | `performance.warmup` | a first call far slower than the median |
 | `performance.concurrency` | `--concurrency` workers × `--samples` calls on the fastest tool; errors fail, 429 without `Retry-After` warns |
 | `performance.throttle`, `performance.rate_limit` | whether the burst was throttled by scout, and with `--allow-load`, whether the server rate-limited it |
+
+Every timed call passes through scout's recorder, because a finding has to
+cite the request it came from. Its cost was measured on loopback, where it is
+not hidden by the network: indistinguishable from noise for a 200-byte
+answer, about 0.1 ms at 20 KB, and about 1.2 ms at 500 KB. Against a real
+server, whose round trip is tens of milliseconds, that is inside the
+spread of the samples. scout keeps the recorder on rather than publish
+latency figures it cannot cite.
 
 ## resilience: Session and token recovery
 
@@ -180,3 +196,37 @@ clean (`stdio.stdout_clean`), and what it logged on the way
 (`stdio.stderr`). Those run even when an earlier phase blocked the rest,
 because a server that stopped answering is exactly when they are the
 findings that explain everything else.
+
+It also reports what the server did after its handshake, on Linux, from
+samples of its process group under `/proc` taken while every other phase
+ran. Whatever was open when the handshake completed is bootstrap and is
+not reported; after it, the only reason to act is a request scout sent.
+
+| Finding | Reports |
+|---|---|
+| `stdio.post_init_connections` | a socket to a non-loopback address that did not go through scout's proxy; a warning |
+| `stdio.post_init_writes` | a file open for writing outside the working directory, scout's scratch home and `/dev`, `/proc`, `/sys`; a warning |
+| `stdio.post_init_processes` | processes started in the server's group; information |
+
+These are samples, taken every 100 ms, and each finding says so: a
+connection opened and closed between two samples is not seen, so seeing
+nothing is information, never a pass. The roadmap asked for a sandbox that
+snaps shut at the handshake; that cannot be built from outside, because
+Landlock and seccomp are restrictions a process applies to itself.
+Off Linux the three are skipped by name.
+
+With `--fault-upstream`, the run ends by asking what an agent sees when a
+server's dependency is down. The proxy `--watch-egress` points the server
+at (the flag implies it) holds every new connection open without answering,
+as a hung upstream would, and up to three tools that succeeded earlier are
+called again with the same arguments. Only a call during which the server
+tried to connect counts.
+
+| Finding | Checks |
+|---|---|
+| `resilience.upstream_down` | a call whose upstream never answers comes back — an error, `isError`, or an answer from a cache — within the call timeout. One that does not come back, or a server that exits, fails as major |
+
+It is off by default, because it is the one part of a run that makes the
+server's world worse on purpose, and it needs a program to run: an endpoint
+scout did not start cannot be pointed at the proxy, so `--fault-upstream`
+without `--stdio` is refused rather than silently skipped.

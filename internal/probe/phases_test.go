@@ -5,6 +5,7 @@ package probe
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -637,5 +638,113 @@ func TestUnauthenticatedToolsPassesAProtectedServer(t *testing.T) {
 	}
 	if !strings.Contains(got.Detail, "401") && !strings.Contains(got.Detail, "403") {
 		t.Errorf("the detail does not say what the server answered: %s", got.Detail)
+	}
+}
+
+// TestOriginValidation. The fake is on loopback, which is exactly what DNS
+// rebinding reaches, so a server that answers a foreign Origin there
+// fails; one that refuses it passes, with the status the specification
+// names or with another refusal that is still a refusal.
+func TestOriginValidation(t *testing.T) {
+	bearer := &creds.Credentials{Mode: creds.ModeBearer, Token: "tok-1234"}
+	only := func(o *Options) { o.Only = []string{"net", "discovery", "auth", "handshake", "protocol"} }
+
+	f := newFakeServer(t)
+	f.acceptAnyToken = true
+	_, fs := run(t, f, bearer, only)
+	expect(t, fs, "protocol.origin", Pass, "403 for Origin https://scout-origin-probe.invalid")
+
+	f = newFakeServer(t)
+	f.acceptAnyToken = true
+	f.q.originStatus = http.StatusBadRequest
+	_, fs = run(t, f, bearer, only)
+	expect(t, fs, "protocol.origin", Pass, "asks for 403")
+
+	f = newFakeServer(t)
+	f.acceptAnyToken = true
+	f.q.originStatus = http.StatusBadGateway
+	_, fs = run(t, f, bearer, only)
+	expect(t, fs, "protocol.origin", Info, "neither served nor refused")
+
+	f = newFakeServer(t)
+	f.acceptAnyToken = true
+	f.q.originOpen = true
+	_, fs = run(t, f, bearer, only)
+	expect(t, fs, "protocol.origin", Fail, "on loopback")
+	if got := fs["protocol.origin"]; got.Severity != Major || len(got.Evidence) == 0 {
+		t.Errorf("an open loopback server: %+v, want a Major failure citing its request", got)
+	}
+
+	// The same server on a public address: still required, not what DNS
+	// rebinding reaches, so a warning rather than a failure.
+	orig := endpointLocality
+	endpointLocality = func(context.Context, string) (string, bool) { return "", false }
+	t.Cleanup(func() { endpointLocality = orig })
+	f = newFakeServer(t)
+	f.acceptAnyToken = true
+	f.q.originOpen = true
+	_, fs = run(t, f, bearer, only)
+	expect(t, fs, "protocol.origin", Warn, "not what DNS rebinding reaches")
+}
+
+// TestLocalEndpoint decides the severity, so each branch is pinned.
+func TestLocalEndpoint(t *testing.T) {
+	ctx := context.Background()
+	for host, want := range map[string]string{
+		"localhost":   "loopback",
+		"127.0.0.1":   "loopback",
+		"::1":         "loopback",
+		"10.1.2.3":    "a private address",
+		"192.168.0.9": "a private address",
+		"fe80::1":     "a private address",
+	} {
+		if got, ok := localEndpoint(ctx, host); !ok || got != want {
+			t.Errorf("localEndpoint(%q) = %q %v, want %q", host, got, ok, want)
+		}
+	}
+	for _, host := range []string{"8.8.8.8", "2001:4860:4860::8888", "does-not-resolve.invalid"} {
+		if got, ok := localEndpoint(ctx, host); ok {
+			t.Errorf("localEndpoint(%q) = %q, want public", host, got)
+		}
+	}
+}
+
+// TestTheRepeatPassIsBoundedAndRepeatable. The slowest tools are always
+// repeated, the sample is the same for the same target, and a small
+// catalogue is repeated in full.
+func TestTheRepeatPassIsBoundedAndRepeatable(t *testing.T) {
+	var all []ToolResult
+	for i := 0; i < 30; i++ {
+		all = append(all, ToolResult{Name: fmt.Sprintf("tool%02d", i), Duration: Millis(time.Duration(i) * time.Millisecond)})
+	}
+	got := repeatCandidates(all, "https://a.example/mcp")
+	if len(got) != repeatSlowest+repeatSampled {
+		t.Fatalf("repeated %d of 30", len(got))
+	}
+	names := map[string]bool{}
+	for _, r := range got {
+		names[r.Name] = true
+	}
+	for _, slowest := range []string{"tool29", "tool28", "tool27", "tool26", "tool25"} {
+		if !names[slowest] {
+			t.Errorf("slow tool %s was not repeated: %v", slowest, names)
+		}
+	}
+	again := repeatCandidates(all, "https://a.example/mcp")
+	for i := range got {
+		if got[i].Name != again[i].Name {
+			t.Fatalf("the same target sampled differently: %v vs %v", got, again)
+		}
+	}
+	if other := repeatCandidates(all, "https://b.example/mcp"); fmt.Sprint(other) == fmt.Sprint(got) {
+		t.Error("two targets drew the identical sample; the seed is not used")
+	}
+	for i := 1; i < len(got); i++ {
+		if got[i-1].Name > got[i].Name {
+			t.Errorf("picks are not in their original order: %v", got)
+		}
+	}
+	if small := repeatCandidates(all[:4], "x"); len(small) != 4 {
+		t.Errorf("a small catalogue was sampled: %d", len(small))
 	}
 }

@@ -146,7 +146,9 @@ var remediations = map[string]Remediation{
 		},
 		Note: "The token figure is an estimate — scout counts characters and divides " +
 			"by four, and says so in the finding. The byte count beside it is exact; " +
-			"tokenise that with your own model if you need the precise number.",
+			"tokenise that with your own model if you need the precise number. " +
+			"Model families tokenize differently and several tokenizers are " +
+			"unpublished, so scout embeds none (ADR 0009).",
 	},
 
 	"catalog.semantic.ambiguity": {
@@ -781,30 +783,33 @@ var remediations = map[string]Remediation{
 		Means: "The 2026-07-28 revision removed server-initiated sampling, " +
 			"elicitation and roots, and replaced them with Multi Round-Trip " +
 			"Requests: when a server needs something from the client mid-call " +
-			"it answers `resultType: input_required` with a list of client-side " +
-			"methods to invoke, and the client retries the original call with " +
-			"the answers attached.\n\n" +
+			"it answers `resultType: input_required` with an `inputRequests` " +
+			"object — keyed by request id — of client-side methods to invoke, " +
+			"and/or an opaque `requestState`, and the client retries the " +
+			"original call with the answers attached.\n\n" +
 			"That only works if the request can be answered. An `input_required` " +
-			"naming nothing, or naming a method with no correlation id, leaves " +
-			"the client with no retry it can construct — and the failure that " +
-			"follows is the worst kind: the call does not return an error, it " +
-			"simply never completes. The agent waits, and nothing is reported " +
-			"to anyone.\n\n" +
-			"scout does not answer one. It has no user to elicit from and no " +
-			"model to sample, so it reports what was asked for rather than " +
-			"inventing a conversation. That also means this check is " +
-			"observational: it judges the requests a run happened to receive, " +
-			"and skips when none arrived.",
+			"naming nothing and carrying no state, sent in a shape the client " +
+			"does not read, or asking for something the client said it cannot " +
+			"do, leaves no retry the client can construct — and the call does " +
+			"not return an error, it simply never completes.\n\n" +
+			"scout declares no client capabilities, so a conformant server can " +
+			"only ever send it a retry carrying `requestState`. It does not " +
+			"answer requests either way: it has no user to elicit from and no " +
+			"model to sample. This check judges the results a run happened to " +
+			"receive, and skips when none arrived.",
 		Steps: []Step{
-			{"Name every request in inputRequests",
-				"An empty list says \"I need something\" and not what. There is no " +
-					"correct retry for it, so the client either waits forever or " +
-					"guesses."},
-			{"Give each request an id and a method",
-				"The id is how the client says which answer belongs to which " +
-					"request when it retries. A call needing two answers has no " +
-					"correct retry without them, and a call needing one works only " +
-					"by accident."},
+			{"Send inputRequests as an object keyed by request id",
+				"The key is how the client says which answer belongs to which " +
+					"request when it retries. An array is not a shape any revision " +
+					"defines, so a client following the specification finds nothing " +
+					"to answer."},
+			{"Ask only for what the client declared",
+				"Read the client capabilities on the request. Ask for " +
+					"elicitation/create, sampling/createMessage or roots/list only " +
+					"when the matching capability is declared, and for nothing else."},
+			{"Carry at least one of inputRequests or requestState",
+				"An empty result says \"I need something\" and not what; there is " +
+					"no correct retry for it."},
 			{"Do not ask on a liveness call",
 				"`ping` exists to be answerable with nothing and nobody present. A " +
 					"version of it that needs a user turns every liveness probe into " +
@@ -1315,6 +1320,184 @@ var remediations = map[string]Remediation{
 				"That is the signal a client uses to start a new one. Accepting an " +
 					"unknown id silently is how a client gets stuck."},
 		},
+	},
+
+	"catalog.tools.idempotency": {
+		Means: "A tool declared read-only also declared that repeating it is " +
+			"unsafe. A read cannot have a second effect, so the second hint only " +
+			"stops a client from retrying a call that timed out.",
+		Steps: []Step{
+			{"Make the two hints agree",
+				"Drop idempotentHint: false from a read-only tool, or drop " +
+					"readOnlyHint if the call does change something."},
+			{"Declare idempotentHint on tools that change state",
+				"Set it true when a repeated identical call has no further effect, " +
+					"so an agent can retry after a timeout without doing the work twice."},
+		},
+	},
+
+	"discovery.dpop": {
+		Means: "What the resource and its authorization server say about " +
+			"proof-of-possession does not hold together. DPoP (RFC 9449) binds a " +
+			"token to a key the client keeps, so a copied token is useless to " +
+			"whoever copied it — but only if the proof algorithms are asymmetric " +
+			"and a client can find out, from the metadata and the refusal, that " +
+			"a bound token is required.",
+		Steps: []Step{
+			{"List asymmetric proof algorithms only",
+				"`dpop_signing_alg_values_supported: [\"ES256\"]`, never `none` or " +
+					"an `HS*` MAC."},
+			{"Advertise the requirement where a client looks for it",
+				"When the resource sets `dpop_bound_access_tokens_required`, the " +
+					"authorization server lists its DPoP algorithms and the 401 " +
+					"carries a `DPoP` challenge."},
+		},
+		Note: "Read from metadata only. MCP's DPoP profile (SEP-1932) is a draft, " +
+			"so a server without DPoP is recorded, not marked down.",
+	},
+
+	"discovery.enterprise_managed": {
+		Means: "The authorization server advertises the Identity Assertion JWT " +
+			"Authorization Grant that MCP's Enterprise-Managed Authorization " +
+			"extension uses, but its token endpoint does not list the grant type " +
+			"the ID-JAG is presented with. An enterprise client that trusts the " +
+			"profile will be refused at the last step.",
+		Steps: []Step{
+			{"List the JWT bearer grant",
+				"Add `urn:ietf:params:oauth:grant-type:jwt-bearer` to " +
+					"`grant_types_supported`, or stop advertising the profile."},
+		},
+	},
+
+	"stdio.post_init_connections": {
+		Means: "After its handshake the server held a socket to a non-loopback " +
+			"address that did not go through scout's proxy. After the handshake " +
+			"every action is one a request caused, and a connection made around " +
+			"HTTP_PROXY is invisible to egress.hosts, so this is the destination " +
+			"scout could not name.",
+		Steps: []Step{
+			{"Reach the network through the configured proxy",
+				"Use an HTTP client that honours HTTP_PROXY and HTTPS_PROXY, so " +
+					"an operator can see and govern where the server goes."},
+			{"Connect only for the call that needs it",
+				"A read-only lookup that opens a socket to an address nobody " +
+					"configured is the shape exfiltration takes, whatever the intent."},
+		},
+		Note: "Seen by sampling /proc on Linux; a connection opened and closed " +
+			"between two samples is not seen, so no finding is not a guarantee.",
+	},
+
+	"resilience.upstream_down": {
+		Means: "With every connection the server made held open and never " +
+			"answered, as a hung dependency behaves, a tool call did not come " +
+			"back within the call timeout, or the server exited. An agent " +
+			"waiting on a call that will never finish cannot tell a slow " +
+			"answer from a dead one, and waits for the host's whole timeout.",
+		Steps: []Step{
+			{"Put a timeout on every outbound call",
+				"Shorter than the host's, so the tool gets to answer before the " +
+					"host gives up on it."},
+			{"Return the failure as a tool error",
+				"`isError: true` with what failed, so the agent can say which " +
+					"dependency is down and the next call still has a server."},
+		},
+		Note: "Only with --fault-upstream, over stdio. The proxy holds " +
+			"connections rather than refusing them, because a refusal comes " +
+			"back at once and hides a missing timeout.",
+	},
+
+	"stdio.post_init_writes": {
+		Means: "After its handshake the server held a file open for writing " +
+			"outside the working directory it was started in. A tool call should " +
+			"not leave the server writing to the user's home or system paths.",
+		Steps: []Step{
+			{"Write under the working directory, or a configured path",
+				"Put caches and state where the host told the server to run, or " +
+					"where the operator named in configuration."},
+		},
+		Note: "Seen by sampling /proc on Linux; scout's scratch home and /dev, " +
+			"/proc and /sys are not reported.",
+	},
+
+	"protocol.tasks.unknown_id": {
+		Means: "The server answered tasks/get for a task id it never issued, or " +
+			"refused it with the wrong error. A client polling a mistyped or " +
+			"expired id relies on -32602 to stop; without it, it polls forever.",
+		Steps: []Step{
+			{"Return -32602 for an unknown or expired task id",
+				"The Tasks extension requires it for tasks/get. A purged task is " +
+					"allowed to be unknown; it is not allowed to look alive."},
+		},
+	},
+
+	"protocol.tasks.capability": {
+		Means: "A task method was served, or refused with the wrong code, for a " +
+			"client that did not declare the Tasks extension. -32021 is how a " +
+			"client learns what it has to declare.",
+		Steps: []Step{
+			{"Check the declared capability before the task id",
+				"Answer -32021 (Missing Required Client Capability) naming " +
+					"io.modelcontextprotocol/tasks for tasks/get, tasks/update and " +
+					"tasks/cancel from a client whose per-request capabilities omit it."},
+		},
+	},
+
+	"protocol.tasks.undeclared": {
+		Means: "The server returned a task to a client that never said it could " +
+			"handle one. That client has no way to poll for the result, so the " +
+			"call's answer is lost.",
+		Steps: []Step{
+			{"Return a task only when the request declares the extension",
+				"Capabilities are per request on this revision. Without the " +
+					"declaration, answer synchronously, or with -32021 if the call " +
+					"genuinely cannot be served without a task."},
+		},
+	},
+
+	"protocol.tasks.lifecycle": {
+		Means: "A task scout followed broke the extension's contract: not " +
+			"retrievable when its handle was returned, missing a required field, " +
+			"never reaching a terminal state, or changing after it did. To an " +
+			"agent each of these looks like a call that hangs or lies.",
+		Steps: []Step{
+			{"Create the task durably before returning its handle",
+				"tasks/get for the returned id must resolve immediately, even in " +
+					"an eventually consistent store."},
+			{"Carry every required field",
+				"taskId, status, createdAt, lastUpdatedAt and ttlMs (null for " +
+					"unlimited) on every Task; result when completed, error when " +
+					"failed, inputRequests when input_required; resultType " +
+					"\"complete\" on the tasks/get answer."},
+			{"Finish, and stay finished",
+				"A task behind a read-only call should end promptly or report " +
+					"progress in statusMessage. Once completed, failed or cancelled, " +
+					"every later tasks/get must say the same."},
+		},
+		Note: "scout follows at most one task, created by calling a read-only " +
+			"tool it has already called, and cancels any task it does not see " +
+			"finish. A server that answers synchronously is not faulted: the " +
+			"server decides per call whether to create a task.",
+	},
+
+	"protocol.origin": {
+		Means: "The server answered a request whose Origin header named a site " +
+			"it has no reason to trust. Through DNS rebinding, any web page the " +
+			"user opens can point a hostname at this server's address and send it " +
+			"requests from their browser, with whatever access that network " +
+			"position gives.",
+		Steps: []Step{
+			{"Check Origin on every request, and refuse with 403",
+				"Compare it against an allowlist of the origins your clients " +
+					"actually use; a request with no Origin is a non-browser client " +
+					"and is unaffected. The Streamable HTTP transport requires it."},
+			{"Bind a local server to 127.0.0.1, not 0.0.0.0",
+				"That keeps the rest of the network out. It does not keep a " +
+					"browser on the same machine out, which is why the Origin check " +
+					"is needed as well."},
+		},
+		Note: "A public endpoint only warns: the rule still applies, but DNS " +
+			"rebinding is an attack on what a browser can reach that the " +
+			"attacker cannot, which a public server is not.",
 	},
 
 	// --- catalog -----------------------------------------------------------

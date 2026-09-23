@@ -28,19 +28,24 @@ type quirks struct {
 	open bool
 	// readOnlyOnly drops the unannotated tool, leaving a catalogue that is
 	// public and harmless.
-	readOnlyOnly      bool
-	challenge         string // WWW-Authenticate value; "-" means none
-	garbageStatus     int    // status for a scout-invalid-* token (default 401)
-	garbageNoHeader   bool
-	prmEmptyServers   bool
-	prmResource       string
-	prmMissing        bool
-	asMissing         bool
-	asPKCE            []string // nil = S256
-	asNoPKCE          bool
-	asCIMD            bool
-	asNoRegistration  bool
-	asHTTPIssuer      bool
+	readOnlyOnly     bool
+	challenge        string // WWW-Authenticate value; "-" means none
+	garbageStatus    int    // status for a scout-invalid-* token (default 401)
+	garbageNoHeader  bool
+	prmEmptyServers  bool
+	prmResource      string
+	prmMissing       bool
+	asMissing        bool
+	asPKCE           []string // nil = S256
+	asNoPKCE         bool
+	asCIMD           bool
+	asNoRegistration bool
+	asHTTPIssuer     bool
+	// prmExtra and asExtra add fields to the resource and authorization
+	// server metadata; dpopNonce sets a DPoP-Nonce header on the 401.
+	prmExtra          map[string]any
+	asExtra           map[string]any
+	dpopNonce         string
 	tokenScope        string // scope returned in the token (default: requested)
 	tokenNoExpiry     bool
 	tokenShortExpiry  bool
@@ -86,10 +91,21 @@ type quirks struct {
 	// mrtrNoID omits the correlation id, so a client cannot say which
 	// answer belongs to which request.
 	mrtrNoID bool
+	// mrtrStateOnly asks for a retry carrying requestState and names no
+	// request, which the specification allows.
+	mrtrStateOnly bool
+	// mrtrUnknownMethod asks for a method a server may not send mid-call.
+	mrtrUnknownMethod bool
 	// pingNeedsInput answers the liveness call with input_required, which is
 	// a different kind of wrong from a tool doing it: the whole purpose of a
 	// liveness call is to be answerable with nobody present.
 	pingNeedsInput bool
+	// originOpen serves requests from any Origin, which the Streamable
+	// HTTP transport forbids. By default the fake refuses a foreign one
+	// with 403, as a correct server does; originStatus picks another
+	// refusal status.
+	originOpen   bool
+	originStatus int
 }
 
 // fakeServer is a protected MCP server with its own authorization server,
@@ -134,7 +150,11 @@ func newFakeServer(t *testing.T) *fakeServer {
 		if f.q.prmResource != "" {
 			res = f.q.prmResource
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"resource": res, "authorization_servers": servers, "scopes_supported": []string{"mcp:read"}})
+		prm := map[string]any{"resource": res, "authorization_servers": servers, "scopes_supported": []string{"mcp:read"}}
+		for k, v := range f.q.prmExtra {
+			prm[k] = v
+		}
+		_ = json.NewEncoder(w).Encode(prm)
 	})
 	mux.HandleFunc("/.well-known/oauth-authorization-server/as", func(w http.ResponseWriter, r *http.Request) {
 		if f.q.asMissing {
@@ -155,6 +175,9 @@ func newFakeServer(t *testing.T) *fakeServer {
 		}
 		if f.q.asCIMD {
 			md["client_id_metadata_document_supported"] = true
+		}
+		for k, v := range f.q.asExtra {
+			md[k] = v
 		}
 		_ = json.NewEncoder(w).Encode(md)
 	})
@@ -238,6 +261,9 @@ func (f *fakeServer) unauthorized(w http.ResponseWriter, r *http.Request) {
 	}
 	if hdr != "" && status == 401 {
 		w.Header().Set("WWW-Authenticate", hdr)
+		if f.q.dpopNonce != "" {
+			w.Header().Set("DPoP-Nonce", f.q.dpopNonce)
+		}
 	}
 	if status/100 == 2 && garbage {
 		// Pretend the garbage token was fine: fall through to the handler.
@@ -259,6 +285,14 @@ func (f *fakeServer) handle(w http.ResponseWriter, r *http.Request) {
 			f.unauthorized(w, r)
 			return
 		}
+	}
+	if o := r.Header.Get("Origin"); o != "" && !f.q.originOpen && o != f.srv.URL {
+		st := f.q.originStatus
+		if st == 0 {
+			st = http.StatusForbidden
+		}
+		w.WriteHeader(st)
+		return
 	}
 	if r.Method == http.MethodGet {
 		if f.q.getStream {
@@ -352,8 +386,8 @@ func (f *fakeServer) handle(w http.ResponseWriter, r *http.Request) {
 		if f.q.pingNeedsInput {
 			// A liveness call with a conversation attached to it, which is
 			// the one request that cannot have one.
-			reply(map[string]any{"resultType": "input_required", "inputRequests": []map[string]any{
-				{"id": "q1", "method": "elicitation/create", "params": map[string]any{"message": "are you there?"}},
+			reply(map[string]any{"resultType": "input_required", "inputRequests": map[string]any{
+				"q1": map[string]any{"method": "elicitation/create", "params": map[string]any{"message": "are you there?"}},
 			}})
 			return
 		}
@@ -419,16 +453,25 @@ func (f *fakeServer) handle(w http.ResponseWriter, r *http.Request) {
 		}
 		switch {
 		case f.q.mrtrEmpty:
-			reply(map[string]any{"resultType": "input_required", "inputRequests": []map[string]any{}})
+			reply(map[string]any{"resultType": "input_required", "inputRequests": map[string]any{}})
 			return
 		case f.q.mrtrNoID:
+			// The array form no revision defines, with the id missing too.
 			reply(map[string]any{"resultType": "input_required", "inputRequests": []map[string]any{
 				{"method": "elicitation/create", "params": map[string]any{"message": "which account?"}},
 			}})
 			return
+		case f.q.mrtrStateOnly:
+			reply(map[string]any{"resultType": "input_required", "requestState": "opaque-state"})
+			return
+		case f.q.mrtrUnknownMethod:
+			reply(map[string]any{"resultType": "input_required", "inputRequests": map[string]any{
+				"q1": map[string]any{"method": "tools/call", "params": map[string]any{"name": "x"}},
+			}})
+			return
 		case f.q.inputRequired:
-			reply(map[string]any{"resultType": "input_required", "inputRequests": []map[string]any{
-				{"id": "q1", "method": "elicitation/create", "params": map[string]any{"message": "which account?"}},
+			reply(map[string]any{"resultType": "input_required", "inputRequests": map[string]any{
+				"q1": map[string]any{"method": "elicitation/create", "params": map[string]any{"message": "which account?"}},
 			}})
 			return
 		}

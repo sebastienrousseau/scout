@@ -114,7 +114,7 @@ func phaseExecution(ctx context.Context, s *Session) []Finding {
 			// — the same mistake the ping check made once.
 			needsInput++
 			tr.NeedsInput = requestedMethods(ir)
-			s.MRTR = append(s.MRTR, MRTRObservation{Method: "tools/call " + t.Name, Requests: ir.Result.InputRequests})
+			s.MRTR = append(s.MRTR, observe("tools/call "+t.Name, ir))
 		case err != nil:
 			protoErr++
 			tr.ProtoError = err.Error()
@@ -327,6 +327,9 @@ func phaseExecution(ctx context.Context, s *Session) []Finding {
 	// emits for the same reason: the id names the mechanism and the phase
 	// names when it could be measured.
 	out = append(out, checkMRTR(s))
+	// The Tasks extension, for the same reason: following a task needs a
+	// tool the execution phase has already called.
+	out = append(out, checkTasks(ctx, s)...)
 	return out
 }
 

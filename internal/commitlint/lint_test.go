@@ -11,6 +11,20 @@ import (
 // msg assembles a commit message from a subject and body lines.
 func msg(lines ...string) []string { return lines }
 
+func TestGeneratedIsOnlyTheBot(t *testing.T) {
+	for email, want := range map[string]bool{
+		"49699333+dependabot[bot]@users.noreply.github.com":   true,
+		" 49699333+Dependabot[bot]@users.noreply.github.com ": true,
+		"dependabot@example.com":                              false,
+		"sebastian.rousseau@gmail.com":                        false,
+		"":                                                    false,
+	} {
+		if got := Generated(email); got != want {
+			t.Errorf("Generated(%q) = %v", email, got)
+		}
+	}
+}
+
 func TestLintAcceptsACompliantCommit(t *testing.T) {
 	for _, subject := range []string{
 		"feat: add a stdio transport",

@@ -1,4 +1,5 @@
 ---
+# SPDX-FileCopyrightText: 2026 Sebastien Rousseau <sebastian.rousseau@gmail.com>
 # SPDX-License-Identifier: GPL-3.0-only
 description: >-
   Run scout in GitHub Actions or GitLab CI: the exit-code contract, gating on a score with jq, keeping the report as an artifact, and what not to run against production.

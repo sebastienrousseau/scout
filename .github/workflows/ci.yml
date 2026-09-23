@@ -337,6 +337,15 @@ jobs:
           GOTOOLCHAIN: auto
         run: make spdx-check
 
+      # The header sweep only sees files that can carry a header. REUSE
+      # covers the rest — images, generated output, vendored layouts — from
+      # REUSE.toml, and fails on any file with no copyright or licence.
+      - name: The tree is REUSE-compliant
+        run: |
+          python3 -m pip install --quiet --disable-pip-version-check \
+            --require-hashes -r .github/reuse-requirements.txt
+          make reuse-lint
+
       # The examples carry `//go:build ignore`, so `go build ./...` skips
       # them and nothing else compiles them either.
       - name: Benchmarks still compile (smoke run, nothing asserted)
@@ -386,6 +395,12 @@ jobs:
       # inventory disagree.
       - name: The published check inventory matches the source
         run: make checks-verify
+
+      # spec/ is the Apache-2.0 half of the attestation format (ADR 0011).
+      # A published schema or rubric that disagreed with the code would be
+      # adopted and then be wrong, which is worse than not publishing it.
+      - name: The published attestation schema and rubric match the source
+        run: make spec-verify
 
       # internal/web/dist is the shell `scout serve` embeds. It is committed
       # build output that nothing regenerates, so it drifts silently — it

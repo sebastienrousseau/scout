@@ -75,6 +75,85 @@ var categories = []Category{
 // Deduction points per severity. A category cannot go below zero.
 var deduction = map[probe.Severity]float64{probe.Critical: 100, probe.Major: 40, probe.Minor: 15}
 
+// defaultDeduction is what a failure with no recognised severity costs, and
+// warnDeduction what a warning costs. Named rather than inlined because the
+// published rubric reads them: a number that exists only inside a switch is
+// a number nobody outside the code can check a score against.
+const (
+	defaultDeduction = 15
+	warnDeduction    = 5
+)
+
+// GradeBand is one letter and the lowest total that earns it.
+type GradeBand struct {
+	Grade string  `json:"grade"`
+	Min   float64 `json:"min"`
+}
+
+// grades are checked in order; the first band whose minimum the total
+// reaches is the grade.
+var grades = []GradeBand{{"A", 90}, {"B", 75}, {"C", 60}, {"D", 40}, {"F", 0}}
+
+// RubricSpec is the scoring rubric as data: everything a third party needs
+// to recompute a score from a list of findings, or to check one.
+//
+// It is published as spec/rubric under Apache-2.0 (ADR 0011) so that a
+// gateway or registry can implement it without taking on this package's
+// licence. It is built from the same variables ComputeScore reads, and a
+// generator writes the published file from it, so the two cannot disagree.
+type RubricSpec struct {
+	Version    string          `json:"version"`
+	Categories []RubricWeight  `json:"categories"`
+	Deductions RubricDeduction `json:"deductions"`
+	Grades     []GradeBand     `json:"grades"`
+	// Rules are the parts of the model that are behaviour rather than
+	// numbers, stated so an implementation can follow them.
+	Rules []string `json:"rules"`
+}
+
+// RubricWeight is one category's weight and the phases scored under it.
+type RubricWeight struct {
+	Name   string   `json:"name"`
+	Weight int      `json:"weight"`
+	Phases []string `json:"phases"`
+}
+
+// RubricDeduction is what each outcome costs a category.
+type RubricDeduction struct {
+	Critical float64 `json:"failCritical"`
+	Major    float64 `json:"failMajor"`
+	Minor    float64 `json:"failMinor"`
+	Other    float64 `json:"failOtherSeverity"`
+	Warn     float64 `json:"warn"`
+}
+
+// Rubric returns the rubric ComputeScore applies.
+func Rubric() RubricSpec {
+	r := RubricSpec{
+		Version: RubricVersion,
+		Deductions: RubricDeduction{
+			Critical: deduction[probe.Critical],
+			Major:    deduction[probe.Major],
+			Minor:    deduction[probe.Minor],
+			Other:    defaultDeduction,
+			Warn:     warnDeduction,
+		},
+		Grades: append([]GradeBand(nil), grades...),
+		Rules: []string{
+			"every category starts at 100 and each failing or warning finding in its phases deducts the amount for its outcome",
+			"a category cannot go below 0",
+			"a category is assessed when at least one of its phases ran and was not skipped; unassessed categories are excluded from the weighting, not counted as 0",
+			"the total is the weight-averaged score of the assessed categories",
+			"with no category assessed the grade is n/a",
+			"pass, info and skip findings deduct nothing",
+		},
+	}
+	for _, c := range categories {
+		r.Categories = append(r.Categories, RubricWeight{Name: c.Name, Weight: c.Weight, Phases: append([]string(nil), c.Phases...)})
+	}
+	return r
+}
+
 // ComputeScore derives the score from findings. Only categories whose
 // phases actually ran count; the report says how many were assessed so a
 // high score on a partial run cannot be mistaken for a full one.
@@ -99,13 +178,13 @@ func ComputeScore(phases []probe.PhaseResult) Score {
 				case probe.Fail:
 					d := deduction[f.Severity]
 					if d == 0 {
-						d = 15
+						d = defaultDeduction
 					}
 					c.Score -= d
 					c.Deductions = append(c.Deductions, fmt.Sprintf("-%.0f %s: %s", d, f.ID, f.Detail))
 				case probe.Warn:
-					c.Score -= 5
-					c.Deductions = append(c.Deductions, fmt.Sprintf("-5 %s: %s", f.ID, f.Detail))
+					c.Score -= warnDeduction
+					c.Deductions = append(c.Deductions, fmt.Sprintf("-%d %s: %s", warnDeduction, f.ID, f.Detail))
 				}
 			}
 		}
@@ -122,19 +201,14 @@ func ComputeScore(phases []probe.PhaseResult) Score {
 	if weights > 0 {
 		sc.Total = weighted / weights
 	}
-	switch {
-	case sc.Assessed == 0:
-		sc.Grade = "n/a"
-	case sc.Total >= 90:
-		sc.Grade = "A"
-	case sc.Total >= 75:
-		sc.Grade = "B"
-	case sc.Total >= 60:
-		sc.Grade = "C"
-	case sc.Total >= 40:
-		sc.Grade = "D"
-	default:
-		sc.Grade = "F"
+	sc.Grade = "n/a"
+	if sc.Assessed > 0 {
+		for _, g := range grades {
+			if sc.Total >= g.Min {
+				sc.Grade = g.Grade
+				break
+			}
+		}
 	}
 	return sc
 }

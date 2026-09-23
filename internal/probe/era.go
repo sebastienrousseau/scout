@@ -9,6 +9,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"reflect"
+	"sort"
+	"strings"
 
 	"github.com/sebastienrousseau/scout"
 	"github.com/sebastienrousseau/scout/internal/telemetry"
@@ -347,14 +350,78 @@ func (s *Session) checkStatelessness(ctx context.Context) Finding {
 			fmt.Sprintf("the same request returned %d tools on one connection and %d on another", len(a.Tools), len(b.Tools)),
 			"a request's answer must not depend on which connection carried it")
 	}
-	return c.pass(fmt.Sprintf("the same request gave the same answer on two independent connections (%d tools)", len(a.Tools)))
+	// Same count is not same answer. The 2026-07-28 revision makes lists
+	// cacheable and connection-independent, so a client may serve either
+	// answer from cache: two catalogues that differ in content, even at
+	// the same size, mean a cached list is wrong for somebody.
+	if diff := a.differsFrom(b); diff != "" {
+		return c.fail(Major,
+			"the same request returned different tools on two independent connections: "+diff,
+			"a list must be the same whichever connection asks for it; the revision makes lists cacheable, so a client may serve one connection's answer to another")
+	}
+	return c.pass(fmt.Sprintf("the same request gave the same answer on two independent connections (%d tools, identical definitions)", len(a.Tools)))
 }
 
-// listToolsShape is the little of tools/list this check needs.
+// listToolsShape is the little of tools/list this check needs: each tool's
+// name, and its whole definition kept raw so two answers can be compared
+// without scout deciding which fields matter.
 type listToolsShape struct {
-	Tools []struct {
-		Name string `json:"name"`
-	} `json:"tools"`
+	Tools []json.RawMessage `json:"tools"`
+}
+
+// differsFrom says how two tools/list answers differ, by tool name, or ""
+// when every definition is the same. Definitions are compared after
+// decoding, so key order and whitespace — which the wire does not fix —
+// are not differences.
+func (a listToolsShape) differsFrom(b listToolsShape) string {
+	index := func(l listToolsShape) map[string]any {
+		out := map[string]any{}
+		for i, raw := range l.Tools {
+			var def map[string]any
+			if json.Unmarshal(raw, &def) != nil {
+				out[fmt.Sprintf("#%d (unreadable)", i)] = string(raw)
+				continue
+			}
+			name, _ := def["name"].(string)
+			out[name] = def
+		}
+		return out
+	}
+	x, y := index(a), index(b)
+	var names []string
+	for n := range x {
+		names = append(names, n)
+	}
+	for n := range y {
+		if _, ok := x[n]; !ok {
+			names = append(names, n)
+		}
+	}
+	sort.Strings(names)
+	var only1, only2, changed []string
+	for _, n := range names {
+		dx, inX := x[n]
+		dy, inY := y[n]
+		switch {
+		case !inY:
+			only1 = append(only1, n)
+		case !inX:
+			only2 = append(only2, n)
+		case !reflect.DeepEqual(dx, dy):
+			changed = append(changed, n)
+		}
+	}
+	var parts []string
+	if len(only1) > 0 {
+		parts = append(parts, "only on the first: "+list(only1))
+	}
+	if len(only2) > 0 {
+		parts = append(parts, "only on the second: "+list(only2))
+	}
+	if len(changed) > 0 {
+		parts = append(parts, "defined differently: "+list(changed))
+	}
+	return strings.Join(parts, "; ")
 }
 
 // liveness is the cheapest request that proves a server is answering.

@@ -1,3 +1,4 @@
+<!-- SPDX-FileCopyrightText: 2026 Sebastien Rousseau <sebastian.rousseau@gmail.com> -->
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 
 <p align="center">
@@ -338,13 +339,13 @@ names it and quotes the line. The others cover the process starting, the
 process surviving the run, what it logged on stderr, and what environment
 it was given.
 
-**Two phases and five checks have no subject over a pipe, and every one of
+**Two phases and six checks have no subject over a pipe, and every one of
 them is reported as skipped with the reason.** Authorization discovery and
 credentials do not apply: there is no origin to authorize against, so
-`--token` is refused rather than quietly ignored. Four protocol probes are
-about HTTP headers, and `handshake.session` is about a session a pipe does
-not have. A run that silently contained fewer checks would read as a better
-result than it is.
+`--token` is refused rather than quietly ignored. Five protocol probes are
+about HTTP headers or the HTTP listener, and `handshake.session` is about a
+session a pipe does not have. A run that silently contained fewer checks
+would read as a better result than it is.
 
 `connect`, `tools` and `call` take `--stdio` too. For `call`, the tool comes
 before `--` and the server after it:
@@ -603,7 +604,8 @@ came from — flag, environment variable, profile — never its value.
   rate limiting for real.
 - **One adversarial request.** The invalid-token probe sends a single
   request with an obviously made-up bearer token. Nothing else adversarial
-  is sent, and nothing is fuzzed against a server you do not own.
+  is sent, and scout has no mode that would: there are no exploit probes
+  behind any flag ([ADR 0008](docs/adr/0008-no-adversarial-mode.md)).
 
 ### Safety in the other direction
 
@@ -730,6 +732,10 @@ for a full one. Every deduction is listed with the finding that caused it.
 Grades are coarse labels for dashboards: A at 90 and above, B at 75, C at
 60, D at 40, F below.
 
+The rubric is published as data in [`spec/rubric/`](spec/rubric/), generated
+from the scorer and versioned, so anyone can recompute a score from the
+verdicts in a report or an attestation.
+
 ---
 
 ## Library use
@@ -750,7 +756,9 @@ out, _ := client.CallTool(ctx, "search", map[string]any{"q": "invoices"})
 `transport` is the Streamable HTTP layer with raw access for conformance
 probes; `diagnostics` holds the safety policy, the schema-driven argument
 generator, the validator and a standalone read-only runner; `trace` carries
-the run's trace id.
+the run's trace id. `attestation` reads and verifies the statements
+`scout attest` writes; it is Apache-2.0 and imports only the standard
+library, so a gateway can embed it without taking on scout's GPL.
 
 ---
 
@@ -1024,16 +1032,22 @@ scout is opinionated, and the opinions do not suit everyone.
   a `$ref` that points at another document (it reports one as unchecked
   rather than passing it over), and it does not check `pattern` or `format`.
   A contract that leans on those needs a full validator.
-- **Your server is stdio-only.** scout tests the Streamable HTTP
-  transport. A bridge can expose a stdio server over HTTP, but the
-  transport findings then describe the bridge.
-- **You need the Tasks or Apps extensions checked.** scout diagnoses the
+- **You need a stdio server's authorization tested.** A pipe has no origin
+  to authorize against, so a `--stdio` run refuses `--token` and reports
+  discovery and auth as skipped. Test the server's HTTP deployment for
+  those; everything else runs over the pipe.
+- **You need the Apps extension checked.** scout diagnoses the
   core protocol on both the handshake revisions and the stateless
-  `2026-07-28` one, but it does not yet exercise the optional extensions.
+  `2026-07-28` one, and follows the Tasks extension's lifecycle, but it
+  does not exercise MCP Apps.
 - **You want an agent to exercise the server.** scout's execution phase is
   deterministic: generated or supplied arguments, one call per tool. The
   `diagnostics.Model` interface exists for a model-driven probe, but no
   vendor adapter ships in this module.
+- **You need injection or request-forgery testing.** scout has no
+  adversarial mode, by decision rather than by omission
+  ([ADR 0008](docs/adr/0008-no-adversarial-mode.md)). Use dedicated security
+  tooling, against a server you are authorised to test.
 - **You need Windows without WSL.** Binaries are published for Windows,
   but the experience is less tested than on macOS and Linux.
 
@@ -1204,5 +1218,10 @@ never on stdout, which carries the selected output format.
 ## License
 
 Licensed under the **[GNU General Public License v3.0](LICENSE)**.
+
+The attestation format in [`spec/`](spec/) — the predicate's JSON Schema
+and the scoring rubric — is licensed **Apache-2.0**, so a gateway, registry
+or CI system can implement it without taking on the engine's licence
+([ADR 0011](docs/adr/0011-attestation-format-is-apache.md)).
 
 <p align="right"><a href="#scout">Back to Top</a></p>

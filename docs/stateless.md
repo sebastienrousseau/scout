@@ -1,4 +1,5 @@
 ---
+# SPDX-FileCopyrightText: 2026 Sebastien Rousseau <sebastian.rousseau@gmail.com>
 # SPDX-License-Identifier: GPL-3.0-only
 description: >-
   MCP's 2026-07-28 stateless revision: what changed, how scout works out which revision a server speaks, and what it checks on each.
@@ -153,8 +154,9 @@ judges what a run happened to receive and skips, by name, when nothing did.
 
 ### Extensions are enumerated
 
-`server/discover` carries an `extensions` list, and everything on it is
-interface. `protocol.extensions` reports what is advertised, separating the
+`server/discover` carries the server's extensions in
+`capabilities.extensions`, keyed by identifier with each extension's
+settings as the value, and everything there is interface. `protocol.extensions` reports what is advertised, separating the
 specification's own `io.modelcontextprotocol/…` extensions from an author's,
 because "this server speaks Tasks" and "this server speaks something only
 its own client knows about" are different facts.
@@ -162,9 +164,9 @@ its own client knows about" are different facts.
 The identifiers are reverse-DNS for the same reason `_meta` keys are: it is
 a global namespace with no registry behind it, and the domain is what stops
 two authors meaning different things by the same word. A bare `billing` is
-reported, and so is the same extension listed twice — a client that
-deduplicates and one that does not will disagree about what the server
-offers, and neither is wrong.
+reported. So is a server that lists its extensions in a top-level
+`extensions` field instead: no specification defines that field, so a
+client reading `capabilities.extensions` sees a server with none.
 
 scout does not test an extension's semantics. Naming it is the point: the
 rest of the report describes the base protocol, and an operator should know

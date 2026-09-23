@@ -29,154 +29,69 @@
 //     which for a conformance tool is the whole difference.
 //   - It verifies offline. A gateway must never have to call scout to trust a
 //     statement scout produced.
+//
+// The statement types and the verifier live in the public, Apache-2.0
+// package github.com/sebastienrousseau/scout/attestation (ADR 0011), which
+// imports only the standard library. This package keeps the one part that
+// reads scout's own report types — building a statement — and re-exports
+// the rest under the names the engine already uses.
 package attest
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"sort"
-	"strings"
 	"time"
 
+	"github.com/sebastienrousseau/scout/attestation"
 	"github.com/sebastienrousseau/scout/internal/probe"
 	"github.com/sebastienrousseau/scout/internal/report"
 )
 
-// StatementType is the in-toto statement envelope this produces.
-const StatementType = "https://in-toto.io/Statement/v1"
+// The format identifiers, re-exported from the public package.
+const (
+	StatementType         = attestation.StatementType
+	PredicateType         = attestation.PredicateType
+	SubjectKindDescriptor = attestation.SubjectKindDescriptor
+)
 
-// PredicateType identifies a scout MCP evaluation.
-//
-// It is versioned in the URL rather than in a field, which is the in-toto
-// convention: a consumer that does not recognise the type must not guess at
-// the contents, and a field would invite exactly that guess.
-const PredicateType = "https://scoutmcp.io/attestation/mcp-evaluation/v1"
+// Statement is attestation.Statement.
+type Statement = attestation.Statement
 
-// SubjectKindDescriptor is what the subject digest covers.
-//
-// An MCP server is a running service, not a file, so there is no artifact to
-// hash. The digest is over a canonical descriptor of the target — the
-// transport and the address or command — which identifies *which server this
-// statement is about* and nothing more. Recording that in the predicate is
-// the difference between a useful identifier and a misleading one.
-const SubjectKindDescriptor = "mcp-target-descriptor"
+// Subject is attestation.Subject.
+type Subject = attestation.Subject
 
-// Statement is the in-toto envelope.
-type Statement struct {
-	Type          string     `json:"_type"`
-	Subject       []Subject  `json:"subject"`
-	PredicateType string     `json:"predicateType"`
-	Predicate     Evaluation `json:"predicate"`
-}
+// Evaluation is attestation.Evaluation.
+type Evaluation = attestation.Evaluation
 
-// Subject is what the statement is about.
-type Subject struct {
-	Name   string            `json:"name"`
-	Digest map[string]string `json:"digest"`
-}
+// Target is attestation.Target.
+type Target = attestation.Target
 
-// Evaluation is the scout predicate.
-type Evaluation struct {
-	// SubjectKind says what Subject.Digest covers. See
-	// SubjectKindDescriptor: without this a reader would reasonably assume
-	// an artifact hash.
-	SubjectKind string `json:"subjectKind"`
-	// Target is the server that was evaluated.
-	Target Target `json:"target"`
-	// JudgedAgainst is what the verdicts mean. A statement without it is
-	// not interpretable later, so Validate refuses one.
-	JudgedAgainst Basis `json:"judgedAgainst"`
-	// Instrument is what produced the statement.
-	Instrument Instrument `json:"instrument"`
-	// RanAt is when the run started, and Took how long it lasted. A
-	// verdict about a live service is a verdict about a moment.
-	RanAt time.Time `json:"ranAt"`
-	Took  string    `json:"took"`
-	// Verdicts is every check that ran, passes included.
-	Verdicts []Verdict `json:"verdicts"`
-	// Counts and Score are the summary a policy engine gates on.
-	Counts Counts `json:"counts"`
-	Score  *Score `json:"score,omitempty"`
-	// Blocked is why the run stopped early, when it did. A statement from a
-	// blocked run covers less than a complete one, and a consumer has to be
-	// able to tell.
-	Blocked string `json:"blocked,omitempty"`
-	// TraceID ties the statement to the telemetry the run recorded, for
-	// anyone who kept it.
-	TraceID string `json:"traceId,omitempty"`
-}
+// ServerIdentity is attestation.ServerIdentity.
+type ServerIdentity = attestation.ServerIdentity
 
-// Target identifies the evaluated server without disclosing credentials.
-type Target struct {
-	// Transport is "http" or "stdio".
-	Transport string `json:"transport"`
-	// Endpoint is the URL, or the command line for a child process.
-	Endpoint string `json:"endpoint"`
-	// Server is what the server said it was, when it said anything.
-	Server *ServerIdentity `json:"server,omitempty"`
-}
+// Basis is attestation.Basis.
+type Basis = attestation.Basis
 
-// ServerIdentity is the server's own claim about itself.
-type ServerIdentity struct {
-	Name     string `json:"name,omitempty"`
-	Version  string `json:"version,omitempty"`
-	Protocol string `json:"protocolVersion,omitempty"`
-}
+// Instrument is attestation.Instrument.
+type Instrument = attestation.Instrument
 
-// Basis is what the verdicts were judged against.
-type Basis struct {
-	// SpecRevision is the MCP revision the server negotiated.
-	SpecRevision string `json:"specRevision,omitempty"`
-	// Rubric is the version of the scoring rubric behind Score. It is
-	// required whenever Score is present: a number with no rubric is not
-	// comparable to any other number.
-	Rubric string `json:"rubric,omitempty"`
-	// CheckInventory is the version of the check catalogue the ids come
-	// from, so an id that is later renamed can still be resolved.
-	CheckInventory string `json:"checkInventory,omitempty"`
-}
+// Verdict is attestation.Verdict.
+type Verdict = attestation.Verdict
 
-// Instrument is the tool that produced the statement.
-type Instrument struct {
-	Name    string `json:"name"`
-	Version string `json:"version"`
-	// SchemaVersion is the report format the verdicts were derived from.
-	SchemaVersion int `json:"reportSchemaVersion"`
-}
+// Counts is attestation.Counts.
+type Counts = attestation.Counts
 
-// Verdict is one check's outcome.
-type Verdict struct {
-	ID       string `json:"id"`
-	Phase    string `json:"phase"`
-	Status   string `json:"status"`
-	Severity string `json:"severity,omitempty"`
-	// Evidence are the recorded-request references that produced the
-	// verdict, carried verbatim from the report.
-	Evidence []string `json:"evidence,omitempty"`
-	// Doc addresses the check in the published inventory, so a consumer can
-	// explain a verdict without shipping scout's prose.
-	Doc string `json:"doc,omitempty"`
-}
+// Score is attestation.Score.
+type Score = attestation.Score
 
-// Counts totals the verdicts by status.
-type Counts struct {
-	Pass int `json:"pass"`
-	Warn int `json:"warn"`
-	Fail int `json:"fail"`
-	Skip int `json:"skip"`
-	Info int `json:"info"`
-}
+// ErrNoSuchCheck is attestation.ErrNoSuchCheck.
+var ErrNoSuchCheck = attestation.ErrNoSuchCheck
 
-// Score is the rating, carried only with the rubric that produced it.
-type Score struct {
-	Total    float64            `json:"total"`
-	Grade    string             `json:"grade"`
-	Assessed int                `json:"categoriesAssessed"`
-	Of       int                `json:"categoriesTotal"`
-	By       map[string]float64 `json:"byCategory,omitempty"`
-}
+// Plan is attestation.Plan.
+type Plan = attestation.Plan
+
+// Parse reads and validates a statement; see attestation.Parse.
+func Parse(b []byte) (*Statement, error) { return attestation.Parse(b) }
 
 // From builds a statement from a finished report.
 //
@@ -217,6 +132,7 @@ func From(r *report.Report) (*Statement, error) {
 		Took:    time.Duration(r.Duration).Round(time.Millisecond).String(),
 		Blocked: r.Blocked,
 		TraceID: r.TraceID,
+		Plan:    r.Plan,
 		Counts: Counts{
 			Pass: r.Counts.Pass, Warn: r.Counts.Warn, Fail: r.Counts.Fail,
 			Skip: r.Counts.Skip, Info: r.Counts.Info,
@@ -256,34 +172,16 @@ func From(r *report.Report) (*Statement, error) {
 		ev.Score = s
 	}
 
-	name := descriptor(t)
 	st := &Statement{
 		Type:          StatementType,
 		PredicateType: PredicateType,
 		Predicate:     ev,
-		Subject: []Subject{{
-			Name:   t.Endpoint,
-			Digest: map[string]string{"sha256": digest(name)},
-		}},
+		Subject:       []Subject{attestation.SubjectFor(t)},
 	}
 	if err := st.Validate(); err != nil {
 		return nil, err
 	}
 	return st, nil
-}
-
-// descriptor is the canonical string the subject digest covers.
-//
-// Canonical means two runs against the same server produce the same digest
-// and two different servers never collide, which is the whole job: it is an
-// identifier, not an integrity check over bytes nobody has.
-func descriptor(t Target) string {
-	return t.Transport + "\n" + strings.TrimSpace(t.Endpoint)
-}
-
-func digest(s string) string {
-	sum := sha256.Sum256([]byte(s))
-	return hex.EncodeToString(sum[:])
 }
 
 // transportOf derives the transport from the report.
@@ -319,17 +217,4 @@ func phaseOf(f probe.Finding, p probe.PhaseResult) string {
 		return f.Phase
 	}
 	return p.Name
-}
-
-// Marshal renders the statement as the JSON that gets signed.
-//
-// Indented on purpose: an attestation is read by people during an incident
-// far more often than anyone expects, and the signature covers the bytes
-// either way.
-func (s *Statement) Marshal() ([]byte, error) {
-	b, err := json.MarshalIndent(s, "", "  ")
-	if err != nil {
-		return nil, err
-	}
-	return append(b, '\n'), nil
 }

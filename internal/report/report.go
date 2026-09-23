@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/sebastienrousseau/scout"
+	"github.com/sebastienrousseau/scout/attestation"
 	"github.com/sebastienrousseau/scout/internal/probe"
 	"github.com/sebastienrousseau/scout/internal/telemetry"
 )
@@ -47,6 +48,9 @@ type Report struct {
 	// descriptions produces forty findings and one entry here. A consumer
 	// joins on the finding's `id`.
 	Guidance map[string]Remediation `json:"guidance,omitempty"`
+	// Plan is how the run was made, carried into an attestation so the
+	// measurement can be repeated. Nil for a report assembled by hand.
+	Plan *attestation.Plan `json:"plan,omitempty"`
 }
 
 // AttachGuidance fills Guidance with the remediation for every check that

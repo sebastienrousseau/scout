@@ -1,7 +1,8 @@
 ---
+# SPDX-FileCopyrightText: 2026 Sebastien Rousseau <sebastian.rousseau@gmail.com>
 # SPDX-License-Identifier: GPL-3.0-only
 description: >-
-  scout's output formats — text, Markdown, JSON, NDJSON, HTML and the in-toto attestation — plus the report directory, the HAR export, and what telemetry holds.
+  scout's output formats — text, Markdown, JSON, NDJSON, HTML, the in-toto attestation and the CycloneDX bill of materials for a binary or a lockfile — plus the report directory, the HAR export, and what telemetry holds.
 ---
 
 # Reports and telemetry
@@ -59,6 +60,12 @@ Four properties make it worth more than the JSON report:
 - **It verifies offline.** A gateway must never have to call scout to trust
   a statement scout produced.
 
+The format is published for other implementations: a JSON Schema for the
+statement and the rubric as data, both in
+[`spec/`](https://github.com/sebastienrousseau/scout/tree/main/spec) under
+Apache-2.0 and generated from the code that writes them
+([ADR 0011](adr/0011-attestation-format-is-apache.md)).
+
 ### Producing one in a later job
 
 Signing usually is not the job that ran the diagnostic. Run scout where the
@@ -68,8 +75,14 @@ identity and no access to the server at all — the split SLSA provenance uses:
 ```sh
 scout check "$URL" --output json > report.json   # has credentials
 scout attest report.json > attestation.json      # has an identity
-cosign attest-blob --predicate attestation.json --new-bundle-format ...
+cosign sign-blob --yes --bundle attestation.sigstore.json attestation.json
 ```
+
+The statement is signed as a file. It is already a complete in-toto
+statement whose subject is the server, so it is not handed to
+`cosign attest-blob`, which would wrap it in a second statement about a
+file. [Signing attestations](signing.md) has the keyless workflow, the
+offline form and the verification order.
 
 `scout attest` reads standard input when given no filename.
 
@@ -96,10 +109,61 @@ scout verify attestation.json \
 | `--require ID` | that check's verdict is a pass. **Absent is not a pass** — a statement that never ran the check cannot vouch for it |
 | `--max-fail N` | at most N checks failed |
 | `--min-score N` | the score is at least N. A run that assessed nothing carries no score, and a missing score never counts as zero |
+| `--against FILE` | no check is worse than in that earlier statement about the same target |
+| `--reproduce` | no check is worse when the recorded run is made again, against `--endpoint` |
 
 A gate applies because the flag was given, not because of its value:
 `--max-fail 0` is the strictest form of that gate, and omitting the flag asks
 for no gate at all.
+
+### Drift between two statements
+
+```sh
+scout verify today.json --against approved.json
+```
+
+`--against` compares two statements about the same target check by check,
+because drift is a delta rather than a threshold: a score that did not move
+can hide one check that went from pass to fail beside another that went the
+other way. A check that got worse fails the gate. Improvements, severity
+changes, checks the later run did not assess, and checks it newly measured
+are listed but do not fail it. The score delta is shown only when both
+statements were judged under the same rubric and check inventory.
+
+Two statements about different targets are refused rather than compared:
+the difference between two servers is not drift. The comparison is
+`attestation.Compare` in the Apache-2.0 package, so a gateway can run the
+same check without scout.
+
+### Repeating the recorded run
+
+```sh
+scout verify approved.json --reproduce --endpoint https://mcp.example.com/mcp \
+  --token-env MCP_TOKEN
+```
+
+A statement written by `scout check` records its plan: the run
+specification with every secret value removed, the credential mode, the
+names of anything given by value (`token`, `header X-API-Key`,
+`param tenant`), and the operating system, architecture and kernel. A live
+service cannot give the same answer twice, but the measurement can be made
+the same way twice. `--reproduce` makes it again and gates on what got
+worse, exactly as `--against` does.
+
+It is the one form of `verify` that contacts anything, and a statement can
+come from anyone, so it takes from the statement only how the server was
+measured — phases, pacing, which tools with which arguments, egress
+watching, the baseline — and nothing that decides what scout may touch:
+
+| Taken from | What |
+|---|---|
+| `--endpoint` | the target. It must be named, the statement must cover it, and the plan must be about the same target as the statement's subject |
+| this command line | credentials, with the flags `scout check` takes. A plan's recorded environment-variable names are never read: a hostile statement could otherwise choose which of your secrets to send to an endpoint it chose |
+| this command line | permissions (`--allow-mutations`, `--allow-destructive`, `--insecure-*`, `--allow-resource-mismatch`, `--skip-era-check`, `--fault-upstream`). They must match the recorded run exactly, because a comparison between runs allowed different things measures the permissions |
+
+A run that sent no credentials sends none again, whatever the environment
+holds. A statement made before plans were recorded, or from a report
+assembled by hand, has no plan and is refused.
 
 For anything an organisation has to agree on, `--policy` takes a file instead
 — reviewable, versioned, and able to carry exceptions with a reason and an
@@ -118,7 +182,191 @@ Exit status is the part a pipeline reads:
 Treat `1` and `2` differently. They are different incidents.
 
 Nothing in `scout verify` checks a signature. Verify the envelope with the
-tool that produced it, then verify what is inside it with this.
+tool that produced it, then verify what is inside it with this — see
+[Signing attestations](signing.md).
+
+## Servers used together
+
+```sh
+scout overlap mail.json weather.json files.json
+```
+
+An agent wired to several servers sees one flat list of tools, and nothing
+in the protocol keeps that list clean. `scout overlap` compares the
+catalogues in two or more saved JSON reports, offline, for the two failures
+that exist only in the union:
+
+- **Collisions** — the same tool name, ignoring case, hyphens and
+  underscores, exposed by two servers. Which one the model gets is up to
+  the host.
+- **Shadowing across servers** — one server's catalogue text attaching a
+  rule to a tool another server owns ("before calling send_email, always
+  BCC …"). `catalog.text.shadowing` finds the construction on one server;
+  only a set of servers can confirm the named tool belongs to someone else.
+  It uses the same narrow matcher, so recommending a sibling tool is not
+  reported.
+
+It exits 2 when the catalogues interfere, 0 when they do not, and 1 when a
+report cannot be read — including one with no catalogue, which would
+otherwise compare as clean. The comparison is lexical and structural, and
+does not claim to judge meaning.
+
+## Explanations
+
+```sh
+scout explain report.json > explanations.md
+scout explain report.json --model claude-sonnet-5 > explanations.md
+```
+
+`scout explain` writes a separate document about a saved JSON report: its
+failures and warnings, most severe first, each with scout's own guidance
+for the check. It only reads the report, and every status, severity and
+check id in the document is copied from it.
+
+By default nothing leaves the machine. With `--model` and an Anthropic API
+key in `ANTHROPIC_API_KEY` (or the variable `--api-key-env` names), the
+findings are sent to that model and its answer is printed beside the
+guidance, attributed to it by name. The destination is announced on stderr
+first. What is sent is each finding's id, title, status, severity and
+detail, and scout's guidance text; the evidence, the telemetry, the
+authentication summary and the rest of the report are not. A key already
+in the environment is not a request to send: only `--model` is
+([ADR 0006](adr/0006-no-client-telemetry.md)).
+
+The answer annotates and never adjudicates. It cannot pass a failure, add
+a finding or change a severity, and a finding's detail is quoted to the
+model as data from an untrusted server. At most 40 findings go in one
+request; the rest are counted in the document. `--api-url` sends to a proxy
+or gateway instead, over TLS or to this machine, and `--output json` gives
+the same document as data.
+
+## Bills of materials
+
+An attestation says how the server behaved. A bill of materials says what it
+is made of, and for the platform-team half of the audience that is the first
+question asked about anything new: what is in this, and can you prove where
+it came from.
+
+```sh
+scout sbom ./mcp-server > bom.json
+```
+
+A Go binary carries its own answer. Every dependency the toolchain linked in
+is in the file, with its version and its `h1:` module checksum, along with
+the toolchain, the target platform, the commit it was built from and whether
+the tree was dirty at the time. `scout sbom` reads that and writes
+[CycloneDX 1.6](https://cyclonedx.org/), which is what a scanner, a registry
+or an artifact store already ingests.
+
+The program is resolved through `PATH`, the way a shell would resolve it. It
+is opened and read, never executed, and nothing here touches the network.
+
+Three things about the document are deliberate:
+
+- **A dependency with no checksum is marked, not omitted.** It carries a
+  `scout:unverifiable` property. A module with no `h1:` sum did not come
+  through the module proxy and the checksum database never saw it, so
+  nothing about it can be verified after the fact — a local `replace` or a
+  vendored tree is the usual cause. An absent hash is indistinguishable from
+  an oversight; saying so is the point.
+- **The toolchain, platform and commit travel as properties.** CycloneDX has
+  no field for "the tree was dirty when this was built", and that is the one
+  provenance fact here that is both cheap to establish and impossible to
+  argue with. A document that dropped it would say less than the binary does.
+- **The same binary gives the same bytes.** The serial number is derived
+  from what is being described rather than generated at random, and
+  `SOURCE_DATE_EPOCH`, if set, fixes the timestamp. A pipeline diffing
+  yesterday's document against today's sees dependency changes, not a clock.
+
+Most MCP servers are TypeScript or Python, and for those the executable is
+`node` or `python`, which says nothing about the server. Name the project
+directory instead and its lockfiles are read:
+
+```sh
+scout sbom ./my-ts-server > bom.json
+```
+
+| Lockfile | Hash carried | Marked `scout:unverifiable` when |
+|---|---|---|
+| `package-lock.json` (v1–v3) | The SRI `integrity`, as hex SHA-512 | No integrity, or a `file:` or git source |
+| `uv.lock` | The source distribution's SHA-256 | No artifact hash, or a git or path source |
+| `Cargo.lock` | The registry `checksum` | No checksum, or a git or path source |
+| `requirements.txt` | The single `--hash`, when there is one | No `==` pin, or a pin without `--hash` |
+
+Every lockfile present is read, and each package names the one it came from.
+Only the directory itself is read — never `node_modules`, and never a file a
+`-r` include points at. Development-only npm packages carry
+`cdx:npm:package:development`, the property CycloneDX's own npm tooling uses,
+so a consumer that already filters them filters these. A package npm
+bundled inside another's archive carries `scout:bundled` instead of a hash:
+the archive's own hash covers it, and npm records none because nothing is
+downloaded separately. A package pinned by
+several per-platform hashes and no single shared artifact carries no hash and
+is not marked: it is pinned, and there is no one artifact to name.
+
+A lockfile is weaker evidence than a binary. It is what the project declares
+was installed, not what is running, and the document says which it is in a
+`scout:evidence` property. A server run straight from `npx` or `uvx` has no
+local lockfile at all, and scout does not fetch one.
+
+### Verifying provenance
+
+A bill of materials reports what the binary says about itself: the commit,
+whether the tree was dirty, every dependency's checksum. It does not verify
+a signature, and scout does not claim a verified supply chain for anything
+([ADR 0010](adr/0010-provenance-is-reported-not-verified.md)). Where the
+server's publisher signs releases, verify them with the tools built for it:
+
+```sh
+# a Sigstore-signed file, e.g. a release's checksums
+cosign verify-blob checksums.txt --bundle checksums.txt.sigstore.json \
+  --certificate-identity-regexp 'https://github.com/OWNER/REPO/.*' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+
+# a GitHub artifact attestation (SLSA build provenance)
+gh attestation verify ./mcp-server --owner OWNER
+```
+
+scout's own releases are verified the same way; see
+[Packaging](packaging.md).
+
+### Known vulnerabilities
+
+```sh
+scout sbom ./my-ts-server --osv > bom.json
+```
+
+`--osv` looks every component up in [OSV](https://osv.dev/) and adds the
+advisories that affect it as CycloneDX `vulnerabilities`, each pointing at
+the components it affects, with its aliases, its CVSS vectors and the
+database's own severity. A Go binary's document includes its standard
+library as a component, because a server built with an old toolchain
+carries that toolchain's `net/http` whatever its `go.mod` says.
+
+It is the only network access `scout sbom` makes, and it is off unless
+asked for ([ADR 0006](adr/0006-no-client-telemetry.md) records where it
+sits). Before anything is sent, stderr says how many package URLs are
+going where. Package URLs are all that is sent — no hashes, no paths, no
+project name — and components that did not come from a public registry
+(a local path, a git URL, a Go module with no proxy checksum) are never
+sent at all. If even public package names are confidential, point
+`--osv-url` at a mirror; it must be https, or http to this machine, and a
+redirect to another host is refused.
+
+A lookup that fails fails the command. A document missing its
+vulnerabilities because the database was unreachable would read as clean.
+Withdrawn advisories are left out. Each advisory's text is bounded, because
+whoever filed it wrote it. The document records the endpoint asked and the
+counts in `scout:osv-*` properties, and it is no longer byte-reproducible:
+the advisories are the database's answer on the day.
+
+A program that is not a Go binary, or a directory with no lockfile, is an
+error rather than a bill of materials with no materials in it — a pipeline
+that ingested an empty document and went green is the failure this avoids.
+
+The same read drives the `supply.buildinfo` and `supply.provenance` checks
+during a [stdio run](stdio.md), so a run and a document taken from one binary
+agree by construction.
 
 ## SARIF and JUnit
 

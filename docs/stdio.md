@@ -1,4 +1,5 @@
 ---
+# SPDX-FileCopyrightText: 2026 Sebastien Rousseau <sebastian.rousseau@gmail.com>
 # SPDX-License-Identifier: GPL-3.0-only
 description: >-
   Diagnose an MCP server that runs as a program rather than a URL: what scout starts, which checks apply over a pipe, which cannot, and what it hands the child process.
@@ -85,10 +86,11 @@ subject over a pipe and are reported as skipped, with the reason:
 | `discovery` | a child process has no origin and no metadata to discover; the trust decision was made when you chose which program to run |
 | `auth` | there is nothing to authenticate to, so there is also no wrong credential to send and no refusal to check |
 
-Four conformance probes inside the protocol phase are about the HTTP
+Five conformance probes inside the protocol phase are about the HTTP
 binding rather than about MCP, and are likewise skipped by name:
 `protocol.accept_header`, `protocol.get_stream`,
-`protocol.bogus_session` and `protocol.version_header`. So is
+`protocol.bogus_session`, `protocol.version_header` and `protocol.origin`
+— a pipe has no headers to send and no listener to rebind. So is
 `handshake.session`: over a pipe the connection *is* the session, so there
 is no session id a correct server would issue.
 

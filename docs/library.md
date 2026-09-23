@@ -1,4 +1,5 @@
 ---
+# SPDX-FileCopyrightText: 2026 Sebastien Rousseau <sebastian.rousseau@gmail.com>
 # SPDX-License-Identifier: GPL-3.0-only
 description: >-
   Use scout's Go packages directly: the client and MCP types, OAuth discovery, the Streamable HTTP transport, and the schema validator.
@@ -51,6 +52,7 @@ method on the current session.
 | `transport` | the Streamable HTTP transport (JSON-RPC over POST, SSE responses, sessions, raw access for conformance probes) and the stdio transport, which runs a server as a child process over newline-delimited JSON |
 | `diagnostics` | the safety policy, the schema-driven argument generator, the structural JSON Schema validator, the token-bucket limiter, and a budgeted agent loop behind a vendor-neutral `Model` interface |
 | `trace` | the per-run trace id in context and the `X-MCP-Trace-ID` header |
+| `attestation` | the MCP evaluation attestation: the in-toto statement types, `Parse`, `Validate`, `Covers` and `VerdictFor`. **Apache-2.0**, standard library only, so a gateway or registry can embed it to check a statement offline ([ADR 0011](adr/0011-attestation-format-is-apache.md)) |
 
 The `internal/` packages (probe, report, telemetry, creds, config, diag)
 are the CLI's own and carry no compatibility promise.

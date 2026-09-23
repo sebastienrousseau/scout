@@ -68,6 +68,7 @@ nav:
   - Reports and telemetry: reports.md
   - Reading the evidence: evidence.md
   - Acceptance policies: policy.md
+  - Signing attestations: signing.md
   - Running scout in CI: ci.md
   - Configuration: configuration.md
   - Library use: library.md
@@ -90,3 +91,7 @@ nav:
           - 0005 Public mode is the same binary: adr/0005-public-mode-is-the-same-binary.md
           - 0006 scout never phones home: adr/0006-no-client-telemetry.md
           - 0007 An instrument, not a gateway: adr/0007-not-a-gateway.md
+          - 0008 No adversarial mode: adr/0008-no-adversarial-mode.md
+          - 0009 Token counts are estimates: adr/0009-token-counts-are-estimates.md
+          - 0010 Provenance is reported, not verified: adr/0010-provenance-is-reported-not-verified.md
+          - 0011 The attestation format is Apache-2.0: adr/0011-attestation-format-is-apache.md

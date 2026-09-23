@@ -1,3 +1,4 @@
+<!-- SPDX-FileCopyrightText: 2026 Sebastien Rousseau <sebastian.rousseau@gmail.com> -->
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 
 # Changelog
@@ -16,6 +17,228 @@ project announces that a change felt big.
 ## [Unreleased]
 
 ### Added
+
+- **`protocol.origin` asks whether a web page can drive the server.** The
+  Streamable HTTP transport requires servers to validate `Origin`,
+  because DNS rebinding lets any site a user opens point a hostname at
+  `127.0.0.1` and reach a local server from their browser. scout has
+  told servers to do this since the web UI shipped, and until now never
+  checked that they did.
+
+  One ping, carrying the operator's credentials and a session, with
+  `Origin: https://scout-origin-probe.invalid` — so a refusal can only
+  be about the origin. 403 passes; another 4xx passes and says the
+  specification asks for 403. A server that answers fails as Major on
+  loopback or a private address, which is what rebinding reaches, and
+  warns on a public one, where the rule still applies and the attack
+  mostly does not. Over stdio it is skipped by name: a pipe has no
+  headers and nothing to rebind.
+
+  It came out of running the official conformance suite against a
+  correct, minimal server, where it was the one scenario that measured
+  something every server should do. Most of the rest need the suite's
+  own fixture tools, which is why scout does not wrap it as a phase.
+
+- **`scout sbom` emits a CycloneDX bill of materials.** The supply phase
+  already reads a Go server's module graph out of the binary, and until
+  now that graph only ever became two findings. This is the same read,
+  written in the format a scanner, a registry or an artifact store
+  already ingests.
+
+  ```sh
+  scout sbom ./mcp-server > bom.json
+  ```
+
+  Every dependency travels with its package URL and its `h1:` module
+  checksum, which is what makes the document an inventory somebody can
+  verify rather than a list somebody can edit. A dependency that carries
+  no checksum is marked `scout:unverifiable` rather than left silently
+  short of a hash: an absent one is indistinguishable from an oversight.
+  The toolchain, the platform, the commit and whether the tree was dirty
+  travel as properties, because CycloneDX has no field for them and a
+  document that dropped them would say less than the binary does.
+
+  The same binary described twice gives the same bytes. The serial
+  number is derived from what is being described rather than generated
+  at random, and `SOURCE_DATE_EPOCH` fixes the timestamp, so a pipeline
+  diffing yesterday's document against today's sees dependency changes
+  rather than a clock.
+
+  For a TypeScript, Python or Rust server, name the project directory
+  and its lockfiles are read instead: `package-lock.json`, `uv.lock`,
+  `Cargo.lock` and `requirements.txt`, each package with the hash its
+  package manager recorded. A requirement with no pin or no `--hash`, and
+  a git or local-path source, is marked `scout:unverifiable` with the
+  reason. A lockfile is what was declared rather than what is running,
+  and the document says so in a `scout:evidence` property.
+
+  ```sh
+  scout sbom ./my-ts-server > bom.json
+  ```
+
+  A program that is not a Go binary, or a directory with no lockfile,
+  exits non-zero — a pipeline that ingested an empty bill of materials
+  and went green is the failure this exists to avoid. No network, and
+  the program is opened and read, never executed. No new dependency
+  either: the document is a few hundred lines of struct tags against a
+  schema that has been stable for years, and taking a library for it
+  would mean adding a dependency to the binary a security team has to
+  approve in order to describe the dependencies in somebody else's.
+
+- **A stdio run on Linux reports what the server did after its
+  handshake.** Three `stdio.post_init_*` checks sample the server's
+  process group under `/proc` while the other phases run: a socket to a
+  non-loopback address that bypassed scout's proxy, a file open for
+  writing outside the working directory, and processes started. Whatever
+  was open when the handshake completed is bootstrap and is ignored.
+  Sampling misses what opens and closes between samples, so seeing
+  nothing is information, never a pass; off Linux the checks are skipped
+  by name. This replaces the roadmap's "sandbox that snaps shut", which
+  cannot be built from outside: Landlock and seccomp are restrictions a
+  process applies to itself.
+
+- **`--fault-upstream` asks what a tool does when its dependency is
+  down.** At the end of a stdio run, the egress proxy holds every new
+  connection open without answering, as a hung upstream would, and up to
+  three tools that succeeded are called again. `resilience.upstream_down`
+  passes a call that comes back with an error, `isError` or a cached
+  answer, and fails one that does not come back within the call timeout,
+  or a server that exits. Only calls during which the server tried to
+  connect count. Off by default and stdio only; asked for over HTTP it is
+  refused rather than skipped.
+
+- **Discovery reads DPoP and Enterprise-Managed Authorization.**
+  `discovery.dpop` fails a proof algorithm RFC 9449 forbids (`none`, an
+  `HS*` MAC) and warns when a resource requires bound tokens that its
+  authorization server or its 401 gives a client no way to learn about.
+  `discovery.enterprise_managed` fails an authorization server that
+  advertises the ID-JAG grant profile without the JWT bearer grant it
+  needs. Both read metadata discovery already fetched and send nothing:
+  scout holds no bound token and is not an identity provider. A server
+  without DPoP is recorded as info, not marked down, while MCP's DPoP
+  profile (SEP-1932) is still a draft.
+
+- **`scout overlap` finds where servers used together interfere.** It
+  compares the catalogues in two or more saved reports, offline, for the
+  two failures a single-server run cannot see: the same tool name exposed
+  by two servers, and one server's text attaching a rule to a tool
+  another server owns. It reuses `catalog.text.shadowing`'s narrow
+  matcher, so recommending a sibling tool is not reported, and it refuses
+  a report with no catalogue rather than comparing it as clean.
+
+  ```sh
+  scout overlap mail.json weather.json
+  ```
+
+- **`catalog.tools.idempotency` reports what the catalogue says about
+  retries.** An agent repeats calls after timeouts; `idempotentHint` is
+  how a tool says a repeat is harmless. The check lists which
+  state-changing tools declare it, and which leave it at the
+  specification's default of "not safe to repeat" — information, since
+  that default is the cautious answer. It warns only on a contradiction:
+  a read-only tool declaring it is not idempotent. scout does not call a
+  mutating tool twice to test this, because the effect of a call is not
+  something it can observe from outside.
+
+- **`scout explain` writes explanations beside a saved report.** It lists
+  the report's failures and warnings, most severe first, with scout's own
+  guidance for each, and never writes to the report. With `--model` and an
+  Anthropic API key it also asks that model to explain each finding, and
+  prints the answer beside the guidance, attributed to it. The model
+  cannot change a status, a severity or a check id; those are copied from
+  the report. Only the findings and scout's guidance are sent, the
+  destination is announced first, and a key already in the environment
+  sends nothing without `--model`. ADR 0006 is amended to list the new
+  destination. No dependency: the Messages API call is the standard
+  library.
+
+  ```sh
+  scout explain report.json --model claude-sonnet-5 > explanations.md
+  ```
+
+- **`scout verify --reproduce` repeats the recorded run.** A statement
+  from `scout check` now carries its plan: the run specification with
+  every secret value removed, the credential mode, the names of anything
+  given by value, and the OS, architecture and kernel. `--reproduce`
+  makes the same measurement again and gates on what got worse, as
+  `--against` does. It contacts only a target named with `--endpoint`
+  that the statement covers, takes credentials and permissions from its
+  own command line and never from the statement, and refuses a plan that
+  asks for permissions it was not given or names a different target from
+  the subject.
+
+  ```sh
+  scout verify approved.json --reproduce --endpoint https://mcp.example.com/mcp
+  ```
+
+- **`scout verify --against` gates on drift.** Two statements about the
+  same target are compared check by check, and the gate fails when any
+  check got worse — pass or info to warn or fail, or warn to fail — even
+  if the score did not move. Improvements, severity changes, checks the
+  later run did not assess and checks it newly measured are listed; the
+  score delta only when both were judged under the same rubric and
+  inventory. Statements about different targets are refused. The
+  comparison is `attestation.Compare`, in the Apache-2.0 package, so a
+  gateway can run it without scout.
+
+  ```sh
+  scout verify today.json --against approved.json
+  ```
+
+- **The Tasks extension is checked.** For a server advertising
+  `io.modelcontextprotocol/tasks`, four `protocol.tasks.*` checks ask
+  what the extension requires: an unknown task id is refused with
+  -32602; a client that did not declare the extension gets -32021; no
+  task is returned to a call that did not ask for one; and a task scout
+  creates — by calling a read-only tool it has already called — is
+  retrievable at once, carries the required fields, reaches a terminal
+  state within 30 seconds and keeps it. scout honours `pollIntervalMs`
+  between 250 ms and 5 s, and cancels any task it does not see finish.
+  A server that answers synchronously is not faulted; one on a handshake
+  revision, or not advertising the extension, is skipped by name.
+
+  Supporting it, the stateless dialect now keeps capabilities a caller
+  declares on one request, and sets `Mcp-Name` to the task id on
+  `tasks/*` requests, as the extension requires of a client.
+
+- **`attestation` is a public, Apache-2.0 package for verifying a
+  statement.** The statement types and the offline verifier — `Parse`,
+  `Validate`, `Covers`, `VerdictFor`, and `SubjectFor` for producers —
+  moved out of `internal/attest` into a package that imports only the
+  standard library, so a gateway can embed it without taking on scout's
+  GPL. `internal/attest` keeps the report-to-statement builder and
+  re-exports the rest, and the published schema is unchanged. Error
+  messages from the package now begin `attestation:`.
+
+- **The attestation format is published under Apache-2.0** (ADR 0011).
+  `spec/` holds a JSON Schema for the in-toto statement and its
+  `mcp-evaluation/v1` predicate, and the scoring rubric as data — weights,
+  deductions, grade bands and rules — so a gateway, registry or CI system
+  can implement verification without taking on the engine's GPL. Both are
+  generated from the code (`make spec`), CI fails when they drift, a test
+  validates a real statement against the schema and refuses tampered ones,
+  and another checks every published deduction against the scorer. The
+  engine stays GPL-3.0; extracting the verifier into an Apache-2.0 package
+  is the next step, on its own.
+
+- **`scout sbom --osv` says which of those dependencies are known to be
+  broken.** Every component from a public registry is looked up in OSV,
+  and the advisories that affect it are added to the document as
+  CycloneDX vulnerabilities, with aliases, CVSS vectors and severity. A
+  Go binary's document now lists its standard library as a component,
+  because that is where most Go advisories are.
+
+  ```sh
+  scout sbom ./my-ts-server --osv > bom.json
+  ```
+
+  It is the only network access the command makes and it is off by
+  default. What is sent is announced on stderr first, and it is package
+  URLs only; a component from a local path, a git URL or a private Go
+  module is never sent. `--osv-url` points at a mirror for teams whose
+  package names cannot leave the network. A failed lookup fails the
+  command rather than writing a document that reads as clean. ADR 0006
+  carries an amendment recording the new destination.
 
 - **`execution.payload_size` measures what an answer costs the caller.**
   The catalogue budget measures what a server costs to look at; this
@@ -356,6 +579,20 @@ project announces that a change felt big.
 
 ### Changed
 
+- **The performance phase repeats at most ten tools.** The repeat pass is
+  serial and throttled, so its cost grew with the catalogue: fifty tools
+  at five samples was a two-minute floor. It now repeats every tool up to
+  ten, and beyond that the five slowest plus five picked by a seed from
+  the target, so two runs against one server repeat the same tools and
+  their figures compare. The finding says when it sampled.
+
+  Two other performance ideas were measured and not built. A path that
+  skips the recorder would save nothing visible — within noise for a
+  200-byte answer, about 1.2 ms at 500 KB on loopback — and would leave
+  latency findings with no request to cite. A profile-guided build
+  changed no renderer beyond noise and raised Markdown allocations by
+  21%.
+
 - **A timed-out call no longer kills a stdio server.** This is a behaviour
   change from 0.0.2, where it did — the read happened inline under a lock,
   so killing the process was the only way to free a goroutine blocked on a
@@ -369,10 +606,22 @@ project announces that a change felt big.
   scout's own mutex. Custody did not move: `Close` still owns the process,
   and every caller defers one.
 
+- **Provenance is reported, not verified** (ADR 0010). `supply.provenance`
+  and `scout sbom` report what a binary records about itself; signature
+  verification is left to `cosign` and `gh attestation verify`, and the
+  reports manual now shows how. A hand-written Sigstore verifier was the
+  alternative, and a subtle bug in one produces a false "verified".
+
 - **A line on stdout that is not a JSON-RPC message ends the connection and
   is recorded.** It was already fatal to the call in flight; what is new is
   that the line is kept, so the report can name the cause instead of a
   timeout.
+
+- **Token counts stay named estimates** (ADR 0009). No tokenizer
+  vocabulary is embedded: model families tokenize differently and several
+  tokenizers are unpublished, so an exact count against one public
+  vocabulary would be a precise answer about the wrong model. The
+  catalogue-budget guidance now says so; bytes remain exact.
 
 - **`Report.Target` carries `transport` and, for a stdio run, `command`.** A
   consumer comparing two reports has to be able to tell which kind of run it
@@ -380,6 +629,14 @@ project announces that a change felt big.
   the server's. The command is redacted like any other field — an
   `--api-key=…` in an argument is ordinary, and a report is the one place it
   must not be.
+
+- **scout has no adversarial mode, and will not grow one** (ADR 0008).
+  The plan proposed exploit probes behind a separate command gated on a
+  statement of ownership. That is closed rather than deferred: a binary
+  that contains an exploit mode has to be reviewed as one, a confirmation
+  prompt stops nobody, and the evidence such a probe needs is the harm
+  itself. Protocol conformance probes and policy-permitted tool calls are
+  unchanged.
 
 - **`scout serve` refuses a run that names a program** unless started with
   `--allow-stdio`, and always refuses one in `--public` mode. The engine can
@@ -398,13 +655,56 @@ project announces that a change felt big.
   pretty-printed array put its newlines straight through the terminal
   layout, the Markdown table and the JUnit message.
 
-- **The published check count is 86**, five of which are the stdio ones. The
+- **The published check count is 119**, the stdio ones among them. The
   generator no longer counts `stdio.*` as a tenth phase — it briefly said
   "across 10 phases" while scout ran nine, which is the drift a generated
   page exists to prevent — and a new test fails when a group in the
   inventory is neither a phase nor a recorded exception.
 
 ### Fixed
+
+- **The manual told you to sign a statement with `cosign attest-blob`.**
+  That command wraps a predicate in a new statement about a file, so it
+  would have nested scout's statement inside another and replaced its
+  subject — the server — with the digest of a JSON file. A statement is
+  signed as a blob with `cosign sign-blob`; the new
+  [Signing attestations](docs/signing.md) page has the keyless workflow,
+  an offline form that uploads nothing, and the order to verify in.
+
+- **`inputRequests` was read in a shape the specification does not
+  define.** On the 2026-07-28 revision a server that needs client input
+  answers with `inputRequests` as an object keyed by request id, and/or a
+  `requestState`. scout decoded a list, so a correct server's
+  `input_required` failed to decode and was misread as an ordinary
+  result, while a server sending the non-standard list passed. The
+  transport now reads the object form (`InputRequiredResult` gains
+  `RequestState` and `ListForm`) and `protocol.mrtr` judges by the
+  specification's rules: a list fails; so does asking for elicitation,
+  sampling or roots from a client that did not declare them — which,
+  since scout declares none, means any such request — and any other
+  method; a retry carrying only `requestState` passes. The test fakes
+  and the hostile harness had the same misreading.
+
+- **`resilience.stateless` compared list sizes, not lists.** It asks for
+  `tools/list` on two independent connections and passed whenever both
+  returned the same number of tools, so two different catalogues of the
+  same size passed as "the same answer". It now compares every tool's
+  definition, ignoring key order, and names the tools that differ. On
+  the stateless revision lists are cacheable, so a client may serve one
+  connection's answer to another; a difference is a wrong answer for
+  somebody.
+
+- **`protocol.extensions` read extensions from the wrong place.** The
+  2026-07-28 schema puts a server's extensions in
+  `capabilities.extensions`, keyed by identifier; scout read a top-level
+  list no specification defines, so a correct server advertising Tasks was
+  reported as advertising nothing. scout now reads
+  `capabilities.extensions` (`DiscoverResult.ExtensionIDs`), and a server
+  that advertises only in the top-level list gets a warning, because no
+  client following the specification will see those extensions.
+  `DiscoverResult.ExtensionSettings` is new; it is not on
+  `ServerCapabilities`, which must stay comparable. The test fake had the same
+  misreading, which is why the tests never caught it.
 
 - **A stdio server was reported as running for as long as anything it
   started.** `os/exec` copies a plain `io.Writer` stderr on a goroutine

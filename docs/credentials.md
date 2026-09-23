@@ -1,4 +1,5 @@
 ---
+# SPDX-FileCopyrightText: 2026 Sebastien Rousseau <sebastian.rousseau@gmail.com>
 # SPDX-License-Identifier: GPL-3.0-only
 description: >-
   Bearer tokens, OAuth, HTTP basic, API-key headers: how to hand scout the credential you were given without it ever leaving your machine.

@@ -50,6 +50,23 @@ var squashSuffix = regexp.MustCompile(`\s\(#\d+\)$`)
 // enough to be ignored, which is worse than checking less.
 var notImperative = regexp.MustCompile(`^(Added|Adds|Adding|Fixed|Fixes|Fixing|Updated|Updates|Updating|Changed|Removes|Removed|Bumped) `)
 
+// generatedBy are the authors whose messages a bot writes to its own
+// template. Dependabot's subject is "bump <module> from <v> to <v>", which a
+// long module path puts past the limit whatever its configuration says, so
+// judging it would fail every dependency update on something no contributor
+// wrote. Matched on the bot's GitHub noreply address, which a person cannot
+// commit as through the web and would have to forge locally to borrow.
+var generatedBy = map[string]bool{
+	"49699333+dependabot[bot]@users.noreply.github.com": true,
+}
+
+// Generated reports whether a commit's message was written by a bot rather
+// than a contributor, so it is not theirs to be judged on. The same reason
+// the command skips platform merge commits.
+func Generated(authorEmail string) bool {
+	return generatedBy[strings.ToLower(strings.TrimSpace(authorEmail))]
+}
+
 // trailer matches a git trailer, which may be any length.
 var trailer = regexp.MustCompile(`^[A-Za-z-]+: `)
 

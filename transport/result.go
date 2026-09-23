@@ -4,8 +4,10 @@
 package transport
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"sort"
 )
 
 // Result types defined by the 2026-07-28 revision.
@@ -50,10 +52,61 @@ type InputRequest struct {
 
 // InputRequiredResult is the body of a result whose resultType is
 // input_required.
+//
+// On the wire, inputRequests is an object keyed by server-assigned id. It
+// is decoded into a list, sorted by id with each request's ID set from its
+// key, so callers have one shape to read.
 type InputRequiredResult struct {
 	ResultType    string          `json:"resultType"`
 	InputRequests []InputRequest  `json:"inputRequests"`
 	Meta          json.RawMessage `json:"_meta,omitempty"`
+	// RequestState is the opaque string the server wants echoed on retry.
+	// A result may carry it and no requests at all.
+	RequestState string `json:"requestState,omitempty"`
+	// ListForm is true when the server sent inputRequests as a JSON array,
+	// which no revision defines. The requests are still read, so a report
+	// can say what was asked, but a client following the specification
+	// would not find them.
+	ListForm bool `json:"-"`
+}
+
+// UnmarshalJSON reads inputRequests in the object form the specification
+// defines, and in the array form some servers send instead.
+func (r *InputRequiredResult) UnmarshalJSON(b []byte) error {
+	type plain InputRequiredResult
+	var raw struct {
+		plain
+		InputRequests json.RawMessage `json:"inputRequests"`
+	}
+	if err := json.Unmarshal(b, &raw); err != nil {
+		return err
+	}
+	*r = InputRequiredResult(raw.plain)
+	r.InputRequests = nil
+	switch in := bytes.TrimSpace(raw.InputRequests); {
+	case len(in) == 0 || string(in) == "null":
+	case in[0] == '[':
+		if err := json.Unmarshal(in, &r.InputRequests); err != nil {
+			return err
+		}
+		r.ListForm = true
+	default:
+		var byID map[string]InputRequest
+		if err := json.Unmarshal(in, &byID); err != nil {
+			return err
+		}
+		ids := make([]string, 0, len(byID))
+		for id := range byID {
+			ids = append(ids, id)
+		}
+		sort.Strings(ids)
+		for _, id := range ids {
+			req := byID[id]
+			req.ID = id
+			r.InputRequests = append(r.InputRequests, req)
+		}
+	}
+	return nil
 }
 
 // ErrInputRequired reports a result the caller must answer before the

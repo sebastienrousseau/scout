@@ -223,6 +223,9 @@ func phaseDiscovery(ctx context.Context, s *Session) []Finding {
 	default:
 		out = append(out, c.warn("neither CIMD nor dynamic registration offered", "agents will need pre-registered client ids; scout uses --client-id"))
 	}
+	out = append(out,
+		checkDPoP(s, prm, from, md, challenges, raw.Header.Get("DPoP-Nonce")),
+		checkEnterpriseManaged(s, md))
 
 	d, err := s.Client.Discover(ctx, bearer)
 	if err != nil {

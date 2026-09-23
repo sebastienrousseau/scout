@@ -354,3 +354,87 @@ func TestScanRecordsTheFirstDestinationOnly(t *testing.T) {
 		t.Errorf("recorded %q, want the first destination", got)
 	}
 }
+
+// A failing proxy holds a connection as a hung upstream would — for a
+// tunnel and for a plain request — and answers 502 once the fault is
+// lifted, counting each one.
+func TestProxyHoldsConnectionsWhileFailing(t *testing.T) {
+	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		t.Error("a failing proxy reached the upstream")
+	}))
+	defer upstream.Close()
+	p := startProxy(t, nil)
+	p.SetFailing(true)
+	p.SetFailing(true) // idempotent: one fault, not two
+
+	type result struct {
+		status int
+		err    error
+	}
+	done := make(chan result, 2)
+	for _, target := range []string{upstream.URL, "http://plain.scout-fixture.invalid/x"} {
+		go func() {
+			res, err := proxyClient(t, p).Get(target) //nolint:noctx // bounded by the client timeout
+			if err != nil {
+				done <- result{err: err}
+				return
+			}
+			_ = res.Body.Close()
+			done <- result{status: res.StatusCode}
+		}()
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for p.Failed() < 2 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	select {
+	case r := <-done:
+		t.Fatalf("a held connection came back before the fault was lifted: %+v", r)
+	case <-time.After(200 * time.Millisecond):
+	}
+	p.SetFailing(false)
+	p.SetFailing(false)
+	for i := 0; i < 2; i++ {
+		r := <-done
+		// A refused CONNECT surfaces as an error from the client; a plain
+		// request as the 502 itself.
+		if r.err == nil && r.status != http.StatusBadGateway {
+			t.Errorf("released with %+v, want a 502", r)
+		}
+	}
+	if p.Failed() != 2 {
+		t.Errorf("failed %d, want 2", p.Failed())
+	}
+	var failed int
+	for _, d := range p.Dials() {
+		failed += d.Failed
+	}
+	if failed != 2 {
+		t.Errorf("dials record %d failures, want 2: %+v", failed, p.Dials())
+	}
+}
+
+// Closing lifts the fault, so shutdown does not wait on held connections.
+func TestProxyCloseReleasesHeldConnections(t *testing.T) {
+	p, err := Start(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.SetFailing(true)
+	go func() {
+		res, err := proxyClient(t, p).Get("http://held.scout-fixture.invalid/") //nolint:noctx // bounded by the client timeout
+		if err == nil {
+			_ = res.Body.Close()
+		}
+	}()
+	for p.Failed() == 0 {
+		time.Sleep(10 * time.Millisecond)
+	}
+	t0 := time.Now()
+	if err := p.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if d := time.Since(t0); d > time.Second {
+		t.Errorf("close waited %s on a held connection", d)
+	}
+}

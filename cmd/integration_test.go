@@ -23,6 +23,7 @@ import (
 
 	"github.com/sebastienrousseau/scout/internal/diag"
 	"github.com/sebastienrousseau/scout/internal/engine"
+	"github.com/sebastienrousseau/scout/internal/supply"
 )
 
 // resetAll restores every package-level flag variable and command state.
@@ -39,12 +40,17 @@ func resetAll() {
 	redirectPort, tokenAuthMethod = 8976, ""
 	logLevel = "info"
 	verifyEndpoint, verifyTransport, verifyRequire = "", "http", nil
+	verifyAgainst = ""
+	verifyReproduce, reproPerm = false, reproducePermissions{}
+	overlapOutput = "text"
+	explainModel, explainKeyEnv, explainURL, explainOutput = "", "ANTHROPIC_API_KEY", "https://api.anthropic.com", "md"
 	verifyMaxFail, verifyMinScore, verifyOutput = 0, 0.0, "text"
 	verifyPolicy, policyFile = "", ""
 	baselineFile, approveBaseline = "", false
 	badgeLabel = "scout"
+	sbomOSV, sbomOSVURL = false, supply.DefaultOSVEndpoint
 	watchInterval, watchOnce = 0, false
-	watchEgress, expectEgress, plantCanaries = false, nil, false
+	watchEgress, expectEgress, plantCanaries, faultUpstream = false, nil, false, false
 	// cobra remembers Changed between runs, and the help flag keeps its
 	// value, so a --help run would turn every later run into help output.
 	reset := func(f *pflagFlag) {
