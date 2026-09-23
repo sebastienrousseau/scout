@@ -297,6 +297,17 @@ func TestStdioKeepsStderrFromAServerThatDies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Let it die on its own first. Closing at once raced the shell: under
+	// load, Close could end the process group before echo had run, and a
+	// server killed before it wrote anything has nothing to keep — which is
+	// correct, and not the property under test.
+	deadline := time.Now().Add(5 * time.Second)
+	for exited, _ := s.Exited(); !exited; exited, _ = s.Exited() {
+		if time.Now().After(deadline) {
+			t.Fatal("the server did not exit on its own")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 	if err := s.Close(); err != nil {
 		t.Fatalf("Close: %v", err)
 	}
