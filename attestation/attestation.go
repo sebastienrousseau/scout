@@ -64,9 +64,11 @@ type Delta = attestation.Delta
 // ErrNoSuchCheck is attestation.ErrNoSuchCheck.
 var ErrNoSuchCheck = attestation.ErrNoSuchCheck
 
-// The functions.
-var (
-	Parse      = attestation.Parse
-	SubjectFor = attestation.SubjectFor
-	Compare    = attestation.Compare
-)
+// Parse is attestation.Parse.
+func Parse(b []byte) (*Statement, error) { return attestation.Parse(b) }
+
+// SubjectFor is attestation.SubjectFor.
+func SubjectFor(t Target) Subject { return attestation.SubjectFor(t) }
+
+// Compare is attestation.Compare.
+func Compare(before, after *Statement) Delta { return attestation.Compare(before, after) }
