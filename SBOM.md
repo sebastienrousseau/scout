@@ -24,6 +24,7 @@ is bumped.
 | `github.com/charmbracelet/lipgloss` | v1.1.0 | Terminal styling for the TUI, the logo and the text report | MIT |
 | `github.com/muesli/termenv` | v0.16.0 | Colour profile selection when the text report is written to a terminal | MIT |
 | `github.com/spf13/pflag` | v1.0.9 | CLI flag parsing; the shared flag groups and the flag-keyed config file | BSD-3-Clause |
+| `github.com/sebastienrousseau/scout-reporting` | v0.0.4 | The attestation format's statement types and offline verifier, first-party, split out so gateways can import it without this module's graph; standard library only | Apache-2.0 |
 
 This table lists every **direct** requirement in `go.mod`, and `make sbom`
 (run in CI) fails if it drifts from that file in either direction. Indirect

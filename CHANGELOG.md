@@ -35,6 +35,21 @@ project announces that a change felt big.
   call, and is recorded in the attestation's plan so `--reproduce`
   repeats it. 120 checks.
 
+### Changed
+
+- **The attestation verifier is its own module.** The `attestation`
+  package moved unchanged to
+  [`github.com/sebastienrousseau/scout-reporting`](https://github.com/sebastienrousseau/scout-reporting),
+  the family's Apache-2.0 repository, and scout imports it back. It
+  moved because importing a package from this module pulls every one of
+  scout's dependencies into a consumer's `go.sum`, terminal UI included,
+  which is not what a gateway signs up for when it adds a verifier. The
+  predicate's JSON Schema moved with the types it is generated from;
+  `spec/` here keeps the rubric, which is generated from the scorer.
+  `scout/attestation` remains as a deprecated forwarder, so an existing
+  importer keeps compiling and accepts exactly the same statements. One
+  new direct dependency, first-party and standard-library only.
+
 ## [0.0.3] — 2026-09-23
 
 ### Added

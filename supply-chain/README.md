@@ -26,8 +26,12 @@ in the toolchain rather than in a review ledger.
 **The direct dependency list is short on purpose, and every addition is
 argued in the pull request that adds it.**
 
-`go.mod` has eight direct dependencies. Six are the terminal UI; two are the
-command-line parser. Everything else — HTTP, TLS, JSON-RPC framing, OAuth,
+`go.mod` has nine direct dependencies. Six are the terminal UI; two are the
+command-line parser; one is scout's own attestation verifier,
+[`scout-reporting`](https://github.com/sebastienrousseau/scout-reporting),
+split out under Apache-2.0 so that a gateway can import it without this
+module's graph, and itself importing only the standard library. Everything
+else — HTTP, TLS, JSON-RPC framing, OAuth,
 JSON Schema validation, SARIF, JUnit, OTLP export, HAR — is written against
 the standard library.
 

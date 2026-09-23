@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/sebastienrousseau/scout/attestation"
+	"github.com/sebastienrousseau/scout-reporting/attestation"
 	"github.com/sebastienrousseau/scout/internal/attest"
 	"github.com/sebastienrousseau/scout/internal/diag"
 	"github.com/sebastienrousseau/scout/internal/engine"
