@@ -193,3 +193,44 @@ func TestNameVerbReadsBothConventions(t *testing.T) {
 		}
 	}
 }
+
+func annotated(name string, readOnly, idempotent *bool) scout.Tool {
+	return scout.Tool{Name: name, Annotations: &scout.ToolAnnotations{ReadOnlyHint: readOnly, IdempotentHint: idempotent}}
+}
+
+// TestIdempotencyIsReportedNotJudged. A tool that says nothing has, by the
+// specification's default, declared itself unsafe to repeat — the cautious
+// answer, so information rather than a warning.
+func TestIdempotencyIsReportedNotJudged(t *testing.T) {
+	yes, no := true, false
+	f := checkIdempotency(session([]scout.Tool{
+		annotated("create_invoice", &no, &yes),
+		annotated("send_email", &no, &no),
+		annotated("update_record", nil, nil),
+		readOnly("search", "Searches."),
+	}))
+	if f.Status != Info {
+		t.Fatalf("status = %s: %s", f.Status, f.Detail)
+	}
+	for _, want := range []string{"3 tools change state", "1 declared safe to repeat (create_invoice)",
+		"1 declared not safe (send_email)", "1 say nothing, which the specification reads as not safe (update_record)"} {
+		if !strings.Contains(f.Detail, want) {
+			t.Errorf("detail does not contain %q: %s", want, f.Detail)
+		}
+	}
+}
+
+func TestAReadOnlyToolThatForbidsRetryIsAContradiction(t *testing.T) {
+	yes, no := true, false
+	f := checkIdempotency(session([]scout.Tool{annotated("get_balance", &yes, &no)}))
+	if f.Status != Warn || !strings.Contains(f.Detail, "get_balance") {
+		t.Fatalf("got %s: %s", f.Status, f.Detail)
+	}
+}
+
+func TestAnAllReadOnlyCatalogueHasNothingToDeclare(t *testing.T) {
+	f := checkIdempotency(session([]scout.Tool{readOnly("search", "Searches.")}))
+	if f.Status != Info || !strings.Contains(f.Detail, "every tool is read-only") {
+		t.Fatalf("got %s: %s", f.Status, f.Detail)
+	}
+}

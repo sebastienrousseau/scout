@@ -1319,6 +1319,20 @@ var remediations = map[string]Remediation{
 		},
 	},
 
+	"catalog.tools.idempotency": {
+		Means: "A tool declared read-only also declared that repeating it is " +
+			"unsafe. A read cannot have a second effect, so the second hint only " +
+			"stops a client from retrying a call that timed out.",
+		Steps: []Step{
+			{"Make the two hints agree",
+				"Drop idempotentHint: false from a read-only tool, or drop " +
+					"readOnlyHint if the call does change something."},
+			{"Declare idempotentHint on tools that change state",
+				"Set it true when a repeated identical call has no further effect, " +
+					"so an agent can retry after a timeout without doing the work twice."},
+		},
+	},
+
 	"protocol.tasks.unknown_id": {
 		Means: "The server answered tasks/get for a task id it never issued, or " +
 			"refused it with the wrong error. A client polling a mistyped or " +

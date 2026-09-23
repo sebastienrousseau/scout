@@ -85,6 +85,16 @@ project announces that a change felt big.
   would mean adding a dependency to the binary a security team has to
   approve in order to describe the dependencies in somebody else's.
 
+- **`catalog.tools.idempotency` reports what the catalogue says about
+  retries.** An agent repeats calls after timeouts; `idempotentHint` is
+  how a tool says a repeat is harmless. The check lists which
+  state-changing tools declare it, and which leave it at the
+  specification's default of "not safe to repeat" — information, since
+  that default is the cautious answer. It warns only on a contradiction:
+  a read-only tool declaring it is not idempotent. scout does not call a
+  mutating tool twice to test this, because the effect of a call is not
+  something it can observe from outside.
+
 - **`scout verify --against` gates on drift.** Two statements about the
   same target are compared check by check, and the gate fails when any
   check got worse — pass or info to warn or fail, or warn to fail — even
@@ -555,7 +565,7 @@ project announces that a change felt big.
   pretty-printed array put its newlines straight through the terminal
   layout, the Markdown table and the JUnit message.
 
-- **The published check count is 112**, the stdio ones among them. The
+- **The published check count is 113**, the stdio ones among them. The
   generator no longer counts `stdio.*` as a tenth phase — it briefly said
   "across 10 phases" while scout ran nine, which is the drift a generated
   page exists to prevent — and a new test fails when a group in the

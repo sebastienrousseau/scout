@@ -9,13 +9,13 @@ description: >-
 
 # The check inventory
 
-scout runs **112 checks** across **9 phases**.
+scout runs **113 checks** across **9 phases**.
 
 13 of them apply only to a server that is a program rather than a URL, and
 replace the ones that have no meaning over a pipe. A run reports every check it
 did not make, by id and with the reason, rather than leaving it out.
 
-111 of those are fixed, and 1 is a family whose id is built at run time —
+112 of those are fixed, and 1 is a family whose id is built at run time —
 one check per value the run encounters, marked `*` below.
 
 This file is generated from the source: every check is created through
@@ -107,7 +107,7 @@ that is what a reader sees in a report.
 | <span id="check-protocol-unknown_tool" data-can-fail="true"></span>`protocol.unknown_tool` | Unknown tool is reported |
 | <span id="check-protocol-version_header" data-can-fail="false"></span>`protocol.version_header` | Bad MCP-Protocol-Version is rejected |
 
-## catalog — 26 checks
+## catalog — 27 checks
 
 | Check | What it looks for |
 |---|---|
@@ -132,6 +132,7 @@ that is what a reader sees in a report.
 | <span id="check-catalog-tools-annotation_honesty" data-can-fail="true"></span>`catalog.tools.annotation_honesty` | readOnlyHint agrees with what the tool says it does |
 | <span id="check-catalog-tools-annotations" data-can-fail="true"></span>`catalog.tools.annotations` | Tools declare behaviour annotations |
 | <span id="check-catalog-tools-descriptions" data-can-fail="true"></span>`catalog.tools.descriptions` | Every tool has a useful description |
+| <span id="check-catalog-tools-idempotency" data-can-fail="true"></span>`catalog.tools.idempotency` | Tools say whether a repeated call is safe |
 | <span id="check-catalog-tools-input_schema" data-can-fail="true"></span>`catalog.tools.input_schema` | inputSchema is a JSON Schema object |
 | <span id="check-catalog-tools-list" data-can-fail="true"></span>`catalog.tools.list` | tools/list |
 | <span id="check-catalog-tools-output_schema" data-can-fail="true"></span>`catalog.tools.output_schema` | Tools declare outputSchema |

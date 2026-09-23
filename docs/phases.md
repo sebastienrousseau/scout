@@ -114,6 +114,7 @@ Lists everything; invokes nothing.
 | `catalog.tools.descriptions` | every tool has a description of at least 20 characters |
 | `catalog.tools.input_schema` | `inputSchema` describes an object |
 | `catalog.tools.annotations` | tools declare `readOnlyHint`/`destructiveHint`; unannotated tools are treated as destructive |
+| `catalog.tools.idempotency` | information: which state-changing tools declare `idempotentHint`, and which leave it at the specification's default of "not safe to repeat"; a read-only tool declaring it is not idempotent is a warning |
 | `catalog.tools.output_schema` | tools declare `outputSchema` |
 | `catalog.resources.uris`, `catalog.resources.mime`, `catalog.resources.templates` | absolute URIs, mime types, template listing |
 | `catalog.prompts.descriptions` | prompts and their arguments are described |

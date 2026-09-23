@@ -98,6 +98,7 @@ func phaseCatalog(ctx context.Context, s *Session) []Finding {
 			out = append(out, c.pass("all annotated"))
 		}
 		out = append(out, checkAnnotationHonesty(s))
+		out = append(out, checkIdempotency(s))
 		c = s.check("catalog.tools.output_schema", "Tools declare outputSchema")
 		if len(noOut) == len(tools) {
 			out = append(out, c.warn("none declare outputSchema", "add outputSchema and return structuredContent so results are machine-checkable"))

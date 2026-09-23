@@ -216,3 +216,60 @@ func checkAnnotationHonesty(s *Session) Finding {
 			"invokes these tools without asking, so an annotation that understates what a tool "+
 			"does is how a server gets a cautious client to perform the write for it")
 }
+
+// checkIdempotency reports what the catalogue declares about repeating a
+// call.
+//
+// An agent retries: a timeout, a dropped connection and a model that
+// forgot it already called a tool all end in a second identical call.
+// idempotentHint is how a tool says whether that second call is harmless.
+// The specification defaults it to false, so a tool that says nothing has
+// declared "not safe to repeat", which is the cautious answer rather than a
+// defect: this is reported as information, and scout does not call a tool
+// twice to find out, because the effect of a call is not something it can
+// observe from outside.
+//
+// The one contradiction is warned about. A read-only tool is repeatable by
+// definition, so one that declares idempotentHint: false tells a client not
+// to retry a call that cannot have a second effect.
+func checkIdempotency(s *Session) Finding {
+	c := s.check("catalog.tools.idempotency", "Tools say whether a repeated call is safe")
+	var repeatable, notRepeatable, unstated, contradicted []string
+	for _, t := range s.Tools {
+		hint := (*bool)(nil)
+		if t.Annotations != nil {
+			hint = t.Annotations.IdempotentHint
+		}
+		switch {
+		case t.IsReadOnly() && hint != nil && !*hint:
+			contradicted = append(contradicted, t.Name)
+		case t.IsReadOnly():
+		case hint == nil:
+			unstated = append(unstated, t.Name)
+		case *hint:
+			repeatable = append(repeatable, t.Name)
+		default:
+			notRepeatable = append(notRepeatable, t.Name)
+		}
+	}
+	if len(contradicted) > 0 {
+		return c.warn(
+			fmt.Sprintf("%s read-only and declared not idempotent: %s", plural(len(contradicted), "tool is"), list(contradicted)),
+			"drop idempotentHint: false from read-only tools, or drop readOnlyHint if the call changes something. A client told a read is unsafe to repeat will not retry it after a timeout")
+	}
+	changing := len(repeatable) + len(notRepeatable) + len(unstated)
+	if changing == 0 {
+		return c.info("every tool is read-only, and a read is safe to repeat; idempotentHint only means something for a tool that changes state")
+	}
+	parts := []string{}
+	if len(repeatable) > 0 {
+		parts = append(parts, fmt.Sprintf("%d declared safe to repeat (%s)", len(repeatable), list(repeatable)))
+	}
+	if len(notRepeatable) > 0 {
+		parts = append(parts, fmt.Sprintf("%d declared not safe (%s)", len(notRepeatable), list(notRepeatable)))
+	}
+	if len(unstated) > 0 {
+		parts = append(parts, fmt.Sprintf("%d say nothing, which the specification reads as not safe (%s)", len(unstated), list(unstated)))
+	}
+	return c.info(fmt.Sprintf("%s change state: ", plural(changing, "tool")) + strings.Join(parts, "; "))
+}
