@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"path/filepath"
+	"path"
 	"strings"
 	"time"
 
@@ -138,10 +138,13 @@ func writeRoots(s *Session) []string {
 	return roots
 }
 
-func under(path string, roots []string) bool {
+// under reports whether p is one of roots or inside one. The paths are
+// /proc's, which are POSIX whatever platform scout was built for, so they
+// are cleaned as slash paths rather than with filepath.
+func under(p string, roots []string) bool {
 	for _, r := range roots {
-		r = filepath.Clean(r)
-		if path == r || strings.HasPrefix(path, strings.TrimSuffix(r, "/")+"/") {
+		r = path.Clean(r)
+		if p == r || strings.HasPrefix(p, strings.TrimSuffix(r, "/")+"/") {
 			return true
 		}
 	}
