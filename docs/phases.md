@@ -194,3 +194,21 @@ clean (`stdio.stdout_clean`), and what it logged on the way
 (`stdio.stderr`). Those run even when an earlier phase blocked the rest,
 because a server that stopped answering is exactly when they are the
 findings that explain everything else.
+
+It also reports what the server did after its handshake, on Linux, from
+samples of its process group under `/proc` taken while every other phase
+ran. Whatever was open when the handshake completed is bootstrap and is
+not reported; after it, the only reason to act is a request scout sent.
+
+| Finding | Reports |
+|---|---|
+| `stdio.post_init_connections` | a socket to a non-loopback address that did not go through scout's proxy; a warning |
+| `stdio.post_init_writes` | a file open for writing outside the working directory, scout's scratch home and `/dev`, `/proc`, `/sys`; a warning |
+| `stdio.post_init_processes` | processes started in the server's group; information |
+
+These are samples, taken every 100 ms, and each finding says so: a
+connection opened and closed between two samples is not seen, so seeing
+nothing is information, never a pass. The roadmap asked for a sandbox that
+snaps shut at the handshake; that cannot be built from outside, because
+Landlock and seccomp are restrictions a process applies to itself.
+Off Linux the three are skipped by name.

@@ -173,6 +173,11 @@ func phaseNetStdio(ctx context.Context, s *Session) []Finding {
 func phaseResilienceStdio(_ context.Context, s *Session) []Finding {
 	var out []Finding
 
+	// What the server did after its handshake, from the samples taken
+	// while every other phase ran. First, so it is stopped before the
+	// process is judged.
+	out = append(out, checkWitness(s)...)
+
 	c := s.check("stdio.alive", "Server survived the run")
 	if exited, werr := s.Pipe.Exited(); exited {
 		detail := "the server exited during the run"

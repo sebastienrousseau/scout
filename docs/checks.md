@@ -9,13 +9,13 @@ description: >-
 
 # The check inventory
 
-scout runs **113 checks** across **9 phases**.
+scout runs **116 checks** across **9 phases**.
 
-13 of them apply only to a server that is a program rather than a URL, and
+16 of them apply only to a server that is a program rather than a URL, and
 replace the ones that have no meaning over a pipe. A run reports every check it
 did not make, by id and with the reason, rather than leaving it out.
 
-112 of those are fixed, and 1 is a family whose id is built at run time —
+115 of those are fixed, and 1 is a family whose id is built at run time —
 one check per value the run encounters, marked `*` below.
 
 This file is generated from the source: every check is created through
@@ -189,7 +189,7 @@ These run only when the server is a program and --plant-canaries was given. They
 | <span id="check-fs-canary_exfiltrated" data-can-fail="true"></span>`fs.canary_exfiltrated` | Nothing planted left the machine |
 | <span id="check-fs-credential_probe" data-can-fail="true"></span>`fs.credential_probe` | The server left the planted credentials alone |
 
-## stdio — 7 checks
+## stdio — 10 checks
 
 These run only when the server is a program rather than a URL. They belong to the connectivity and resilience phases, not to a phase of their own: a pipe has no name to resolve and no session to lose, so they take the place of the checks that do.
 
@@ -199,6 +199,9 @@ These run only when the server is a program rather than a URL. They belong to th
 | <span id="check-stdio-clean_exit" data-can-fail="true"></span>`stdio.clean_exit` | Server stopped when its input closed |
 | <span id="check-stdio-environment" data-can-fail="false"></span>`stdio.environment` | Environment handed to the server |
 | <span id="check-stdio-no_zombie" data-can-fail="true"></span>`stdio.no_zombie` | The server left nothing running |
+| <span id="check-stdio-post_init_connections" data-can-fail="true"></span>`stdio.post_init_connections` | No connection nobody asked for, after the handshake |
+| <span id="check-stdio-post_init_processes" data-can-fail="false"></span>`stdio.post_init_processes` | Processes started after the handshake |
+| <span id="check-stdio-post_init_writes" data-can-fail="true"></span>`stdio.post_init_writes` | No writes outside the working directory, after the handshake |
 | <span id="check-stdio-process" data-can-fail="true"></span>`stdio.process` | Server process is running |
 | <span id="check-stdio-stderr" data-can-fail="false"></span>`stdio.stderr` | What the server logged |
 | <span id="check-stdio-stdout_clean" data-can-fail="true"></span>`stdio.stdout_clean` | Nothing but MCP messages on stdout |

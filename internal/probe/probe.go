@@ -28,6 +28,7 @@ import (
 	"github.com/sebastienrousseau/scout/internal/egress"
 	"github.com/sebastienrousseau/scout/internal/supply"
 	"github.com/sebastienrousseau/scout/internal/telemetry"
+	"github.com/sebastienrousseau/scout/internal/witness"
 	"github.com/sebastienrousseau/scout/trace"
 	"github.com/sebastienrousseau/scout/transport"
 )
@@ -236,6 +237,12 @@ type Session struct {
 	Proxy *egress.Proxy
 	// Canary is the planted scratch home, when one was seeded.
 	Canary *canary.Canary
+	// witness samples the child's process group from the end of the
+	// handshake; witnessErr is why there is none, and witnessed is what it
+	// saw once stopped.
+	witness    *witness.Watcher
+	witnessErr error
+	witnessed  *witness.Observed
 	// Build is what the target binary is made of, when it is a Go program
 	// scout could read.
 	Build *supply.Build
@@ -495,6 +502,9 @@ func runStdio(ctx context.Context, opts Options) (s *Session, err error) {
 	s.settleEraStdio(ctx)
 
 	res, rerr := s.runPhases(ctx)
+	// Whichever phases ran, the sampler stops with the run. stopWitness is
+	// idempotent, so the resilience phase having stopped it already is fine.
+	s.stopWitness()
 	if rerr != nil {
 		return res, rerr
 	}
@@ -552,6 +562,11 @@ func (s *Session) runPhases(ctx context.Context) (*Session, error) {
 		}
 		pr.Duration = Millis(time.Since(start))
 		s.Results = append(s.Results, pr)
+		if p.Name == "handshake" && s.overStdio() && s.blocked == "" {
+			// Everything open until now is bootstrap. From here on, the only
+			// reason the server acts is a request scout sent.
+			s.startWitness()
+		}
 		if opts.PhaseDone != nil {
 			opts.PhaseDone(pr)
 		}

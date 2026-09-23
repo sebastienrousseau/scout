@@ -1336,6 +1336,37 @@ var remediations = map[string]Remediation{
 		},
 	},
 
+	"stdio.post_init_connections": {
+		Means: "After its handshake the server held a socket to a non-loopback " +
+			"address that did not go through scout's proxy. After the handshake " +
+			"every action is one a request caused, and a connection made around " +
+			"HTTP_PROXY is invisible to egress.hosts, so this is the destination " +
+			"scout could not name.",
+		Steps: []Step{
+			{"Reach the network through the configured proxy",
+				"Use an HTTP client that honours HTTP_PROXY and HTTPS_PROXY, so " +
+					"an operator can see and govern where the server goes."},
+			{"Connect only for the call that needs it",
+				"A read-only lookup that opens a socket to an address nobody " +
+					"configured is the shape exfiltration takes, whatever the intent."},
+		},
+		Note: "Seen by sampling /proc on Linux; a connection opened and closed " +
+			"between two samples is not seen, so no finding is not a guarantee.",
+	},
+
+	"stdio.post_init_writes": {
+		Means: "After its handshake the server held a file open for writing " +
+			"outside the working directory it was started in. A tool call should " +
+			"not leave the server writing to the user's home or system paths.",
+		Steps: []Step{
+			{"Write under the working directory, or a configured path",
+				"Put caches and state where the host told the server to run, or " +
+					"where the operator named in configuration."},
+		},
+		Note: "Seen by sampling /proc on Linux; scout's scratch home and /dev, " +
+			"/proc and /sys are not reported.",
+	},
+
 	"protocol.tasks.unknown_id": {
 		Means: "The server answered tasks/get for a task id it never issued, or " +
 			"refused it with the wrong error. A client polling a mistyped or " +

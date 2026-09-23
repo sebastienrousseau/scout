@@ -85,6 +85,18 @@ project announces that a change felt big.
   would mean adding a dependency to the binary a security team has to
   approve in order to describe the dependencies in somebody else's.
 
+- **A stdio run on Linux reports what the server did after its
+  handshake.** Three `stdio.post_init_*` checks sample the server's
+  process group under `/proc` while the other phases run: a socket to a
+  non-loopback address that bypassed scout's proxy, a file open for
+  writing outside the working directory, and processes started. Whatever
+  was open when the handshake completed is bootstrap and is ignored.
+  Sampling misses what opens and closes between samples, so seeing
+  nothing is information, never a pass; off Linux the checks are skipped
+  by name. This replaces the roadmap's "sandbox that snaps shut", which
+  cannot be built from outside: Landlock and seccomp are restrictions a
+  process applies to itself.
+
 - **`scout overlap` finds where servers used together interfere.** It
   compares the catalogues in two or more saved reports, offline, for the
   two failures a single-server run cannot see: the same tool name exposed
@@ -591,7 +603,7 @@ project announces that a change felt big.
   pretty-printed array put its newlines straight through the terminal
   layout, the Markdown table and the JUnit message.
 
-- **The published check count is 113**, the stdio ones among them. The
+- **The published check count is 116**, the stdio ones among them. The
   generator no longer counts `stdio.*` as a tenth phase — it briefly said
   "across 10 phases" while scout ran nine, which is the drift a generated
   page exists to prevent — and a new test fails when a group in the
