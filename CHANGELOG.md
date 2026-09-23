@@ -16,6 +16,8 @@ project announces that a change felt big.
 
 ## [Unreleased]
 
+## [0.0.3] — 2026-09-23
+
 ### Added
 
 - **`protocol.origin` asks whether a web page can drive the server.** The
@@ -1042,6 +1044,7 @@ something earlier.
 - The site at <https://scoutmcp.io>, including a sample report produced by
   the binary built from the same commit rather than a screenshot.
 
-[Unreleased]: https://github.com/sebastienrousseau/scout/compare/v0.0.2...HEAD
+[Unreleased]: https://github.com/sebastienrousseau/scout/compare/v0.0.3...HEAD
+[0.0.3]: https://github.com/sebastienrousseau/scout/compare/v0.0.2...v0.0.3
 [0.0.2]: https://github.com/sebastienrousseau/scout/compare/v0.0.1...v0.0.2
 [0.0.1]: https://github.com/sebastienrousseau/scout/releases/tag/v0.0.1
