@@ -68,6 +68,7 @@ nav:
   - Reports and telemetry: reports.md
   - Reading the evidence: evidence.md
   - Acceptance policies: policy.md
+  - Signing attestations: signing.md
   - Running scout in CI: ci.md
   - Configuration: configuration.md
   - Library use: library.md

@@ -75,8 +75,14 @@ identity and no access to the server at all — the split SLSA provenance uses:
 ```sh
 scout check "$URL" --output json > report.json   # has credentials
 scout attest report.json > attestation.json      # has an identity
-cosign attest-blob --predicate attestation.json --new-bundle-format ...
+cosign sign-blob --yes --bundle attestation.sigstore.json attestation.json
 ```
+
+The statement is signed as a file. It is already a complete in-toto
+statement whose subject is the server, so it is not handed to
+`cosign attest-blob`, which would wrap it in a second statement about a
+file. [Signing attestations](signing.md) has the keyless workflow, the
+offline form and the verification order.
 
 `scout attest` reads standard input when given no filename.
 
@@ -176,7 +182,8 @@ Exit status is the part a pipeline reads:
 Treat `1` and `2` differently. They are different incidents.
 
 Nothing in `scout verify` checks a signature. Verify the envelope with the
-tool that produced it, then verify what is inside it with this.
+tool that produced it, then verify what is inside it with this — see
+[Signing attestations](signing.md).
 
 ## Servers used together
 

@@ -637,6 +637,14 @@ project announces that a change felt big.
 
 ### Fixed
 
+- **The manual told you to sign a statement with `cosign attest-blob`.**
+  That command wraps a predicate in a new statement about a file, so it
+  would have nested scout's statement inside another and replaced its
+  subject — the server — with the digest of a JSON file. A statement is
+  signed as a blob with `cosign sign-blob`; the new
+  [Signing attestations](docs/signing.md) page has the keyless workflow,
+  an offline form that uploads nothing, and the order to verify in.
+
 - **`inputRequests` was read in a shape the specification does not
   define.** On the 2026-07-28 revision a server that needs client input
   answers with `inputRequests` as an object keyed by request id, and/or a
