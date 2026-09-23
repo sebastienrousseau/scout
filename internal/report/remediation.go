@@ -1336,6 +1336,39 @@ var remediations = map[string]Remediation{
 		},
 	},
 
+	"discovery.dpop": {
+		Means: "What the resource and its authorization server say about " +
+			"proof-of-possession does not hold together. DPoP (RFC 9449) binds a " +
+			"token to a key the client keeps, so a copied token is useless to " +
+			"whoever copied it — but only if the proof algorithms are asymmetric " +
+			"and a client can find out, from the metadata and the refusal, that " +
+			"a bound token is required.",
+		Steps: []Step{
+			{"List asymmetric proof algorithms only",
+				"`dpop_signing_alg_values_supported: [\"ES256\"]`, never `none` or " +
+					"an `HS*` MAC."},
+			{"Advertise the requirement where a client looks for it",
+				"When the resource sets `dpop_bound_access_tokens_required`, the " +
+					"authorization server lists its DPoP algorithms and the 401 " +
+					"carries a `DPoP` challenge."},
+		},
+		Note: "Read from metadata only. MCP's DPoP profile (SEP-1932) is a draft, " +
+			"so a server without DPoP is recorded, not marked down.",
+	},
+
+	"discovery.enterprise_managed": {
+		Means: "The authorization server advertises the Identity Assertion JWT " +
+			"Authorization Grant that MCP's Enterprise-Managed Authorization " +
+			"extension uses, but its token endpoint does not list the grant type " +
+			"the ID-JAG is presented with. An enterprise client that trusts the " +
+			"profile will be refused at the last step.",
+		Steps: []Step{
+			{"List the JWT bearer grant",
+				"Add `urn:ietf:params:oauth:grant-type:jwt-bearer` to " +
+					"`grant_types_supported`, or stop advertising the profile."},
+		},
+	},
+
 	"stdio.post_init_connections": {
 		Means: "After its handshake the server held a socket to a non-loopback " +
 			"address that did not go through scout's proxy. After the handshake " +

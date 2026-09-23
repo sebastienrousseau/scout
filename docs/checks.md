@@ -9,13 +9,13 @@ description: >-
 
 # The check inventory
 
-scout runs **116 checks** across **9 phases**.
+scout runs **118 checks** across **9 phases**.
 
 16 of them apply only to a server that is a program rather than a URL, and
 replace the ones that have no meaning over a pipe. A run reports every check it
 did not make, by id and with the reason, rather than leaving it out.
 
-115 of those are fixed, and 1 is a family whose id is built at run time —
+117 of those are fixed, and 1 is a family whose id is built at run time —
 one check per value the run encounters, marked `*` below.
 
 This file is generated from the source: every check is created through
@@ -37,7 +37,7 @@ that is what a reader sees in a report.
 | <span id="check-net-tls-cert" data-can-fail="true"></span>`net.tls.cert` | Certificate validity window |
 | <span id="check-net-tls-version" data-can-fail="true"></span>`net.tls.version` | TLS version is 1.2 or newer |
 
-## discovery — 14 checks
+## discovery — 16 checks
 
 | Check | What it looks for |
 |---|---|
@@ -49,6 +49,8 @@ that is what a reader sees in a report.
 | <span id="check-discovery-challenge" data-can-fail="true"></span>`discovery.challenge` | WWW-Authenticate challenge |
 | <span id="check-discovery-challenge-scope" data-can-fail="false"></span>`discovery.challenge.scope` | Challenge advertises required scope |
 | <span id="check-discovery-creds_unused" data-can-fail="true"></span>`discovery.creds_unused` | Credentials supplied to an open server |
+| <span id="check-discovery-dpop" data-can-fail="true"></span>`discovery.dpop` | Proof-of-possession tokens (DPoP, RFC 9449) |
+| <span id="check-discovery-enterprise_managed" data-can-fail="true"></span>`discovery.enterprise_managed` | Enterprise-Managed Authorization (ID-JAG) |
 | <span id="check-discovery-first_contact" data-can-fail="true"></span>`discovery.first_contact` | Unauthenticated first contact |
 | <span id="check-discovery-override" data-can-fail="false"></span>`discovery.override` | Discovery bypassed by --token-url |
 | <span id="check-discovery-override-build" data-can-fail="true"></span>`discovery.override.build` | Override endpoints |

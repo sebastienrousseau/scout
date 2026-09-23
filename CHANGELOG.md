@@ -97,6 +97,17 @@ project announces that a change felt big.
   cannot be built from outside: Landlock and seccomp are restrictions a
   process applies to itself.
 
+- **Discovery reads DPoP and Enterprise-Managed Authorization.**
+  `discovery.dpop` fails a proof algorithm RFC 9449 forbids (`none`, an
+  `HS*` MAC) and warns when a resource requires bound tokens that its
+  authorization server or its 401 gives a client no way to learn about.
+  `discovery.enterprise_managed` fails an authorization server that
+  advertises the ID-JAG grant profile without the JWT bearer grant it
+  needs. Both read metadata discovery already fetched and send nothing:
+  scout holds no bound token and is not an identity provider. A server
+  without DPoP is recorded as info, not marked down, while MCP's DPoP
+  profile (SEP-1932) is still a draft.
+
 - **`scout overlap` finds where servers used together interfere.** It
   compares the catalogues in two or more saved reports, offline, for the
   two failures a single-server run cannot see: the same tool name exposed
@@ -603,7 +614,7 @@ project announces that a change felt big.
   pretty-printed array put its newlines straight through the terminal
   layout, the Markdown table and the JUnit message.
 
-- **The published check count is 116**, the stdio ones among them. The
+- **The published check count is 118**, the stdio ones among them. The
   generator no longer counts `stdio.*` as a tenth phase — it briefly said
   "across 10 phases" while scout ran nine, which is the drift a generated
   page exists to prevent — and a new test fails when a group in the

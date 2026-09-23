@@ -28,19 +28,24 @@ type quirks struct {
 	open bool
 	// readOnlyOnly drops the unannotated tool, leaving a catalogue that is
 	// public and harmless.
-	readOnlyOnly      bool
-	challenge         string // WWW-Authenticate value; "-" means none
-	garbageStatus     int    // status for a scout-invalid-* token (default 401)
-	garbageNoHeader   bool
-	prmEmptyServers   bool
-	prmResource       string
-	prmMissing        bool
-	asMissing         bool
-	asPKCE            []string // nil = S256
-	asNoPKCE          bool
-	asCIMD            bool
-	asNoRegistration  bool
-	asHTTPIssuer      bool
+	readOnlyOnly     bool
+	challenge        string // WWW-Authenticate value; "-" means none
+	garbageStatus    int    // status for a scout-invalid-* token (default 401)
+	garbageNoHeader  bool
+	prmEmptyServers  bool
+	prmResource      string
+	prmMissing       bool
+	asMissing        bool
+	asPKCE           []string // nil = S256
+	asNoPKCE         bool
+	asCIMD           bool
+	asNoRegistration bool
+	asHTTPIssuer     bool
+	// prmExtra and asExtra add fields to the resource and authorization
+	// server metadata; dpopNonce sets a DPoP-Nonce header on the 401.
+	prmExtra          map[string]any
+	asExtra           map[string]any
+	dpopNonce         string
 	tokenScope        string // scope returned in the token (default: requested)
 	tokenNoExpiry     bool
 	tokenShortExpiry  bool
@@ -145,7 +150,11 @@ func newFakeServer(t *testing.T) *fakeServer {
 		if f.q.prmResource != "" {
 			res = f.q.prmResource
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"resource": res, "authorization_servers": servers, "scopes_supported": []string{"mcp:read"}})
+		prm := map[string]any{"resource": res, "authorization_servers": servers, "scopes_supported": []string{"mcp:read"}}
+		for k, v := range f.q.prmExtra {
+			prm[k] = v
+		}
+		_ = json.NewEncoder(w).Encode(prm)
 	})
 	mux.HandleFunc("/.well-known/oauth-authorization-server/as", func(w http.ResponseWriter, r *http.Request) {
 		if f.q.asMissing {
@@ -166,6 +175,9 @@ func newFakeServer(t *testing.T) *fakeServer {
 		}
 		if f.q.asCIMD {
 			md["client_id_metadata_document_supported"] = true
+		}
+		for k, v := range f.q.asExtra {
+			md[k] = v
 		}
 		_ = json.NewEncoder(w).Encode(md)
 	})
@@ -249,6 +261,9 @@ func (f *fakeServer) unauthorized(w http.ResponseWriter, r *http.Request) {
 	}
 	if hdr != "" && status == 401 {
 		w.Header().Set("WWW-Authenticate", hdr)
+		if f.q.dpopNonce != "" {
+			w.Header().Set("DPoP-Nonce", f.q.dpopNonce)
+		}
 	}
 	if status/100 == 2 && garbage {
 		// Pretend the garbage token was fine: fall through to the handler.

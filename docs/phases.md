@@ -56,6 +56,8 @@ what is observed.
 | `discovery.as` | RFC 8414 or OpenID discovery for each listed authorization server |
 | `discovery.as.https`, `discovery.as.pkce`, `discovery.as.grants` | TLS on the authorization server, S256 advertised, grant types |
 | `discovery.registration` | Client ID Metadata Documents or dynamic registration offered |
+| `discovery.dpop` | DPoP (RFC 9449) as the metadata and the 401 describe it: asymmetric proof algorithms only; a resource that requires bound tokens names algorithms at its authorization server and a `DPoP` challenge. Read, not exercised; absence is info while MCP's profile is a draft |
+| `discovery.enterprise_managed` | the Enterprise-Managed Authorization grant profile (ID-JAG): when advertised, `grant_types_supported` must include the JWT bearer grant it is presented with. Read, not exercised |
 | `discovery.override` | discovery bypassed because `--token-url` was given |
 
 ## auth: Credentials and token

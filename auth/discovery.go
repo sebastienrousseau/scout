@@ -22,6 +22,11 @@ type ProtectedResourceMetadata struct {
 	ScopesSupported        []string `json:"scopes_supported,omitempty"`
 	BearerMethodsSupported []string `json:"bearer_methods_supported,omitempty"`
 	ResourceName           string   `json:"resource_name,omitempty"`
+	// DPoPSigningAlgValuesSupported and DPoPBoundAccessTokensRequired are
+	// RFC 9728's DPoP fields: the proof algorithms the resource accepts,
+	// and whether it refuses a token that is not bound to a key (RFC 9449).
+	DPoPSigningAlgValuesSupported []string `json:"dpop_signing_alg_values_supported,omitempty"`
+	DPoPBoundAccessTokensRequired bool     `json:"dpop_bound_access_tokens_required,omitempty"`
 }
 
 // ServerMetadata is the RFC 8414 / OpenID Connect discovery document.
@@ -41,6 +46,13 @@ type ServerMetadata struct {
 	// AuthorizationResponseIssParameterSupported advertises RFC 9207: the
 	// authorization response carries an iss the client must verify.
 	AuthorizationResponseIssParameterSupported bool `json:"authorization_response_iss_parameter_supported,omitempty"`
+	// DPoPSigningAlgValuesSupported lists the proof algorithms the token
+	// endpoint accepts (RFC 9449 §5.1).
+	DPoPSigningAlgValuesSupported []string `json:"dpop_signing_alg_values_supported,omitempty"`
+	// AuthorizationGrantProfilesSupported names grant profiles, such as the
+	// Identity Assertion JWT Authorization Grant that MCP's
+	// Enterprise-Managed Authorization extension uses.
+	AuthorizationGrantProfilesSupported []string `json:"authorization_grant_profiles_supported,omitempty"`
 }
 
 // ErrNoAuthorizationServers is returned when the PRM lists no servers.
