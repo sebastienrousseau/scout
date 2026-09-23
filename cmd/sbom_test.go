@@ -4,15 +4,18 @@
 package cmd
 
 import (
+	"debug/buildinfo"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -31,9 +34,46 @@ func selfPath(t *testing.T) string {
 	return p
 }
 
+var (
+	builtOnce sync.Once
+	builtPath string
+	builtErr  error
+)
+
+// withModuleGraph returns a binary that records its dependencies. The test
+// binary does on Go 1.27, and on Go 1.26 — go.mod's floor, which CI gates
+// on — it records none, so a test reading it would be judging the toolchain
+// rather than the command. There the real scout binary is built instead.
+func withModuleGraph(t *testing.T) string {
+	t.Helper()
+	self := selfPath(t)
+	if bi, err := buildinfo.ReadFile(self); err == nil && len(bi.Deps) > 0 {
+		return self
+	}
+	builtOnce.Do(func() {
+		dir, err := os.MkdirTemp("", "scout-sbom-*")
+		if err != nil {
+			builtErr = err
+			return
+		}
+		builtPath = filepath.Join(dir, "scout")
+		if runtime.GOOS == "windows" {
+			builtPath += ".exe"
+		}
+		cmd := exec.Command("go", "build", "-o", builtPath, "../cmd/scout") //nolint:gosec // the toolchain running this test, on this module
+		if out, err := cmd.CombinedOutput(); err != nil {
+			builtErr = errors.New(string(out))
+		}
+	})
+	if builtErr != nil {
+		t.Skipf("the test binary records no module graph and building scout failed: %v", builtErr)
+	}
+	return builtPath
+}
+
 // TestSBOMEmitsADocumentAScannerCanRead.
 func TestSBOMEmitsADocumentAScannerCanRead(t *testing.T) {
-	out, code := run(t, "sbom", selfPath(t))
+	out, code := run(t, "sbom", withModuleGraph(t))
 	if code != 0 {
 		t.Fatalf("exit %d:\n%s", code, out)
 	}
