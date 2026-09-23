@@ -97,6 +97,16 @@ project announces that a change felt big.
   cannot be built from outside: Landlock and seccomp are restrictions a
   process applies to itself.
 
+- **`--fault-upstream` asks what a tool does when its dependency is
+  down.** At the end of a stdio run, the egress proxy holds every new
+  connection open without answering, as a hung upstream would, and up to
+  three tools that succeeded are called again. `resilience.upstream_down`
+  passes a call that comes back with an error, `isError` or a cached
+  answer, and fails one that does not come back within the call timeout,
+  or a server that exits. Only calls during which the server tried to
+  connect count. Off by default and stdio only; asked for over HTTP it is
+  refused rather than skipped.
+
 - **Discovery reads DPoP and Enterprise-Managed Authorization.**
   `discovery.dpop` fails a proof algorithm RFC 9449 forbids (`none`, an
   `HS*` MAC) and warns when a resource requires bound tokens that its
@@ -645,7 +655,7 @@ project announces that a change felt big.
   pretty-printed array put its newlines straight through the terminal
   layout, the Markdown table and the JUnit message.
 
-- **The published check count is 118**, the stdio ones among them. The
+- **The published check count is 119**, the stdio ones among them. The
   generator no longer counts `stdio.*` as a tenth phase — it briefly said
   "across 10 phases" while scout ran nine, which is the drift a generated
   page exists to prevent — and a new test fails when a group in the

@@ -72,6 +72,10 @@ type Dial struct {
 	First time.Duration `json:"first_ms"`
 	// Allowed is whether the connection was permitted to proceed.
 	Allowed bool `json:"allowed"`
+	// Failed counts attempts the proxy answered as an unreachable upstream
+	// because the run asked it to (--fault-upstream), not because policy
+	// refused them.
+	Failed int `json:"failed,omitempty"`
 }
 
 // Target renders the destination as host:port.
@@ -97,6 +101,8 @@ type Proxy struct {
 	policy Policy
 
 	mu      sync.Mutex
+	failing chan struct{} // non-nil while failing; closed to release the held
+	failed  int
 	dials   map[string]*Dial
 	watch   []string
 	escaped map[string]string // marker -> the destination it left for
@@ -172,6 +178,8 @@ func (p *Proxy) Dials() []Dial {
 
 // Close stops the proxy.
 func (p *Proxy) Close() error {
+	// Held connections first, or shutdown would wait on them.
+	p.SetFailing(false)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	err := p.srv.Shutdown(ctx)
@@ -202,6 +210,57 @@ func (p *Proxy) record(host, port string, tunnelled bool) bool {
 		d.Allowed = false
 	}
 	return allowed
+}
+
+// SetFailing makes every later connection behave as an upstream that
+// accepted it and never answered, until it is switched off. It is how a
+// run asks what a server does when a dependency is down, without touching
+// the server.
+//
+// A hung upstream rather than a refused one, because it is the harder
+// case: a refusal comes back at once and nearly every client turns it into
+// an error, while a connection that never answers finds exactly the
+// clients with no timeout of their own. A held connection is answered 502
+// when the client gives up or the fault is lifted.
+func (p *Proxy) SetFailing(on bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	switch {
+	case on && p.failing == nil:
+		p.failing = make(chan struct{})
+	case !on && p.failing != nil:
+		close(p.failing)
+		p.failing = nil
+	}
+}
+
+// Failed counts the connections failed on purpose so far.
+func (p *Proxy) Failed() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.failed
+}
+
+// fail holds a connection as a hung upstream would when the run asked for
+// that, after it has been recorded.
+func (p *Proxy) fail(w http.ResponseWriter, r *http.Request, host, port string) bool {
+	p.mu.Lock()
+	release := p.failing
+	if release == nil {
+		p.mu.Unlock()
+		return false
+	}
+	p.failed++
+	if d, ok := p.dials[host+":"+port]; ok {
+		d.Failed++
+	}
+	p.mu.Unlock()
+	select {
+	case <-r.Context().Done():
+	case <-release:
+	}
+	http.Error(w, "upstream unavailable (failed on purpose by scout --fault-upstream)", http.StatusBadGateway)
+	return true
 }
 
 // WatchFor asks the proxy to notice these strings in outbound request
@@ -273,6 +332,9 @@ func (p *Proxy) connect(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "refused by scout's egress policy", http.StatusForbidden)
 		return
 	}
+	if p.fail(w, r, host, port) {
+		return
+	}
 
 	// The destination comes from the request, which is exactly the point:
 	// this is a proxy, and forwarding to the host the client named is its
@@ -326,6 +388,9 @@ func (p *Proxy) forward(w http.ResponseWriter, r *http.Request) {
 	host, port := splitTarget(r.URL.Host, "80")
 	if !p.record(host, port, false) {
 		http.Error(w, "refused by scout's egress policy", http.StatusForbidden)
+		return
+	}
+	if p.fail(w, r, host, port) {
 		return
 	}
 

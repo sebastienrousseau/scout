@@ -67,6 +67,7 @@ var (
 	baselineFile          string
 	watchEgress           bool
 	plantCanaries         bool
+	faultUpstream         bool
 	expectEgress          []string
 	approveBaseline       bool
 	maxRes                int
@@ -159,6 +160,7 @@ func policyFlags() *pflag.FlagSet {
 		fs.StringVar(&policyFile, "policy", "", "judge the run against this acceptance policy file instead of the default \"any failure fails\" rule")
 		fs.BoolVar(&watchEgress, "watch-egress", false, "run a loopback proxy and report where the server connects (stdio only: it works by setting the child's environment)")
 		fs.StringArrayVar(&expectEgress, "expect-egress", nil, "a host the server is expected to reach (repeatable); a leading dot matches subdomains. Without it the destinations are listed and not judged")
+		fs.BoolVar(&faultUpstream, "fault-upstream", false, "end the run by failing every connection the server makes and calling tools that succeeded, to see whether they fail or hang (stdio only; implies --watch-egress)")
 		fs.BoolVar(&plantCanaries, "plant-canaries", false, "point the server's HOME at a scratch directory seeded with decoy credentials, and report whether it read or sent them (stdio only)")
 		fs.StringVar(&baselineFile, "baseline", "", "compare the catalogue against this approved snapshot and report what changed")
 		fs.BoolVar(&approveBaseline, "approve", false, "write the catalogue this run saw to the --baseline file, approving it")
@@ -275,7 +277,7 @@ func buildSpec(target engine.TargetSpec, onlyPhases []string) (engine.RunSpec, e
 		Version:  Version,
 		Target:   target,
 		Baseline: approved,
-		Egress:   engine.EgressSpec{Watch: watchEgress, Expect: expectEgress, Canaries: plantCanaries},
+		Egress:   engine.EgressSpec{Watch: watchEgress || faultUpstream, Expect: expectEgress, Canaries: plantCanaries, FaultUpstream: faultUpstream},
 		Creds:    cs,
 		Policy: engine.PolicySpec{
 			AllowMutations: allowMutations, AllowDestructive: allowDestructive,

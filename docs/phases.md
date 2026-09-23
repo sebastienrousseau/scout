@@ -214,3 +214,19 @@ nothing is information, never a pass. The roadmap asked for a sandbox that
 snaps shut at the handshake; that cannot be built from outside, because
 Landlock and seccomp are restrictions a process applies to itself.
 Off Linux the three are skipped by name.
+
+With `--fault-upstream`, the run ends by asking what an agent sees when a
+server's dependency is down. The proxy `--watch-egress` points the server
+at (the flag implies it) holds every new connection open without answering,
+as a hung upstream would, and up to three tools that succeeded earlier are
+called again with the same arguments. Only a call during which the server
+tried to connect counts.
+
+| Finding | Checks |
+|---|---|
+| `resilience.upstream_down` | a call whose upstream never answers comes back — an error, `isError`, or an answer from a cache — within the call timeout. One that does not come back, or a server that exits, fails as major |
+
+It is off by default, because it is the one part of a run that makes the
+server's world worse on purpose, and it needs a program to run: an endpoint
+scout did not start cannot be pointed at the proxy, so `--fault-upstream`
+without `--stdio` is refused rather than silently skipped.

@@ -43,6 +43,10 @@ type reproducePermissions struct {
 	AllowMutations, AllowDestructive      bool
 	AllowPlaintextAuth, AllowPrivateHosts bool
 	AllowResourceMismatch, SkipEraCheck   bool
+	// FaultUpstream is here rather than with the measurement choices: it
+	// makes the server's world worse on purpose, so a statement cannot
+	// switch it on for somebody else.
+	FaultUpstream bool
 }
 
 func reproduceFlags() *pflag.FlagSet {
@@ -57,13 +61,16 @@ func reproduceFlags() *pflag.FlagSet {
 	fs.BoolVar(&reproPerm.AllowPlaintextAuth, "insecure-allow-http-auth", false, "with --reproduce: grant what the recorded run was granted")
 	fs.BoolVar(&reproPerm.AllowResourceMismatch, "allow-resource-mismatch", false, "with --reproduce: grant what the recorded run was granted")
 	fs.BoolVar(&reproPerm.SkipEraCheck, "skip-era-check", false, "with --reproduce: as the recorded run did")
+	fs.BoolVar(&reproPerm.FaultUpstream, "fault-upstream", false, "with --reproduce: grant what the recorded run was granted")
 	reproSet = fs
 	return fs
 }
 
 // permissionsOf reads the switches a recorded spec ran with.
-func permissionsOf(p engine.PolicySpec) reproducePermissions {
+func permissionsOf(s engine.RunSpec) reproducePermissions {
+	p := s.Policy
 	return reproducePermissions{
+		FaultUpstream:  s.Egress.FaultUpstream,
 		AllowMutations: p.AllowMutations, AllowDestructive: p.AllowDestructive,
 		AllowPlaintextAuth: p.AllowPlaintextAuth, AllowPrivateHosts: p.AllowPrivateHosts,
 		AllowResourceMismatch: p.AllowResourceMismatch, SkipEraCheck: p.SkipEraCheck,
@@ -83,6 +90,7 @@ func permissionMismatch(plan, given reproducePermissions) []string {
 		{"--insecure-allow-private-hosts", plan.AllowPrivateHosts, given.AllowPrivateHosts},
 		{"--allow-resource-mismatch", plan.AllowResourceMismatch, given.AllowResourceMismatch},
 		{"--skip-era-check", plan.SkipEraCheck, given.SkipEraCheck},
+		{"--fault-upstream", plan.FaultUpstream, given.FaultUpstream},
 	}
 	var out []string
 	for _, p := range pairs {
@@ -124,7 +132,7 @@ func reproduceSpec(st *attest.Statement) (engine.RunSpec, error) {
 		return engine.RunSpec{}, fmt.Errorf("the statement's plan names %s %s but its subject is %s %s; refusing to run a plan that is about a different target",
 			transport, planned, p.Target.Transport, p.Target.Endpoint)
 	}
-	if bad := permissionMismatch(permissionsOf(spec.Policy), reproPerm); len(bad) > 0 {
+	if bad := permissionMismatch(permissionsOf(spec), reproPerm); len(bad) > 0 {
 		return engine.RunSpec{}, errors.New(strings.Join(bad, "; "))
 	}
 

@@ -185,6 +185,9 @@ type EgressSpec struct {
 	// Expect is the hosts the operator says the server should reach. A
 	// leading dot matches subdomains. Empty inventories without judging.
 	Expect []string `json:"expect,omitempty"`
+	// FaultUpstream fails the server's outbound connections at the end of
+	// the run and checks that tool calls still come back. Needs Watch.
+	FaultUpstream bool `json:"fault_upstream,omitempty"`
 	// Canaries points the child's HOME at a scratch directory seeded with
 	// decoy credentials, so a server that goes looking can be seen.
 	Canaries bool `json:"canaries,omitempty"`
@@ -335,6 +338,11 @@ func (s RunSpec) Validate() error {
 		if err != nil || u.Scheme == "" || u.Host == "" {
 			return fmt.Errorf("endpoint %q is not an absolute URL", s.Target.Endpoint)
 		}
+	}
+	if s.Egress.FaultUpstream && !s.Target.Stdio() {
+		// Asked for and silently not done would read as a server that
+		// survives its dependencies failing.
+		return errors.New("--fault-upstream fails a server's connections through a proxy it is started with, so it needs a program to run (--stdio); an endpoint scout did not start cannot be pointed at one")
 	}
 	if !s.Output.Format.Valid() {
 		return fmt.Errorf("output format %q is not one of %v", s.Output.Format, Formats)

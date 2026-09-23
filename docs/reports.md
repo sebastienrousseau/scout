@@ -159,7 +159,7 @@ watching, the baseline — and nothing that decides what scout may touch:
 |---|---|
 | `--endpoint` | the target. It must be named, the statement must cover it, and the plan must be about the same target as the statement's subject |
 | this command line | credentials, with the flags `scout check` takes. A plan's recorded environment-variable names are never read: a hostile statement could otherwise choose which of your secrets to send to an endpoint it chose |
-| this command line | permissions (`--allow-mutations`, `--allow-destructive`, `--insecure-*`, `--allow-resource-mismatch`, `--skip-era-check`). They must match the recorded run exactly, because a comparison between runs allowed different things measures the permissions |
+| this command line | permissions (`--allow-mutations`, `--allow-destructive`, `--insecure-*`, `--allow-resource-mismatch`, `--skip-era-check`, `--fault-upstream`). They must match the recorded run exactly, because a comparison between runs allowed different things measures the permissions |
 
 A run that sent no credentials sends none again, whatever the environment
 holds. A statement made before plans were recorded, or from a report

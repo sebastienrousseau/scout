@@ -131,9 +131,10 @@ func (s RunSpec) probeOptions(cr *creds.Credentials, rec *telemetry.Recorder, si
 		MaxPrompts:    s.Pacing.MaxPrompts,
 		ToolArgs:      s.Policy.ToolArgs,
 		Baseline:      s.Baseline,
-		WatchEgress:   s.Egress.Watch,
+		WatchEgress:   s.Egress.Watch || s.Egress.FaultUpstream,
 		ExpectEgress:  s.Egress.Expect,
 		PlantCanaries: s.Egress.Canaries,
+		FaultUpstream: s.Egress.FaultUpstream,
 
 		Only: s.Phases.Only,
 		Skip: s.Phases.Skip,

@@ -181,6 +181,12 @@ type Options struct {
 	// reach. A leading dot matches subdomains. Empty means the
 	// destinations are inventoried and not judged.
 	ExpectEgress []string
+	// FaultUpstream, with WatchEgress, ends a stdio run by failing every
+	// connection the server makes and calling a few tools that already
+	// succeeded, to see whether a call whose dependency is down comes back
+	// with an error or hangs. Off by default: it is the one part of a run
+	// that deliberately makes the server's world worse.
+	FaultUpstream bool
 	// PlantCanaries points the child's HOME at a scratch directory seeded
 	// with decoy credentials, so a server that goes looking for one can
 	// be seen doing it.

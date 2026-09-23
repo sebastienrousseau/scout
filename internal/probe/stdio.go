@@ -170,13 +170,18 @@ func phaseNetStdio(ctx context.Context, s *Session) []Finding {
 // token. What it has instead is a process, and the questions worth asking
 // at the end of a run are whether it is still there, whether it kept the
 // transport clean, and what it said on the way.
-func phaseResilienceStdio(_ context.Context, s *Session) []Finding {
+func phaseResilienceStdio(ctx context.Context, s *Session) []Finding {
 	var out []Finding
 
 	// What the server did after its handshake, from the samples taken
 	// while every other phase ran. First, so it is stopped before the
 	// process is judged.
 	out = append(out, checkWitness(s)...)
+
+	// Its dependencies failed on purpose, when asked for. Before the
+	// liveness check, so a server that dies of it is judged alive or not
+	// afterwards.
+	out = append(out, checkUpstreamDown(ctx, s)...)
 
 	c := s.check("stdio.alive", "Server survived the run")
 	if exited, werr := s.Pipe.Exited(); exited {

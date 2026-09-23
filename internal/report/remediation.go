@@ -1387,6 +1387,25 @@ var remediations = map[string]Remediation{
 			"between two samples is not seen, so no finding is not a guarantee.",
 	},
 
+	"resilience.upstream_down": {
+		Means: "With every connection the server made held open and never " +
+			"answered, as a hung dependency behaves, a tool call did not come " +
+			"back within the call timeout, or the server exited. An agent " +
+			"waiting on a call that will never finish cannot tell a slow " +
+			"answer from a dead one, and waits for the host's whole timeout.",
+		Steps: []Step{
+			{"Put a timeout on every outbound call",
+				"Shorter than the host's, so the tool gets to answer before the " +
+					"host gives up on it."},
+			{"Return the failure as a tool error",
+				"`isError: true` with what failed, so the agent can say which " +
+					"dependency is down and the next call still has a server."},
+		},
+		Note: "Only with --fault-upstream, over stdio. The proxy holds " +
+			"connections rather than refusing them, because a refusal comes " +
+			"back at once and hides a missing timeout.",
+	},
+
 	"stdio.post_init_writes": {
 		Means: "After its handshake the server held a file open for writing " +
 			"outside the working directory it was started in. A tool call should " +

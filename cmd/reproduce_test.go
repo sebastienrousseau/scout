@@ -120,6 +120,9 @@ func TestReproduceRefusesWhatTheOperatorDidNotGrant(t *testing.T) {
 		{"permission not granted", statement(func(s *engine.RunSpec, _ *attestation.Plan) {
 			s.Policy.AllowMutations = true
 		}), target.Endpoint, nil, "had --allow-mutations"},
+		{"fault not granted", statement(func(s *engine.RunSpec, _ *attestation.Plan) {
+			s.Egress.FaultUpstream = true
+		}), target.Endpoint, nil, "had --fault-upstream"},
 		{"permission not recorded", statement(nil), target.Endpoint, func() { reproPerm.AllowPrivateHosts = true },
 			"did not have --insecure-allow-private-hosts"},
 		{"credentials not supplied", statement(func(_ *engine.RunSpec, p *attestation.Plan) {
