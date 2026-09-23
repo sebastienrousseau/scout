@@ -7,6 +7,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hash/fnv"
+	"math/rand/v2"
 	"net/http"
 	"sort"
 	"strings"
@@ -94,12 +96,13 @@ func phasePerformance(ctx context.Context, s *Session) []Finding {
 	}
 
 	// repeat successful, allowed tools
-	var candidates []ToolResult
+	var succeeded []ToolResult
 	for _, r := range s.ToolResults {
 		if r.Executed && r.OK {
-			candidates = append(candidates, r)
+			succeeded = append(succeeded, r)
 		}
 	}
+	candidates := repeatCandidates(succeeded, s.Opts.Endpoint+"\x00"+s.command())
 	if len(candidates) == 0 {
 		out = append(out, s.check("performance.tools", "Tool latency profile").skip("no tool completed successfully in the execution phase"))
 	} else {
@@ -132,6 +135,11 @@ func phasePerformance(ctx context.Context, s *Session) []Finding {
 		}
 		c := s.check("performance.tools", "Tool latency profile")
 		summary := fmt.Sprintf("%d tools × %d samples: p50 %s p95 %s max %s", len(candidates), s.Opts.Samples, ms(allLat.Percentile(50)), ms(allLat.Percentile(95)), ms(allLat.Max()))
+		if len(candidates) < len(succeeded) {
+			summary = fmt.Sprintf("%d of %d tools (the %d slowest and %d chosen by a seed from the target) × %d samples: p50 %s p95 %s max %s",
+				len(candidates), len(succeeded), repeatSlowest, len(candidates)-repeatSlowest, s.Opts.Samples,
+				ms(allLat.Percentile(50)), ms(allLat.Percentile(95)), ms(allLat.Max()))
+		}
 		if len(slow) > 0 {
 			out = append(out, c.warn(summary+"; slow: "+strings.Join(slow, ", "), "p95 above 2s makes agents time out or retry; look at what those tools do on each call (indexing, unbounded scans) and cache or bound it"))
 		} else {
@@ -263,4 +271,57 @@ func callTool(ctx context.Context, s *Session, name string, args map[string]any)
 // errors.As already walks the chain, so there is nothing to unwrap by hand.
 func asHTTP(err error, target **transport.HTTPStatusError) bool {
 	return errors.As(err, target)
+}
+
+// The repeat pass is serial and throttled, so its cost grows with the
+// catalogue: fifty tools at five samples and two requests a second is a
+// two-minute floor before anything else runs. repeatSlowest and
+// repeatSampled bound it. The slowest are always kept, because they are
+// what the latency finding is about; the rest are a sample.
+const (
+	repeatSlowest = 5
+	repeatSampled = 5
+)
+
+// repeatCandidates picks the tools the performance phase repeats: all of
+// them when there are few, otherwise the slowest by their execution-phase
+// call and a sample of the rest.
+//
+// The sample is seeded from the target, not the clock, so two runs against
+// the same server repeat the same tools and their latency figures compare.
+// The picks come back in their original order.
+func repeatCandidates(all []ToolResult, seed string) []ToolResult {
+	if len(all) <= repeatSlowest+repeatSampled {
+		return all
+	}
+	idx := make([]int, len(all))
+	for i := range idx {
+		idx[i] = i
+	}
+	sort.SliceStable(idx, func(a, b int) bool {
+		if all[idx[a]].Duration != all[idx[b]].Duration {
+			return all[idx[a]].Duration > all[idx[b]].Duration
+		}
+		return all[idx[a]].Name < all[idx[b]].Name
+	})
+	keep := map[int]bool{}
+	for _, i := range idx[:repeatSlowest] {
+		keep[i] = true
+	}
+	rest := append([]int(nil), idx[repeatSlowest:]...)
+	sort.Slice(rest, func(a, b int) bool { return all[rest[a]].Name < all[rest[b]].Name })
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(seed))
+	rng := rand.New(rand.NewPCG(h.Sum64(), 0)) // #nosec G404 -- a sample, not a secret
+	rng.Shuffle(len(rest), func(a, b int) { rest[a], rest[b] = rest[b], rest[a] })
+	for _, i := range rest[:repeatSampled] {
+		keep[i] = true
+	}
+	out := make([]ToolResult, 0, len(keep))
+	for i, r := range all {
+		if keep[i] {
+			out = append(out, r)
+		}
+	}
+	return out
 }

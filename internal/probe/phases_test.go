@@ -5,6 +5,7 @@ package probe
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -705,5 +706,45 @@ func TestLocalEndpoint(t *testing.T) {
 		if got, ok := localEndpoint(ctx, host); ok {
 			t.Errorf("localEndpoint(%q) = %q, want public", host, got)
 		}
+	}
+}
+
+// TestTheRepeatPassIsBoundedAndRepeatable. The slowest tools are always
+// repeated, the sample is the same for the same target, and a small
+// catalogue is repeated in full.
+func TestTheRepeatPassIsBoundedAndRepeatable(t *testing.T) {
+	var all []ToolResult
+	for i := 0; i < 30; i++ {
+		all = append(all, ToolResult{Name: fmt.Sprintf("tool%02d", i), Duration: Millis(time.Duration(i) * time.Millisecond)})
+	}
+	got := repeatCandidates(all, "https://a.example/mcp")
+	if len(got) != repeatSlowest+repeatSampled {
+		t.Fatalf("repeated %d of 30", len(got))
+	}
+	names := map[string]bool{}
+	for _, r := range got {
+		names[r.Name] = true
+	}
+	for _, slowest := range []string{"tool29", "tool28", "tool27", "tool26", "tool25"} {
+		if !names[slowest] {
+			t.Errorf("slow tool %s was not repeated: %v", slowest, names)
+		}
+	}
+	again := repeatCandidates(all, "https://a.example/mcp")
+	for i := range got {
+		if got[i].Name != again[i].Name {
+			t.Fatalf("the same target sampled differently: %v vs %v", got, again)
+		}
+	}
+	if other := repeatCandidates(all, "https://b.example/mcp"); fmt.Sprint(other) == fmt.Sprint(got) {
+		t.Error("two targets drew the identical sample; the seed is not used")
+	}
+	for i := 1; i < len(got); i++ {
+		if got[i-1].Name > got[i].Name {
+			t.Errorf("picks are not in their original order: %v", got)
+		}
+	}
+	if small := repeatCandidates(all[:4], "x"); len(small) != 4 {
+		t.Errorf("a small catalogue was sampled: %d", len(small))
 	}
 }

@@ -503,6 +503,20 @@ project announces that a change felt big.
 
 ### Changed
 
+- **The performance phase repeats at most ten tools.** The repeat pass is
+  serial and throttled, so its cost grew with the catalogue: fifty tools
+  at five samples was a two-minute floor. It now repeats every tool up to
+  ten, and beyond that the five slowest plus five picked by a seed from
+  the target, so two runs against one server repeat the same tools and
+  their figures compare. The finding says when it sampled.
+
+  Two other performance ideas were measured and not built. A path that
+  skips the recorder would save nothing visible — within noise for a
+  200-byte answer, about 1.2 ms at 500 KB on loopback — and would leave
+  latency findings with no request to cite. A profile-guided build
+  changed no renderer beyond noise and raised Markdown allocations by
+  21%.
+
 - **A timed-out call no longer kills a stdio server.** This is a behaviour
   change from 0.0.2, where it did — the read happened inline under a lock,
   so killing the process was the only way to free a goroutine blocked on a

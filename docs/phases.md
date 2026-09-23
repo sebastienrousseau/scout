@@ -167,10 +167,18 @@ is not something a maintainer can act on and `…<U+202E>nothing…` is.
 | Finding | Checks |
 |---|---|
 | `performance.ping` | `--samples` pings: p50, p95, max |
-| `performance.tools` | every tool that succeeded, repeated `--samples` times; p95 above 2 s warns |
+| `performance.tools` | tools that succeeded, repeated `--samples` times — all of them up to ten, otherwise the five slowest plus five picked by a seed from the target, so two runs repeat the same tools; p95 above 2 s warns |
 | `performance.warmup` | a first call far slower than the median |
 | `performance.concurrency` | `--concurrency` workers × `--samples` calls on the fastest tool; errors fail, 429 without `Retry-After` warns |
 | `performance.throttle`, `performance.rate_limit` | whether the burst was throttled by scout, and with `--allow-load`, whether the server rate-limited it |
+
+Every timed call passes through scout's recorder, because a finding has to
+cite the request it came from. Its cost was measured on loopback, where it is
+not hidden by the network: indistinguishable from noise for a 200-byte
+answer, about 0.1 ms at 20 KB, and about 1.2 ms at 500 KB. Against a real
+server, whose round trip is tens of milliseconds, that is inside the
+spread of the samples. scout keeps the recorder on rather than publish
+latency figures it cannot cite.
 
 ## resilience: Session and token recovery
 
