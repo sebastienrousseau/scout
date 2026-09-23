@@ -40,21 +40,31 @@ func main() {
 	// nobody, and guaranteed to fail the grammar. This gate failed its own
 	// first CI run on exactly that. A merge commit's message is not a
 	// contributor's to write, so it is not a contributor's to be judged on.
-	out, err := exec.Command("git", "log", "--no-merges", "--format=%H%n%B%x00", rng).Output() //nolint:gosec // the range is an operator argument
+	//
+	// The author's address rides on the first line, after the hash, so a
+	// bot's commit can be recognised by who wrote it rather than by what
+	// its message happens to look like.
+	out, err := exec.Command("git", "log", "--no-merges", "--format=%H %ae%n%B%x00", rng).Output() //nolint:gosec // the range is an operator argument
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "commitlint: reading %s: %v\n", rng, err)
 		os.Exit(1)
 	}
 
-	problems, commits := 0, 0
+	problems, commits, generated := 0, 0, 0
 	for _, raw := range strings.Split(string(out), "\x00") {
 		msg := strings.TrimLeft(raw, "\n")
 		if strings.TrimSpace(msg) == "" {
 			continue
 		}
 		lines := strings.Split(msg, "\n")
-		sha, rest := lines[0], lines[1:]
+		sha, author, _ := strings.Cut(lines[0], " ")
+		rest := lines[1:]
 		if len(rest) == 0 {
+			continue
+		}
+		if commitlint.Generated(author) {
+			generated++
+			fmt.Fprintf(os.Stderr, "commitlint: %.8s: written by %s, not judged\n", sha, author)
 			continue
 		}
 		commits++
@@ -68,6 +78,12 @@ func main() {
 		}
 	}
 
+	if commits == 0 && generated > 0 {
+		// Every commit was a bot's, which is a range that was looked at
+		// and had nothing a contributor wrote in it.
+		fmt.Printf("commitlint: %d commit(s) in %s, all written by a bot; nothing to judge\n", generated, rng)
+		return
+	}
 	if commits == 0 {
 		// Not a pass. An empty range means the caller asked the wrong
 		// question, and reporting success would hide that.
