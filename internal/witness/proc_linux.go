@@ -66,7 +66,7 @@ func Take(pgid int) (Snapshot, error) {
 		// by inode.
 		if len(s.Conns) == 0 {
 			for _, t := range []string{"tcp", "tcp6", "udp", "udp6"} {
-				b, err := os.ReadFile(filepath.Join(procRoot, e.Name(), "net", t))
+				b, err := os.ReadFile(filepath.Join(procRoot, e.Name(), "net", t)) // #nosec G304 -- /proc/<pid>/net/{tcp,udp}[6]: a fixed table name under a pid scout listed
 				if err != nil {
 					continue
 				}

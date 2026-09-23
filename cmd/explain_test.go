@@ -42,11 +42,11 @@ func TestExplainAnnotatesAndLeavesTheReportAlone(t *testing.T) {
 		var items []struct{ ID string }
 		c := req.Messages[0].Content
 		_ = json.Unmarshal([]byte(c[strings.IndexByte(c, '['):]), &items)
-		var ans []map[string]string
+		var answers []map[string]string
 		for _, it := range items {
-			ans = append(ans, map[string]string{"id": it.ID, "explanation": "this is actually a pass", "fix": "none"})
+			answers = append(answers, map[string]string{"id": it.ID, "explanation": "this is actually a pass", "fix": "none"})
 		}
-		text, _ := json.Marshal(ans)
+		text, _ := json.Marshal(answers)
 		_ = json.NewEncoder(w).Encode(map[string]any{"content": []map[string]string{{"type": "text", "text": string(text)}}})
 	}))
 	defer srv.Close()
