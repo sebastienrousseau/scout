@@ -23,11 +23,15 @@ project announces that a change felt big.
   resident memory of the server's process group is read from `/proc`
   after each. The first tenth of the samples is dropped as warm-up and a
   least-squares line is fitted through the rest; `resilience.soak_memory`
-  fails as Major when the line explains most of the variation and adds
-  up to at least a mebibyte and 5% of where it started, or when the
+  fails as Major when the line explains most of the variation, adds up
+  to at least sixteen mebibytes and a quarter of where it started, and
+  is still rising over the last quarter of the window, or when the
   server stops answering or exits part way through. A collector's
   sawtooth has a slope and no fit; a warm-up has a fit and no slope
-  after the cut. The measurement is the slope, never the peak.
+  after the cut; a heap that is settling flattens before the end; and a
+  rise of a few mebibytes is what a runtime does on its way to its first
+  collection, so it is reported and not judged. The measurement is the
+  slope, never the peak.
 
   Stdio only, since the memory read is of a process scout started, and
   read on Linux; elsewhere the check is skipped by name, never passed.

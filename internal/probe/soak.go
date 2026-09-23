@@ -44,10 +44,20 @@ const (
 	// slope; it does not have a fit.
 	soakMinR2 = 0.6
 	// soakMinGrowth and soakMinShare set the floor under what counts:
-	// at least a mebibyte, and at least this share of where it started,
-	// so a small server and a large one are judged by the same rule.
-	soakMinGrowth = 1 << 20
-	soakMinShare  = 0.05
+	// at least sixteen mebibytes, and at least this share of where it
+	// started, so a small server and a large one are judged by the same
+	// rule. The floor is high on purpose. A runtime growing its heap
+	// towards its first collection rises in a straight line for as long
+	// as the window is shorter than one collection cycle, and a Go
+	// process's first cycle is several mebibytes of garbage; a rise that
+	// small cannot be told from that ramp by its shape, so it is not
+	// called a leak. The numbers are still in the finding.
+	soakMinGrowth = 16 << 20
+	soakMinShare  = 0.25
+	// soakTailShare is how much of the whole line's slope the last quarter
+	// of the window has to keep. A leak is a line; a heap that is
+	// settling is a curve that flattens, and its last quarter says so.
+	soakTailShare = 0.5
 )
 
 // trend is a least-squares line through resident memory against call
@@ -56,8 +66,10 @@ type trend struct {
 	// Start and End are the first and last samples of the fitted window;
 	// Peak is the highest sample anywhere.
 	Start, End, Peak int64
-	// Slope is in bytes per call.
-	Slope float64
+	// Slope is in bytes per call. Tail is the same over the last quarter
+	// of the window, which says whether the rise was still going on at
+	// the end or had flattened.
+	Slope, Tail float64
 	// R2 is how much of the variation the line explains, 0 to 1.
 	R2 float64
 	// Window is how many samples the line was fitted through; Calls is
@@ -85,36 +97,51 @@ func fitTrend(samples []int64) trend {
 	if len(window) < 2 {
 		return t
 	}
-	n := float64(len(window))
+	t.Slope, t.R2 = fitLine(window)
+	if tail := window[len(window)*3/4:]; len(tail) >= 2 {
+		t.Tail, _ = fitLine(tail)
+	}
+	return t
+}
+
+// fitLine is the least-squares slope and r² of samples against their
+// index. Two or more samples.
+func fitLine(samples []int64) (slope, r2 float64) {
+	n := float64(len(samples))
 	xBar := (n - 1) / 2
 	var yBar float64
-	for _, v := range window {
+	for _, v := range samples {
 		yBar += float64(v)
 	}
 	yBar /= n
 	var sxy, sxx, syy float64
-	for i, v := range window {
+	for i, v := range samples {
 		dx, dy := float64(i)-xBar, float64(v)-yBar
 		sxy += dx * dy
 		sxx += dx * dx
 		syy += dy * dy
 	}
-	t.Slope = sxy / sxx
+	slope = sxy / sxx
 	if syy > 0 {
-		t.R2 = sxy * sxy / (sxx * syy)
+		r2 = sxy * sxy / (sxx * syy)
 	}
-	return t
+	return slope, r2
 }
 
 // Growth is what the line says was added over the window.
 func (t trend) Growth() float64 { return t.Slope * float64(t.Window-1) }
 
-// Rising reports whether the line is a leak rather than noise.
+// Rising reports whether the line is a leak rather than noise or a heap
+// settling: it has to fit, it has to add up to something, and it has to
+// still be rising at the end.
 func (t trend) Rising() bool {
 	if t.Window < 2 || t.Slope <= 0 || t.R2 < soakMinR2 {
 		return false
 	}
-	return t.Growth() >= math.Max(soakMinGrowth, soakMinShare*float64(t.Start))
+	if t.Growth() < math.Max(soakMinGrowth, soakMinShare*float64(t.Start)) {
+		return false
+	}
+	return t.Tail >= soakTailShare*t.Slope
 }
 
 // soakCandidate picks the tool to repeat: the fastest that succeeded, so a
@@ -209,8 +236,8 @@ func checkSoak(ctx context.Context, s *Session) []Finding {
 	}
 
 	t := fitTrend(samples)
-	detail := fmt.Sprintf("%s → %s over %s to %s (peak %s); %s per call after a %d-call warm-up, r² %.2f",
-		mib(t.Start), mib(t.End), plural(len(samples)-1, "call"), tool.Name, mib(t.Peak), kibPerCall(t.Slope), len(samples)-t.Window, t.R2)
+	detail := fmt.Sprintf("%s → %s over %s to %s (peak %s); %s per call after a %d-call warm-up, r² %.2f, %s per call over the last quarter",
+		mib(t.Start), mib(t.End), plural(len(samples)-1, "call"), tool.Name, mib(t.Peak), kibPerCall(t.Slope), len(samples)-t.Window, t.R2, kibPerCall(t.Tail))
 	if toolErrs > 0 {
 		detail += fmt.Sprintf("; %s answered isError", plural(toolErrs, "call"))
 	}

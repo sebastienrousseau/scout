@@ -34,16 +34,23 @@ func TestTrendTellsALeakFromASawtoothAndAWarmUp(t *testing.T) {
 		slopeLo float64
 	}{
 		{"flat", series(200, func(int) int64 { return 40 * mib }), false, 0},
-		{"leak", series(200, func(i int) int64 { return 40*mib + int64(i)*64*1024 }), true, 60 * 1024},
+		{"leak", series(200, func(i int) int64 { return 40*mib + int64(i)*128*1024 }), true, 120 * 1024},
+		// A leak, seen over a window that catches more of it: the same
+		// per-call rate as a settling heap, but it never stops.
+		{"slow leak, long run", series(1000, func(i int) int64 { return 40*mib + int64(i)*20*1024 }), true, 19 * 1024},
 		// Grows for the first fifteen calls and holds: the warm-up is not
 		// a leak.
 		{"warm-up then flat", series(200, func(i int) int64 { return 40*mib + int64(min(i, 15))*mib }), false, 0},
 		// A collector's sawtooth: up two MiB a call, back to the floor
 		// every ten. The slope is nearly nothing and the fit is poor.
 		{"sawtooth", series(200, func(i int) int64 { return 40*mib + int64(i%10)*2*mib }), false, 0},
-		// A rise a small server would notice and a large one would not:
-		// 512 KiB over the run is under the mebibyte floor.
-		{"too small to matter", series(200, func(i int) int64 { return 40*mib + int64(i)*2600 }), false, 0},
+		// A Go process growing its heap towards its first collection: a
+		// straight line, two mebibytes over the run, exactly what the
+		// clean fixture did on a CI runner. Under the floor, not a leak.
+		{"first-cycle ramp", series(200, func(i int) int64 { return 11*mib + int64(i)*11*1024 }), false, 10 * 1024},
+		// Growth that decelerates: above the floor over the window, but the
+		// last quarter has flattened, which a leak never does.
+		{"settling heap", series(400, func(i int) int64 { return 40*mib + int64(float64(30*mib)*(1-math.Pow(0.985, float64(i)))) }), false, 0},
 		{"falling", series(200, func(i int) int64 { return 80*mib - int64(i)*64*1024 }), false, -math.MaxFloat64},
 		{"one sample", []int64{40 * mib}, false, 0},
 		{"none", nil, false, 0},
@@ -63,7 +70,7 @@ func TestTrendTellsALeakFromASawtoothAndAWarmUp(t *testing.T) {
 		})
 	}
 	tr := fitTrend(series(200, func(i int) int64 { return int64(i) * 1000 }))
-	if tr.Window != 180 || tr.R2 < 0.999 || tr.Start != 20000 || tr.End != 199000 || tr.Peak != 199000 {
+	if tr.Window != 180 || tr.R2 < 0.999 || tr.Start != 20000 || tr.End != 199000 || tr.Peak != 199000 || math.Abs(tr.Tail-tr.Slope) > 1 {
 		t.Errorf("a straight line after a 20-sample warm-up: %+v", tr)
 	}
 }

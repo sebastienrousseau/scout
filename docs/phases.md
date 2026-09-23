@@ -226,10 +226,15 @@ least-squares line is fitted through the rest.
 
 | Finding | Checks |
 |---|---|
-| `resilience.soak_memory` | the line through resident memory against call number is not a leak: it explains less than 60% of the variation, or adds up to less than a mebibyte and less than 5% of where the window started. A line that does both fails as major, as does a server that stops answering or exits part way through |
+| `resilience.soak_memory` | the line through resident memory against call number is not a leak: it explains less than 60% of the variation, or adds up to less than sixteen mebibytes and less than a quarter of where the window started, or has flattened over the last quarter of the window. A line that fits, adds up and is still rising fails as major, as does a server that stops answering or exits part way through |
 
 The measurement is the slope, not the peak: a collector's sawtooth has a
-slope and no fit, and a warm-up has a fit and no slope after the cut. It
+slope and no fit, a warm-up has a fit and no slope after the cut, and a
+heap that is settling flattens before the end. The floor is high on
+purpose: a runtime growing its heap towards its first collection rises in
+a straight line for as long as the window is shorter than one collection
+cycle, and a rise of a few mebibytes cannot be told from that ramp by its
+shape. The numbers are in the finding either way. It
 needs at least 100 calls, a program to run (the memory read is of a process
 scout started, so `--soak` without `--stdio` is refused), and Linux to read
 it on; elsewhere it is skipped by name. At the default pacing a thousand

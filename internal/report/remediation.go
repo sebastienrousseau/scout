@@ -1391,9 +1391,9 @@ var remediations = map[string]Remediation{
 		Means: "With --soak, one tool that had succeeded was called again " +
 			"hundreds of times and the server's resident memory was read from " +
 			"/proc after each. Fitted through the samples after a warm-up, the " +
-			"line rose steadily and by more than the run started with could " +
-			"explain away — or the server stopped answering, or exited, part " +
-			"way through. A host keeps one process for the whole session, so " +
+			"line rose steadily, by at least sixteen mebibytes and a quarter of " +
+			"where it started, and was still rising at the end — or the server " +
+			"stopped answering, or exited, part way through. A host keeps one process for the whole session, so " +
 			"memory that only grows is a server that only runs for so long.",
 		Steps: []Step{
 			{"Find what a call allocates and never frees",
