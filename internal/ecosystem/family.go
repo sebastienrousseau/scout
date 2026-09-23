@@ -128,13 +128,18 @@ var Family = []Repo{
 	},
 	{
 		Name:     "scout-reporting",
-		Status:   Planned,
-		Role:     "The report schema, the renderers, the attestation predicate and its offline verifier, plus the rubric as versioned data.",
+		Status:   Shipping,
+		Role:     "The attestation predicate, its JSON Schema and the offline verifier, as a module with no dependencies; the report schema, the renderers and the rubric as data follow when a consumer needs them.",
 		Language: "go",
 		Licence:  "Apache-2.0",
-		Boundary: "Licence. A GPL-3.0 library cannot be embedded by the gateways and registries the strategy depends on, so the format and the renderers have to live where they can be imported.",
+		Boundary: "Licence and dependency graph. A GPL-3.0 library cannot be embedded by the gateways and registries the strategy depends on, and a package inside scout's module drags scout's dependencies into any importer's go.sum, so the format and the verifier have to live where they can be imported clean.",
 		Lockstep: true,
-		Kill:     "No third party has adopted the predicate twelve months after v1. Fold it back into scout and stop paying the two-repository cost.",
+		Artefacts: []Artefact{
+			Readme, Changelog, Licence, Licences, Reuse, Development, Security, Support,
+			Governance, Conduct, Contributing, Agents, Citation, Makefile,
+			Docs, ADRs, Examples, Scripts, EditorConfig, PreCommit, Workflows,
+		},
+		Kill: "No third party has adopted the predicate twelve months after v1. Fold it back into scout and stop paying the two-repository cost.",
 	},
 	{
 		Name:     "scout-mcp",
@@ -148,13 +153,18 @@ var Family = []Repo{
 	},
 	{
 		Name:     "scout-action",
-		Status:   Planned,
+		Status:   Shipping,
 		Role:     "The GitHub Action wrapping the published image by digest, and a GitLab CI template.",
 		Language: "composite",
 		Licence:  "Apache-2.0",
 		Boundary: "The Marketplace requires its own repository. It is also the cheapest verifiable traction signal, because GitHub publishes the usage count.",
 		Lockstep: true,
-		Kill:     "None. It is the lowest-cost, highest-signal artefact in the family.",
+		Artefacts: []Artefact{
+			Readme, Changelog, Licence, Licences, Reuse, Development, Security, Support,
+			Governance, Conduct, Contributing, Agents, Citation, Makefile,
+			Docs, ADRs, Examples, Scripts, EditorConfig, PreCommit, Workflows,
+		},
+		Kill: "None. It is the lowest-cost, highest-signal artefact in the family.",
 	},
 	{
 		Name:     "scout-lsp",

@@ -369,9 +369,9 @@ with the manifest — `make ecosystem-verify` fails the build when it does.
 | Repository | Status | Licence | What it owns |
 |---|---|---|---|
 | **`scout`** | shipping | GPL-3.0-only | The engine, every check, and the three peer surfaces: CLI, TUI and the embedded local web UI. |
-| `scout-reporting` | planned | Apache-2.0 | The report schema, the renderers, the attestation predicate and its offline verifier, plus the rubric as versioned data. |
+| `scout-reporting` | shipping | Apache-2.0 | The attestation predicate, its JSON Schema and the offline verifier, as a module with no dependencies; the report schema, the renderers and the rubric as data follow when a consumer needs them. |
 | `scout-mcp` | planned | GPL-3.0-only | An MCP server exposing scout's diagnostics as tools, so an agent can evaluate a server from inside the editor. |
-| `scout-action` | planned | Apache-2.0 | The GitHub Action wrapping the published image by digest, and a GitLab CI template. |
+| `scout-action` | shipping | Apache-2.0 | The GitHub Action wrapping the published image by digest, and a GitLab CI template. |
 | `scout-lsp` | planned | Apache-2.0 | A language server over MCP artefacts — server.json, tool schemas, client configuration, scout policy and attestation files — with check-id hover from the guidance catalogue. |
 | `scout-census` | planned | CC-BY-4.0 | The published reliability census: the dataset, the methodology, the disclosure log and the reproduction command. |
 <!-- END generated readme family table -->
@@ -1220,9 +1220,11 @@ never on stdout, which carries the selected output format.
 
 Licensed under the **[GNU General Public License v3.0](LICENSE)**.
 
-The attestation format in [`spec/`](spec/) — the predicate's JSON Schema
-and the scoring rubric — is licensed **Apache-2.0**, so a gateway, registry
+The attestation format is licensed **Apache-2.0**, so a gateway, registry
 or CI system can implement it without taking on the engine's licence
-([ADR 0011](docs/adr/0011-attestation-format-is-apache.md)).
+([ADR 0011](docs/adr/0011-attestation-format-is-apache.md)): the statement
+types, the offline verifier and the predicate's JSON Schema live in
+[scout-reporting](https://github.com/sebastienrousseau/scout-reporting),
+and the scoring rubric in [`spec/`](spec/) here.
 
 <p align="right"><a href="#scout">Back to Top</a></p>
