@@ -114,7 +114,7 @@ func phaseExecution(ctx context.Context, s *Session) []Finding {
 			// — the same mistake the ping check made once.
 			needsInput++
 			tr.NeedsInput = requestedMethods(ir)
-			s.MRTR = append(s.MRTR, MRTRObservation{Method: "tools/call " + t.Name, Requests: ir.Result.InputRequests})
+			s.MRTR = append(s.MRTR, observe("tools/call "+t.Name, ir))
 		case err != nil:
 			protoErr++
 			tr.ProtoError = err.Error()

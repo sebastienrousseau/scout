@@ -783,30 +783,33 @@ var remediations = map[string]Remediation{
 		Means: "The 2026-07-28 revision removed server-initiated sampling, " +
 			"elicitation and roots, and replaced them with Multi Round-Trip " +
 			"Requests: when a server needs something from the client mid-call " +
-			"it answers `resultType: input_required` with a list of client-side " +
-			"methods to invoke, and the client retries the original call with " +
-			"the answers attached.\n\n" +
+			"it answers `resultType: input_required` with an `inputRequests` " +
+			"object — keyed by request id — of client-side methods to invoke, " +
+			"and/or an opaque `requestState`, and the client retries the " +
+			"original call with the answers attached.\n\n" +
 			"That only works if the request can be answered. An `input_required` " +
-			"naming nothing, or naming a method with no correlation id, leaves " +
-			"the client with no retry it can construct — and the failure that " +
-			"follows is the worst kind: the call does not return an error, it " +
-			"simply never completes. The agent waits, and nothing is reported " +
-			"to anyone.\n\n" +
-			"scout does not answer one. It has no user to elicit from and no " +
-			"model to sample, so it reports what was asked for rather than " +
-			"inventing a conversation. That also means this check is " +
-			"observational: it judges the requests a run happened to receive, " +
-			"and skips when none arrived.",
+			"naming nothing and carrying no state, sent in a shape the client " +
+			"does not read, or asking for something the client said it cannot " +
+			"do, leaves no retry the client can construct — and the call does " +
+			"not return an error, it simply never completes.\n\n" +
+			"scout declares no client capabilities, so a conformant server can " +
+			"only ever send it a retry carrying `requestState`. It does not " +
+			"answer requests either way: it has no user to elicit from and no " +
+			"model to sample. This check judges the results a run happened to " +
+			"receive, and skips when none arrived.",
 		Steps: []Step{
-			{"Name every request in inputRequests",
-				"An empty list says \"I need something\" and not what. There is no " +
-					"correct retry for it, so the client either waits forever or " +
-					"guesses."},
-			{"Give each request an id and a method",
-				"The id is how the client says which answer belongs to which " +
-					"request when it retries. A call needing two answers has no " +
-					"correct retry without them, and a call needing one works only " +
-					"by accident."},
+			{"Send inputRequests as an object keyed by request id",
+				"The key is how the client says which answer belongs to which " +
+					"request when it retries. An array is not a shape any revision " +
+					"defines, so a client following the specification finds nothing " +
+					"to answer."},
+			{"Ask only for what the client declared",
+				"Read the client capabilities on the request. Ask for " +
+					"elicitation/create, sampling/createMessage or roots/list only " +
+					"when the matching capability is declared, and for nothing else."},
+			{"Carry at least one of inputRequests or requestState",
+				"An empty result says \"I need something\" and not what; there is " +
+					"no correct retry for it."},
 			{"Do not ask on a liveness call",
 				"`ping` exists to be answerable with nothing and nobody present. A " +
 					"version of it that needs a user turns every liveness probe into " +

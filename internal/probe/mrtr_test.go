@@ -61,22 +61,38 @@ func sessionOf(t *testing.T, f *fakeServer) *Session {
 }
 
 func TestMRTRJudgesTheRequests(t *testing.T) {
-	t.Run("answerable", func(t *testing.T) {
+	mrtr := func(t *testing.T, set func(*quirks)) Finding {
+		t.Helper()
 		f := newFakeServer(t)
-		f.q.inputRequired = true
+		set(&f.q)
 		_, fs := run(t, f, ccCreds(), nil)
 		m, ok := fs["protocol.mrtr"]
 		if !ok {
 			t.Fatal("protocol.mrtr is missing")
 		}
-		if m.Status != Pass {
-			t.Fatalf("status = %s: %s", m.Status, m.Detail)
-		}
-		if !strings.Contains(m.Detail, "elicitation/create") {
-			t.Errorf("the detail does not say what was asked for: %s", m.Detail)
+		return m
+	}
+
+	// scout declares no client capabilities, so a server that asks it to
+	// elicit is asking a client that told it it cannot. The specification
+	// forbids that; the call cannot finish.
+	t.Run("a request the client did not declare", func(t *testing.T) {
+		m := mrtr(t, func(q *quirks) { q.inputRequired = true })
+		if m.Status != Fail || m.Severity != Major || !strings.Contains(m.Detail, "did not declare support for") ||
+			!strings.Contains(m.Detail, "elicitation/create") {
+			t.Fatalf("got %s %s: %s", m.Status, m.Severity, m.Detail)
 		}
 		if len(m.Evidence) == 0 {
 			t.Error("no evidence naming the interrupted call")
+		}
+	})
+
+	// A retry carrying only requestState is allowed, and is the one shape a
+	// conformant server can send a client that declared nothing.
+	t.Run("requestState only", func(t *testing.T) {
+		m := mrtr(t, func(q *quirks) { q.mrtrStateOnly = true })
+		if m.Status != Pass || !strings.Contains(m.Detail, "requestState only") {
+			t.Fatalf("got %s: %s", m.Status, m.Detail)
 		}
 	})
 
@@ -84,13 +100,7 @@ func TestMRTRJudgesTheRequests(t *testing.T) {
 	// needs something and names nothing, so no retry can be constructed. The
 	// agent waits forever and reports nothing, which is worse than an error.
 	t.Run("input required and nothing named", func(t *testing.T) {
-		f := newFakeServer(t)
-		f.q.mrtrEmpty = true
-		_, fs := run(t, f, ccCreds(), nil)
-		m, ok := fs["protocol.mrtr"]
-		if !ok {
-			t.Fatal("protocol.mrtr is missing")
-		}
+		m := mrtr(t, func(q *quirks) { q.mrtrEmpty = true })
 		if m.Status != Fail || m.Severity != Critical {
 			t.Fatalf("status = %s %s: %s", m.Status, m.Severity, m.Detail)
 		}
@@ -102,24 +112,20 @@ func TestMRTRJudgesTheRequests(t *testing.T) {
 		}
 	})
 
-	// Without an id a client cannot correlate its answers, so a call needing
-	// two requests has no correct retry and one needing a single request is a
-	// guess that happens to work.
-	t.Run("a request with no id", func(t *testing.T) {
-		f := newFakeServer(t)
-		f.q.mrtrNoID = true
-		_, fs := run(t, f, ccCreds(), nil)
-		m, ok := fs["protocol.mrtr"]
-		if !ok {
-			t.Fatal("protocol.mrtr is missing")
+	// The array form no revision defines. Before scout decoded the object
+	// form this was the only shape it could read, so correct servers were
+	// misread and this one passed.
+	t.Run("the array form", func(t *testing.T) {
+		m := mrtr(t, func(q *quirks) { q.mrtrNoID = true })
+		if m.Status != Fail || m.Severity != Major || !strings.Contains(m.Detail, "sent as a list") {
+			t.Fatalf("got %s %s: %s", m.Status, m.Severity, m.Detail)
 		}
-		if m.Status != Fail || m.Severity != Major {
-			t.Fatalf("status = %s %s: %s", m.Status, m.Severity, m.Detail)
-		}
-		for _, want := range []string{"elicitation/create with no id", "cannot be answered"} {
-			if !strings.Contains(m.Detail, want) {
-				t.Errorf("detail %q does not contain %q", m.Detail, want)
-			}
+	})
+
+	t.Run("a method a server may not send", func(t *testing.T) {
+		m := mrtr(t, func(q *quirks) { q.mrtrUnknownMethod = true })
+		if m.Status != Fail || !strings.Contains(m.Detail, "not a request a server may send") {
+			t.Fatalf("got %s: %s", m.Status, m.Detail)
 		}
 	})
 

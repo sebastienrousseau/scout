@@ -180,7 +180,7 @@ func (s *Server) handle(m Misbehaviour, w http.ResponseWriter, r *http.Request) 
 	case InputRequiredLoop:
 		// Never satisfied: every answer produces the same demand again.
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%s,"result":{"resultType":"input_required","inputRequests":[{"id":"r1","method":"elicitation/create","params":{"message":"again"}}]}}`, id)
+		_, _ = fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%s,"result":{"resultType":"input_required","inputRequests":{"r1":{"method":"elicitation/create","params":{"message":"again"}}}}}`, id)
 		return
 	case VersionPingPong:
 		// Advertises a version it then refuses, so a client that retries on

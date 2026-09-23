@@ -86,6 +86,11 @@ type quirks struct {
 	// mrtrNoID omits the correlation id, so a client cannot say which
 	// answer belongs to which request.
 	mrtrNoID bool
+	// mrtrStateOnly asks for a retry carrying requestState and names no
+	// request, which the specification allows.
+	mrtrStateOnly bool
+	// mrtrUnknownMethod asks for a method a server may not send mid-call.
+	mrtrUnknownMethod bool
 	// pingNeedsInput answers the liveness call with input_required, which is
 	// a different kind of wrong from a tool doing it: the whole purpose of a
 	// liveness call is to be answerable with nobody present.
@@ -366,8 +371,8 @@ func (f *fakeServer) handle(w http.ResponseWriter, r *http.Request) {
 		if f.q.pingNeedsInput {
 			// A liveness call with a conversation attached to it, which is
 			// the one request that cannot have one.
-			reply(map[string]any{"resultType": "input_required", "inputRequests": []map[string]any{
-				{"id": "q1", "method": "elicitation/create", "params": map[string]any{"message": "are you there?"}},
+			reply(map[string]any{"resultType": "input_required", "inputRequests": map[string]any{
+				"q1": map[string]any{"method": "elicitation/create", "params": map[string]any{"message": "are you there?"}},
 			}})
 			return
 		}
@@ -433,16 +438,25 @@ func (f *fakeServer) handle(w http.ResponseWriter, r *http.Request) {
 		}
 		switch {
 		case f.q.mrtrEmpty:
-			reply(map[string]any{"resultType": "input_required", "inputRequests": []map[string]any{}})
+			reply(map[string]any{"resultType": "input_required", "inputRequests": map[string]any{}})
 			return
 		case f.q.mrtrNoID:
+			// The array form no revision defines, with the id missing too.
 			reply(map[string]any{"resultType": "input_required", "inputRequests": []map[string]any{
 				{"method": "elicitation/create", "params": map[string]any{"message": "which account?"}},
 			}})
 			return
+		case f.q.mrtrStateOnly:
+			reply(map[string]any{"resultType": "input_required", "requestState": "opaque-state"})
+			return
+		case f.q.mrtrUnknownMethod:
+			reply(map[string]any{"resultType": "input_required", "inputRequests": map[string]any{
+				"q1": map[string]any{"method": "tools/call", "params": map[string]any{"name": "x"}},
+			}})
+			return
 		case f.q.inputRequired:
-			reply(map[string]any{"resultType": "input_required", "inputRequests": []map[string]any{
-				{"id": "q1", "method": "elicitation/create", "params": map[string]any{"message": "which account?"}},
+			reply(map[string]any{"resultType": "input_required", "inputRequests": map[string]any{
+				"q1": map[string]any{"method": "elicitation/create", "params": map[string]any{"message": "which account?"}},
 			}})
 			return
 		}

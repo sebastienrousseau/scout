@@ -587,6 +587,20 @@ project announces that a change felt big.
 
 ### Fixed
 
+- **`inputRequests` was read in a shape the specification does not
+  define.** On the 2026-07-28 revision a server that needs client input
+  answers with `inputRequests` as an object keyed by request id, and/or a
+  `requestState`. scout decoded a list, so a correct server's
+  `input_required` failed to decode and was misread as an ordinary
+  result, while a server sending the non-standard list passed. The
+  transport now reads the object form (`InputRequiredResult` gains
+  `RequestState` and `ListForm`) and `protocol.mrtr` judges by the
+  specification's rules: a list fails; so does asking for elicitation,
+  sampling or roots from a client that did not declare them — which,
+  since scout declares none, means any such request — and any other
+  method; a retry carrying only `requestState` passes. The test fakes
+  and the hostile harness had the same misreading.
+
 - **`resilience.stateless` compared list sizes, not lists.** It asks for
   `tools/list` on two independent connections and passed whenever both
   returned the same number of tools, so two different catalogues of the

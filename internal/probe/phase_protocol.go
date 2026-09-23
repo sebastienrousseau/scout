@@ -141,7 +141,7 @@ func phaseProtocol(ctx context.Context, s *Session) []Finding {
 		// call is the one request that cannot have a conversation attached
 		// to it, because its whole purpose is to be answerable with no state
 		// and no user present.
-		s.MRTR = append(s.MRTR, MRTRObservation{Method: live, Requests: ir.Result.InputRequests})
+		s.MRTR = append(s.MRTR, observe(live, ir))
 		out = append(out, c.fail(Major,
 			fmt.Sprintf("%s answered input_required, asking for %s", live, list(requestedMethods(ir))),
 			"answer "+live+" without requiring anything from the client. It is what a client calls to find out whether the server is alive, so a version of it that needs a user present cannot be used for that — every liveness probe becomes a conversation nobody is there to have"))
