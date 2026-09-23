@@ -211,6 +211,35 @@ report cannot be read — including one with no catalogue, which would
 otherwise compare as clean. The comparison is lexical and structural, and
 does not claim to judge meaning.
 
+## Explanations
+
+```sh
+scout explain report.json > explanations.md
+scout explain report.json --model claude-sonnet-5 > explanations.md
+```
+
+`scout explain` writes a separate document about a saved JSON report: its
+failures and warnings, most severe first, each with scout's own guidance
+for the check. It only reads the report, and every status, severity and
+check id in the document is copied from it.
+
+By default nothing leaves the machine. With `--model` and an Anthropic API
+key in `ANTHROPIC_API_KEY` (or the variable `--api-key-env` names), the
+findings are sent to that model and its answer is printed beside the
+guidance, attributed to it by name. The destination is announced on stderr
+first. What is sent is each finding's id, title, status, severity and
+detail, and scout's guidance text; the evidence, the telemetry, the
+authentication summary and the rest of the report are not. A key already
+in the environment is not a request to send: only `--model` is
+([ADR 0006](adr/0006-no-client-telemetry.md)).
+
+The answer annotates and never adjudicates. It cannot pass a failure, add
+a finding or change a severity, and a finding's detail is quoted to the
+model as data from an untrusted server. At most 40 findings go in one
+request; the rest are counted in the document. `--api-url` sends to a proxy
+or gateway instead, over TLS or to this machine, and `--output json` gives
+the same document as data.
+
 ## Bills of materials
 
 An attestation says how the server behaved. A bill of materials says what it

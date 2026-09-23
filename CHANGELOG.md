@@ -130,6 +130,22 @@ project announces that a change felt big.
   mutating tool twice to test this, because the effect of a call is not
   something it can observe from outside.
 
+- **`scout explain` writes explanations beside a saved report.** It lists
+  the report's failures and warnings, most severe first, with scout's own
+  guidance for each, and never writes to the report. With `--model` and an
+  Anthropic API key it also asks that model to explain each finding, and
+  prints the answer beside the guidance, attributed to it. The model
+  cannot change a status, a severity or a check id; those are copied from
+  the report. Only the findings and scout's guidance are sent, the
+  destination is announced first, and a key already in the environment
+  sends nothing without `--model`. ADR 0006 is amended to list the new
+  destination. No dependency: the Messages API call is the standard
+  library.
+
+  ```sh
+  scout explain report.json --model claude-sonnet-5 > explanations.md
+  ```
+
 - **`scout verify --reproduce` repeats the recorded run.** A statement
   from `scout check` now carries its plan: the run specification with
   every secret value removed, the credential mode, the names of anything
