@@ -305,7 +305,11 @@ jobs:
             exit 1
           fi
           # The multi-arch manifest digest of the image this release pushed.
-          token=$(curl -fsSL "https://ghcr.io/token?scope=repository:sebastienrousseau/scout:pull" | python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])')
+          # Fetched to a file and parsed from it: a download piped into an
+          # interpreter is what Scorecard's Pinned-Dependencies check reads
+          # as download-then-run, whatever the bytes are.
+          curl -fsSL "https://ghcr.io/token?scope=repository:sebastienrousseau/scout:pull" -o "${RUNNER_TEMP}/ghcr-token.json"
+          token=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["token"])' "${RUNNER_TEMP}/ghcr-token.json")
           digest=$(curl -fsSI -H "Authorization: Bearer ${token}" \
             -H "Accept: application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json" \
             "https://ghcr.io/v2/sebastienrousseau/scout/manifests/${VERSION#v}" \
