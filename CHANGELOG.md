@@ -48,6 +48,13 @@ project announces that a change felt big.
   falls back to the module version the Go toolchain embeds; a local
   build reports its pseudo-version, and `dev` remains only when the
   toolchain recorded nothing. An injected version still wins.
+- **`protocol.get_stream` no longer waits out the call timeout.** A
+  server that answers the GET with an event stream may hold it open and
+  idle, and scout read the body until the 30-second timeout ended it,
+  on every run, for a check that needs only the status and content
+  type. It now stops at the headers. Against the reference `everything`
+  server the protocol phase drops from about a minute to milliseconds,
+  with the same verdicts and score.
 
 ## [0.0.5] — 2026-09-24
 

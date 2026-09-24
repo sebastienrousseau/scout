@@ -298,7 +298,7 @@ func phaseProtocol(ctx context.Context, s *Session) []Finding {
 	// stateless revision removed it, and a server that still serves one is
 	// carrying a mechanism no current client will use.
 	c = s.check("protocol.get_stream", "GET on the MCP endpoint")
-	hrep, err = tr.Do(pctx("GET stream"), transport.RawOptions{HTTPMethod: http.MethodGet, Headers: map[string]string{"Accept": "text/event-stream"}, SkipDialect: true})
+	hrep, err = tr.Do(pctx("GET stream"), transport.RawOptions{HTTPMethod: http.MethodGet, Headers: map[string]string{"Accept": "text/event-stream"}, SkipDialect: true, HeadersOnly: true})
 	switch {
 	case err != nil:
 		out = append(out, c.info("GET failed: "+truncate(err.Error(), 100)))

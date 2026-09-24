@@ -65,6 +65,7 @@ type quirks struct {
 	unknownToolOK     bool
 	lenientAccept     bool
 	getStream         bool
+	holdStream        bool // with getStream: keep the stream open and idle until the client leaves
 	bogusSessionOK    bool
 	lenientVersion    bool
 	catalog           string // "", "dupes", "bad", "empty", "nocap", "relative"
@@ -298,6 +299,12 @@ func (f *fakeServer) handle(w http.ResponseWriter, r *http.Request) {
 		if f.q.getStream {
 			w.Header().Set("Content-Type", "text/event-stream")
 			_, _ = w.Write([]byte(": hello\n\n"))
+			if f.q.holdStream {
+				if fl, ok := w.(http.Flusher); ok {
+					fl.Flush()
+				}
+				<-r.Context().Done()
+			}
 			return
 		}
 		w.WriteHeader(405)
