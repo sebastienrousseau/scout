@@ -37,3 +37,11 @@ require (
 	golang.org/x/sys v0.44.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
 )
+
+// v0.1.0 was tagged early in the project's life and the tag was deleted,
+// but the module proxy never forgets a version: @latest resolves to it
+// rather than to the current 0.0.x release, and gorelease compares against
+// it. A retraction only takes effect from a version higher than the one it
+// retracts, so this directive is inert until a version above v0.1.0 carries
+// it; it is recorded here so that release is a one-line tag when decided.
+retract [v0.1.0, v0.1.0]

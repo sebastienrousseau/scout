@@ -58,7 +58,7 @@ jobs:
           go-version: "1.26"
 
       - name: Install scout
-        run: go install github.com/sebastienrousseau/scout/cmd/scout@latest
+        run: go install github.com/sebastienrousseau/scout/cmd/scout@v0.0.5
 
       - name: Diagnose
         env:
@@ -210,7 +210,7 @@ mcp-diagnostic:
   image: golang:1.26
   timeout: 10m
   script:
-    - go install github.com/sebastienrousseau/scout/cmd/scout@latest
+    - go install github.com/sebastienrousseau/scout/cmd/scout@v0.0.5
     - scout check "$MCP_ENDPOINT" --token-env MCP_TOKEN
         --report-dir scout-report --no-color
   artifacts:
@@ -277,17 +277,19 @@ spans, so a log line joins to the run that produced it.
 
 ## Pinning the version
 
-`@latest` is fine for a scheduled job whose failure you will read. For a
-build that gates a merge, pin it, so a new check in a new release does not
-turn into a red build nobody changed anything to cause:
+Pin a release tag, as every example on this page does, and move it on
+purpose. A new release can add a check, and a gate that moves by itself
+turns a new check into a red build nobody changed anything to cause:
 
 ```bash
-go install github.com/sebastienrousseau/scout/cmd/scout@v0.0.1   # a tag, not @latest
+go install github.com/sebastienrousseau/scout/cmd/scout@v0.0.5
 ```
 
-No version has been tagged yet, so `@latest` currently resolves to the tip
-of the default branch. Until the first release, a build that must not move
-under you should pin the commit.
+Do not use `@latest`. The module proxy still serves a v0.1.0 that was
+tagged early and withdrawn, and Go resolves `@latest` to the highest
+version it knows, so `@latest` installs that old build rather than the
+current release. The retraction is recorded in `go.mod`, and Go will
+honour it only once a version above v0.1.0 exists.
 
 The report records what ran, under `scout.version`, so an archived
 `report.json` says which binary produced it.

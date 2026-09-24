@@ -16,6 +16,26 @@ project announces that a change felt big.
 
 ## [Unreleased]
 
+## [0.0.5] — 2026-09-24
+
+### Changed
+
+- **`make api-check` compares against v0.0.4 with nothing excused.**
+  The acceptance for the attestation package's aliases is gone: the
+  baseline already carries them, so an entry would hide something new
+  rather than excuse something known. `.api-check-accepted` stays, empty,
+  as the place the next justified exception goes.
+
+- **The stale v0.1.0 is retracted in `go.mod`.** The module proxy still
+  serves a v0.1.0 whose tag was deleted early on, so `go install
+  …/cmd/scout@latest` resolves to it rather than to the current release.
+  Go honours a retraction only from a version above the one it retracts,
+  and this project moves by 0.0.1 a release, so the directive is recorded
+  and inert. Every `go install` snippet in the README, the manual and the
+  site now pins the release instead of `@latest`, and
+  `scripts/verify-release-versions.sh` fails a release whose snippets name
+  anything else.
+
 ## [0.0.4] — 2026-09-24
 
 ### Added
@@ -1087,7 +1107,8 @@ something earlier.
 - The site at <https://scoutmcp.io>, including a sample report produced by
   the binary built from the same commit rather than a screenshot.
 
-[Unreleased]: https://github.com/sebastienrousseau/scout/compare/v0.0.4...HEAD
+[Unreleased]: https://github.com/sebastienrousseau/scout/compare/v0.0.5...HEAD
+[0.0.5]: https://github.com/sebastienrousseau/scout/compare/v0.0.4...v0.0.5
 [0.0.4]: https://github.com/sebastienrousseau/scout/compare/v0.0.3...v0.0.4
 [0.0.3]: https://github.com/sebastienrousseau/scout/compare/v0.0.2...v0.0.3
 [0.0.2]: https://github.com/sebastienrousseau/scout/compare/v0.0.1...v0.0.2
