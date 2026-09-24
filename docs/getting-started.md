@@ -10,7 +10,7 @@ description: >-
 ## Install
 
 ```bash
-go install github.com/sebastienrousseau/scout/cmd/scout@latest
+go install github.com/sebastienrousseau/scout/cmd/scout@v0.0.5
 ```
 
 A binary built this way reports `scout version dev`; the release
