@@ -6,6 +6,7 @@
 package witness
 
 import (
+	"errors"
 	"net"
 	"os"
 	"os/exec"
@@ -103,5 +104,40 @@ func TestTakeOnAGroupThatDoesNotExist(t *testing.T) {
 	t.Cleanup(func() { procRoot = old })
 	if _, err := Take(1); err == nil {
 		t.Error("an unreadable /proc was not an error")
+	}
+}
+
+func TestRSSSumsTheGroupAndSaysWhenItIsGone(t *testing.T) {
+	self, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(self) //nolint:gosec // this test binary, re-executed
+	cmd.Env = append(os.Environ(), helperEnv+"="+filepath.Join(t.TempDir(), "written"))
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	out, err := cmd.StdoutPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
+	buf := make([]byte, 6)
+	if _, err := out.Read(buf); err != nil {
+		t.Fatalf("the helper never got ready: %v", err)
+	}
+	n, err := RSS(cmd.Process.Pid)
+	if err != nil || n <= 0 {
+		t.Errorf("RSS = %d, %v", n, err)
+	}
+	if _, err := RSS(1 << 30); !errors.Is(err, ErrGone) {
+		t.Errorf("a group that does not exist: %v", err)
+	}
+	old := procRoot
+	procRoot = filepath.Join(t.TempDir(), "absent")
+	t.Cleanup(func() { procRoot = old })
+	if _, err := RSS(1); err == nil || errors.Is(err, ErrGone) {
+		t.Errorf("an unreadable /proc: %v", err)
 	}
 }

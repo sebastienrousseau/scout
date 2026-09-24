@@ -5,10 +5,10 @@ package attest
 
 import (
 	"encoding/json"
-	"os"
 	"strings"
 	"testing"
 
+	"github.com/sebastienrousseau/scout-reporting/spec"
 	"github.com/sebastienrousseau/scout/diagnostics"
 )
 
@@ -19,9 +19,11 @@ import (
 
 func publishedSchema(t *testing.T) json.RawMessage {
 	t.Helper()
-	b, err := os.ReadFile("../../spec/attestation/mcp-evaluation-v1.schema.json")
-	if err != nil {
-		t.Fatalf("the published schema is missing; run make spec: %v", err)
+	// The schema is published by scout-reporting, generated there from the
+	// attestation types; this is the same bytes as its committed file.
+	b := spec.AttestationSchema
+	if len(b) == 0 {
+		t.Fatal("the published schema is empty")
 	}
 	return b
 }

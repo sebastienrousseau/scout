@@ -173,9 +173,12 @@ func phaseNetStdio(ctx context.Context, s *Session) []Finding {
 func phaseResilienceStdio(ctx context.Context, s *Session) []Finding {
 	var out []Finding
 
+	// A long run of one call, when asked for. Before the witness stops,
+	// so what the server reaches for under sustained use is still seen.
+	out = append(out, checkSoak(ctx, s)...)
+
 	// What the server did after its handshake, from the samples taken
-	// while every other phase ran. First, so it is stopped before the
-	// process is judged.
+	// while every other phase ran. Stopped before the process is judged.
 	out = append(out, checkWitness(s)...)
 
 	// Its dependencies failed on purpose, when asked for. Before the

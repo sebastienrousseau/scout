@@ -1387,6 +1387,32 @@ var remediations = map[string]Remediation{
 			"between two samples is not seen, so no finding is not a guarantee.",
 	},
 
+	"resilience.soak_memory": {
+		Means: "With --soak, one tool that had succeeded was called again " +
+			"hundreds of times and the server's resident memory was read from " +
+			"/proc after each. Fitted through the samples after a warm-up, the " +
+			"line rose steadily, by at least sixteen mebibytes and a quarter of " +
+			"where it started, and was still rising at the end — or the server " +
+			"stopped answering, or exited, part way through. A host keeps one process for the whole session, so " +
+			"memory that only grows is a server that only runs for so long.",
+		Steps: []Step{
+			{"Find what a call allocates and never frees",
+				"The usual suspects are a cache with no bound, a listener or " +
+					"timer registered per request and never removed, and a " +
+					"connection or file opened per call and not closed. Take a " +
+					"heap profile after a hundred calls and after five hundred " +
+					"and diff them; the growing type is the leak."},
+			{"Bound every per-request structure",
+				"Give caches a size and an eviction rule, and scope anything " +
+					"created for a request to that request, so its end is the " +
+					"end of the allocation."},
+			{"Repeat the soak with --rps 0 against a server you own",
+				"At the default pacing a thousand calls take about eight " +
+					"minutes. Unthrottled they take seconds, and the trend is the " +
+					"same measurement."},
+		},
+	},
+
 	"resilience.upstream_down": {
 		Means: "With every connection the server made held open and never " +
 			"answered, as a hung dependency behaves, a tool call did not come " +

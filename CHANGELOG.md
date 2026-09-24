@@ -16,6 +16,49 @@ project announces that a change felt big.
 
 ## [Unreleased]
 
+## [0.0.4] — 2026-09-24
+
+### Added
+
+- **`--soak N` asks whether the server's memory settles.** The fastest
+  tool that succeeded is called `N` more times in sequence, and the
+  resident memory of the server's process group is read from `/proc`
+  after each. The first tenth of the samples is dropped as warm-up and a
+  least-squares line is fitted through the rest; `resilience.soak_memory`
+  fails as Major when the line explains most of the variation, adds up
+  to at least sixteen mebibytes and a quarter of where it started, and
+  is still rising over the last quarter of the window, or when the
+  server stops answering or exits part way through. A collector's
+  sawtooth has a slope and no fit; a warm-up has a fit and no slope
+  after the cut; a heap that is settling flattens before the end; and a
+  rise of a few mebibytes is what a runtime does on its way to its first
+  collection, so it is reported and not judged. The measurement is the
+  slope, never the peak.
+
+  Stdio only, since the memory read is of a process scout started, and
+  read on Linux; elsewhere the check is skipped by name, never passed.
+  It needs at least 100 calls, is paced by `--rps` like every other
+  call, and is recorded in the attestation's plan so `--reproduce`
+  repeats it. 120 checks.
+
+### Changed
+
+- **The attestation verifier is its own module.** The `attestation`
+  package moved unchanged to
+  [`github.com/sebastienrousseau/scout-reporting`](https://github.com/sebastienrousseau/scout-reporting),
+  the family's Apache-2.0 repository, and scout imports it back. It
+  moved because importing a package from this module pulls every one of
+  scout's dependencies into a consumer's `go.sum`, terminal UI included,
+  which is not what a gateway signs up for when it adds a verifier. The
+  predicate's JSON Schema moved with the types it is generated from;
+  `spec/` here keeps the rubric, which is generated from the scorer.
+  `scout/attestation` remains as a deprecated forwarder, so an existing
+  importer keeps compiling and accepts exactly the same statements. One
+  new direct dependency, first-party and standard-library only.
+  `make api-check` reports the aliases as an identity change, which is
+  what apidiff sees and not a break; `.api-check-accepted` names the
+  package and the reason for this release, and fails on anything else.
+
 ## [0.0.3] — 2026-09-23
 
 ### Added
@@ -1044,7 +1087,8 @@ something earlier.
 - The site at <https://scoutmcp.io>, including a sample report produced by
   the binary built from the same commit rather than a screenshot.
 
-[Unreleased]: https://github.com/sebastienrousseau/scout/compare/v0.0.3...HEAD
+[Unreleased]: https://github.com/sebastienrousseau/scout/compare/v0.0.4...HEAD
+[0.0.4]: https://github.com/sebastienrousseau/scout/compare/v0.0.3...v0.0.4
 [0.0.3]: https://github.com/sebastienrousseau/scout/compare/v0.0.2...v0.0.3
 [0.0.2]: https://github.com/sebastienrousseau/scout/compare/v0.0.1...v0.0.2
 [0.0.1]: https://github.com/sebastienrousseau/scout/releases/tag/v0.0.1

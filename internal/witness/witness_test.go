@@ -139,3 +139,14 @@ func TestParsing(t *testing.T) {
 		t.Errorf("parseNetTable = %+v; the listener must be left out", got)
 	}
 }
+
+func TestParseStatmResident(t *testing.T) {
+	if n, ok := parseStatmResident("12345 678 90 1 0 2 0\n"); !ok || n != 678 {
+		t.Errorf("parseStatmResident = %d, %v", n, ok)
+	}
+	for _, bad := range []string{"", "12345", "12345 x 90", "12345 -1 90"} {
+		if _, ok := parseStatmResident(bad); ok {
+			t.Errorf("parseStatmResident(%q) accepted it", bad)
+		}
+	}
+}

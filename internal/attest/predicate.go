@@ -42,7 +42,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/sebastienrousseau/scout/attestation"
+	"github.com/sebastienrousseau/scout-reporting/attestation"
 	"github.com/sebastienrousseau/scout/internal/probe"
 	"github.com/sebastienrousseau/scout/internal/report"
 )

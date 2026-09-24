@@ -126,7 +126,9 @@ jobs:
           # "ok  <pkg>  <time>  coverage: NN.N% of statements"
           while read -r line; do
             pkg="$(echo "${line}" | awk '{print $2}')"
-            pct="$(echo "${line}" | grep -oE 'coverage: [0-9.]+%' | grep -oE '[0-9.]+')"
+            # A package with no statements reports "[no statements]" and
+            # has nothing to gate; the failing grep must not end the loop.
+            pct="$(echo "${line}" | grep -oE 'coverage: [0-9.]+%' | grep -oE '[0-9.]+' || true)"
             [ -z "${pct}" ] && continue
             # The entry point is a two-line main() that hands off to cmd;
             # it has no behaviour of its own to cover.

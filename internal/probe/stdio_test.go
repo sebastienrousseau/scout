@@ -17,6 +17,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -104,6 +105,10 @@ func fakeStdioServer(mode string) {
 	in := bufio.NewReaderSize(os.Stdin, 1<<20)
 	var acted bool
 	var held []io.Closer // kept open until the process exits
+	// For the soak: bytes kept per call when SCOUT_FIXTURE_LEAK is set,
+	// and a call count for SCOUT_FIXTURE_DIE_AFTER.
+	var retained [][]byte
+	var calls int
 	defer func() {
 		for _, c := range held {
 			if c != nil {
@@ -170,6 +175,23 @@ func fakeStdioServer(mode string) {
 			if strings.HasPrefix(mode, "upstream-") {
 				fmt.Fprintf(out, `{"jsonrpc":"2.0","id":%d,"result":%s}`+"\n", *req.ID, upstreamCall(mode, &acted))
 				continue
+			}
+			calls++
+			if n, _ := strconv.Atoi(os.Getenv("SCOUT_FIXTURE_LEAK")); n > 0 {
+				// A leak a sampler can see: allocated, touched so the pages
+				// are resident, and never let go.
+				b := make([]byte, n)
+				for i := range b {
+					b[i] = byte(i)
+				}
+				retained = append(retained, b)
+				if len(retained)%100 == 0 {
+					fmt.Fprintf(os.Stderr, "fixture: holding %d blocks\n", len(retained))
+				}
+			}
+			if n, _ := strconv.Atoi(os.Getenv("SCOUT_FIXTURE_DIE_AFTER")); n > 0 && calls > n {
+				fmt.Fprintln(os.Stderr, "fatal: out of memory")
+				os.Exit(137)
 			}
 			if mode == "acts-after-handshake" && !acted {
 				// Everything a read-only lookup has no reason to do,

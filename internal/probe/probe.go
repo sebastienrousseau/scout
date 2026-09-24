@@ -167,6 +167,11 @@ type Options struct {
 	AllowLoad    bool
 	MaxResources int
 	MaxPrompts   int
+	// Soak is how many more times to call the fastest tool that succeeded,
+	// after the run, reading the server's resident memory after each. Zero
+	// is off. Stdio only, because the memory read is of the process scout
+	// started, and it goes through the same throttle as every other call.
+	Soak int
 	// ToolArgs overrides generated arguments per tool.
 	ToolArgs map[string]map[string]any
 	// WatchEgress runs a loopback proxy and points the child at it, so

@@ -82,6 +82,7 @@ var specFields = map[string]string{
 	"allow-load":    "Pacing.AllowLoad",
 	"max-resources": "Pacing.MaxResources",
 	"max-prompts":   "Pacing.MaxPrompts",
+	"soak":          "Pacing.Soak",
 
 	// phases
 	"phases":      "Phases.Only",

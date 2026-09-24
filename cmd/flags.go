@@ -72,6 +72,7 @@ var (
 	approveBaseline       bool
 	maxRes                int
 	maxPrompts            int
+	soak                  int
 
 	// output
 	interactive   bool
@@ -181,6 +182,7 @@ func paceFlags() *pflag.FlagSet {
 		fs.BoolVar(&allowLoad, "allow-load", false, "run the burst unthrottled to test the server's rate limiting")
 		fs.IntVar(&maxRes, "max-resources", 25, "max resources to read")
 		fs.IntVar(&maxPrompts, "max-prompts", 25, "max prompts to render")
+		fs.IntVar(&soak, "soak", 0, "after the run, call the fastest tool that succeeded this many more times and report the trend in the server's resident memory (stdio only, read on Linux; at least 100; paced by --rps)")
 		paceSet = fs
 	})
 	return paceSet
@@ -290,6 +292,7 @@ func buildSpec(target engine.TargetSpec, onlyPhases []string) (engine.RunSpec, e
 			Samples: samples, Concurrency: concurrency, RPS: rps,
 			CallTimeout: callTimeout, Seed: seed, FillOptional: fillOpt,
 			AllowLoad: allowLoad, MaxResources: maxRes, MaxPrompts: maxPrompts,
+			Soak: soak,
 		},
 		Phases: engine.PhaseSpec{Only: phases, Skip: phasesSkip},
 		Output: engine.OutputSpec{

@@ -163,6 +163,8 @@ func TestValidate(t *testing.T) {
 		"unknown phase":     {Target: TargetSpec{Endpoint: "https://x/mcp"}, Phases: PhaseSpec{Only: []string{"nonsense"}}},
 		"unknown skip":      {Target: TargetSpec{Endpoint: "https://x/mcp"}, Phases: PhaseSpec{Skip: []string{"nonsense"}}},
 		"fault over http":   {Target: TargetSpec{Endpoint: "https://x/mcp"}, Egress: EgressSpec{FaultUpstream: true}},
+		"soak over http":    {Target: TargetSpec{Endpoint: "https://x/mcp"}, Pacing: PacingSpec{Soak: 1000}},
+		"soak too short":    {Target: TargetSpec{Command: "srv"}, Pacing: PacingSpec{Soak: 10}},
 	}
 	for name, spec := range cases {
 		s := spec
@@ -176,6 +178,10 @@ func TestValidate(t *testing.T) {
 		if err := s.Validate(); err == nil {
 			t.Errorf("%s should be invalid", name)
 		}
+	}
+	soak := RunSpec{Target: TargetSpec{Command: "srv"}, Pacing: PacingSpec{Soak: 1000}}.WithDefaults()
+	if err := soak.Validate(); err != nil {
+		t.Errorf("a soak over stdio should be valid: %v", err)
 	}
 	// An unknown phase error should name the phases that exist.
 	err := RunSpec{Target: TargetSpec{Endpoint: "https://x/mcp"}, Output: OutputSpec{Format: FormatText}, Phases: PhaseSpec{Only: []string{"nope"}}}.Validate()

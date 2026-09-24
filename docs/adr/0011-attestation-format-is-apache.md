@@ -69,6 +69,19 @@ fixture under the same licence. `internal/attest` keeps the builder that
 reads scout's report types and re-exports the rest, and the published
 schema is unchanged. Moving the package to `scout-reporting` is now a copy.
 
+## Update — 2026-09-23: the verifier has its own module
+
+Preparing the first gateway contribution showed the copy was not enough on
+its own: a Go consumer importing `scout/attestation` records every one of
+scout's dependencies in its `go.sum`, because Go resolves modules rather
+than packages. The package now lives unchanged in the module
+`github.com/sebastienrousseau/scout-reporting`, with the schema generated
+there from its types; scout imports it back, and `scout/attestation` is a
+deprecated forwarder so no importer breaks. The rubric stays here, generated
+from the scorer. scout-reporting's
+[ADR 0001](https://github.com/sebastienrousseau/scout-reporting/blob/main/docs/adr/0001-verifier-in-its-own-module.md)
+records the split.
+
 ## What would make this wrong
 
 A format adopted under a different licence by the specification's own

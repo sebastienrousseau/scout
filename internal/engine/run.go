@@ -129,6 +129,7 @@ func (s RunSpec) probeOptions(cr *creds.Credentials, rec *telemetry.Recorder, si
 		AllowLoad:     s.Pacing.AllowLoad,
 		MaxResources:  s.Pacing.MaxResources,
 		MaxPrompts:    s.Pacing.MaxPrompts,
+		Soak:          s.Pacing.Soak,
 		ToolArgs:      s.Policy.ToolArgs,
 		Baseline:      s.Baseline,
 		WatchEgress:   s.Egress.Watch || s.Egress.FaultUpstream,

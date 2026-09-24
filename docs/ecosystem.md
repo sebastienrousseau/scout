@@ -24,6 +24,8 @@ build when they do.
 | Repository | Licence | Lockstep | What it owns |
 |---|---|---|---|
 | `scout` | GPL-3.0-only | yes | The engine, every check, and the three peer surfaces: CLI, TUI and the embedded local web UI. |
+| `scout-reporting` | Apache-2.0 | yes | The attestation predicate, its JSON Schema and the offline verifier, as a module with no dependencies; the report schema, the renderers and the rubric as data follow when a consumer needs them. |
+| `scout-action` | Apache-2.0 | yes | The GitHub Action wrapping the published image by digest, and a GitLab CI template. |
 
 ### Planned
 
@@ -32,14 +34,6 @@ silently once they do, and so nobody goes looking for them. Every row states
 the boundary that forces a separate repository and the criterion for
 archiving it.
 
-#### `scout-reporting`
-
-The report schema, the renderers, the attestation predicate and its offline verifier, plus the rubric as versioned data.
-
-- **Licence** Apache-2.0 · **go** · **Lockstep** yes
-- **Why separate** Licence. A GPL-3.0 library cannot be embedded by the gateways and registries the strategy depends on, so the format and the renderers have to live where they can be imported.
-- **Archive when** No third party has adopted the predicate twelve months after v1. Fold it back into scout and stop paying the two-repository cost.
-
 #### `scout-mcp`
 
 An MCP server exposing scout's diagnostics as tools, so an agent can evaluate a server from inside the editor.
@@ -47,14 +41,6 @@ An MCP server exposing scout's diagnostics as tools, so an agent can evaluate a 
 - **Licence** GPL-3.0-only · **go** · **Lockstep** yes
 - **Why separate** Distribution surface. Its deliverable is a registry listing — server.json, glama.json, a container catalogue entry — which is a different release artefact with a different review path.
 - **Archive when** Registry listings produce no measurable referrals across two quarters.
-
-#### `scout-action`
-
-The GitHub Action wrapping the published image by digest, and a GitLab CI template.
-
-- **Licence** Apache-2.0 · **composite** · **Lockstep** yes
-- **Why separate** The Marketplace requires its own repository. It is also the cheapest verifiable traction signal, because GitHub publishes the usage count.
-- **Archive when** None. It is the lowest-cost, highest-signal artefact in the family.
 
 #### `scout-lsp`
 
@@ -177,8 +163,15 @@ patch. It bumps the whole ecosystem, including a `scout` release in which
 nothing changed. A no-op release is cheap and automated; not knowing what is
 deployed is not.
 
-*Rule 2 and rule 3 take effect when the first satellite exists. Rule 1 is in
-force now.*
+*All three rules are in force: the first satellites exist.* Two facts about
+them are worth stating. `scout-action` follows scout's release exactly as
+rule 2 describes: the release fires `repository_dispatch` at it, and its
+`Version Lockstep` check refuses a version that is not scout's latest.
+`scout-reporting` runs the other way, because scout *imports* it: it tags
+first, so that scout's `go.mod` can name the version, and its lockstep check
+allows it to be exactly one release ahead of scout's latest and nothing
+else. The dispatch reaches it too, as the signal that the release it tagged
+for has shipped.
 
 The rule binds every repository whose **Lockstep** column says yes. Two rows
 are deliberately outside it. `scout-census` publishes a dataset, and a census
