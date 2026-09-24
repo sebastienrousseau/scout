@@ -25,6 +25,7 @@ build when they do.
 |---|---|---|---|
 | `scout` | GPL-3.0-only | yes | The engine, every check, and the three peer surfaces: CLI, TUI and the embedded local web UI. |
 | `scout-reporting` | Apache-2.0 | yes | The attestation predicate, its JSON Schema and the offline verifier, as a module with no dependencies; the report schema, the renderers and the rubric as data follow when a consumer needs them. |
+| `scout-mcp` | GPL-3.0-only | yes | An MCP server exposing scout's diagnostics as read-only tools, so an agent can evaluate a server, or check an attestation about one, from inside the editor. |
 | `scout-action` | Apache-2.0 | yes | The GitHub Action wrapping the published image by digest, and a GitLab CI template. |
 
 ### Planned
@@ -33,14 +34,6 @@ build when they do.
 silently once they do, and so nobody goes looking for them. Every row states
 the boundary that forces a separate repository and the criterion for
 archiving it.
-
-#### `scout-mcp`
-
-An MCP server exposing scout's diagnostics as tools, so an agent can evaluate a server from inside the editor.
-
-- **Licence** GPL-3.0-only · **go** · **Lockstep** yes
-- **Why separate** Distribution surface. Its deliverable is a registry listing — server.json, glama.json, a container catalogue entry — which is a different release artefact with a different review path.
-- **Archive when** Registry listings produce no measurable referrals across two quarters.
 
 #### `scout-lsp`
 
@@ -164,9 +157,10 @@ nothing changed. A no-op release is cheap and automated; not knowing what is
 deployed is not.
 
 *All three rules are in force: the first satellites exist.* Two facts about
-them are worth stating. `scout-action` follows scout's release exactly as
-rule 2 describes: the release fires `repository_dispatch` at it, and its
-`Version Lockstep` check refuses a version that is not scout's latest.
+them are worth stating. `scout-action` and `scout-mcp` follow scout's release
+exactly as rule 2 describes: the release fires `repository_dispatch` at
+them, each pins the new image by digest, and each one's `Version Lockstep`
+check refuses a version that is not scout's latest.
 `scout-reporting` runs the other way, because scout *imports* it: it tags
 first, so that scout's `go.mod` can name the version, and its lockstep check
 allows it to be exactly one release ahead of scout's latest and nothing

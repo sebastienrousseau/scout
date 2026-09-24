@@ -16,6 +16,29 @@ project announces that a change felt big.
 
 ## [Unreleased]
 
+### Added
+
+- **[`scout-mcp`](https://github.com/sebastienrousseau/scout-mcp) ships.**
+  An MCP server over stdio that exposes scout as three read-only tools:
+  `scout_check` evaluates an MCP server and returns its score and every
+  failing check with its guidance, `scout_verify_attestation` checks a
+  statement offline, and `scout_version` reports both versions. It
+  evaluates loopback endpoints only unless the operator allowlists more,
+  never sends credentials, and runs scout with an empty configuration so
+  no local profile can switch on mutations. scout scores it 95 (A). The
+  family manifest marks it shipping, and the release dispatch reaches it.
+
+### Changed
+
+- **ADR 0007 draws the line "never in the data path" means.** scout is
+  in the data path when an agent request fails or waits because
+  something scout operates is down, or when a request's bytes pass
+  through code scout operates; neither is allowed. Code a gateway
+  operator runs, such as the verifier and the agentgateway processor,
+  admission at registration time, and an asynchronous feed to a
+  gateway's control plane are inside the line. A dated section, so the
+  original decision stays as written.
+
 ## [0.0.5] — 2026-09-24
 
 ### Changed
