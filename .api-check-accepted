@@ -6,4 +6,3 @@
 # fails on any other package apidiff reports. Remove an entry once the
 # release that carries the change is tagged, because the next comparison is
 # against that release and the entry would hide something new.
-github.com/sebastienrousseau/scout/attestation  v0.0.4: moved to scout-reporting; every name here is an alias for the same type, so importers compile unchanged, and apidiff reports the identity change rather than a break
