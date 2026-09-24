@@ -16,6 +16,17 @@ project announces that a change felt big.
 
 ## [Unreleased]
 
+### Changed
+
+- **ADR 0007 draws the line "never in the data path" means.** scout is
+  in the data path when an agent request fails or waits because
+  something scout operates is down, or when a request's bytes pass
+  through code scout operates; neither is allowed. Code a gateway
+  operator runs, such as the verifier and the agentgateway processor,
+  admission at registration time, and an asynchronous feed to a
+  gateway's control plane are inside the line. A dated section, so the
+  original decision stays as written.
+
 ## [0.0.5] — 2026-09-24
 
 ### Changed

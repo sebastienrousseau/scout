@@ -77,6 +77,48 @@ it means the revenue depends on an attestation format being adopted by
 people who are under no obligation to adopt it. If nobody verifies it, the
 strategy has no second act.
 
+## Update — 2026-09-24: where the line is
+
+"Never in the data path" needed a line drawn once the first integrations
+existed, because two of them sit close to it. The decision is unchanged;
+this says what it means.
+
+**The line.** scout is in the data path when either of these is true, and
+must never be:
+
+1. **An agent request fails, or slows, when something scout operates is
+   down.** Nothing scout runs is consulted synchronously while a request
+   is in flight.
+2. **An agent request's bytes pass through code scout operates.** scout
+   never terminates, forwards, rewrites or holds a request or a response
+   between an agent and a server.
+
+**Inside the line, and allowed:**
+
+- *Code the gateway operator runs.* The verifier in scout-reporting, and
+  the agentgateway `ExtMcp` processor built on it, run in the operator's
+  own infrastructure. The gateway calls the processor for every request,
+  so the operator's path depends on it, but that is the operator's
+  component deciding from statements it loaded in advance; it never calls
+  scout, and scout never sees the traffic. This is what "the evaluation
+  engine inside somebody else's gateway" means.
+- *Admission at registration time.* Obot's gate reads a statement when a
+  catalog entry changes and when a server is created. No request waits on
+  it.
+- *A revocation or re-evaluation feed pushed to a gateway's control plane.*
+  Asynchronous, and the gateway keeps its last decisions when the feed is
+  unreachable: stale, not stopped. This is the shape the commercial live
+  service may take.
+
+**Outside the line, and never built:** a proxy, a credential broker, an
+inline policy decision point scout hosts, or any hosted endpoint a gateway
+must call before it can route a request.
+
+The test for anything new is the first rule, stated as an operator would
+experience it: if every scout-operated service went away at once, would any
+agent request on any customer's network fail or wait? If yes, it is a
+gateway feature, and it is not built.
+
 ## What would make this wrong
 
 If the attestation is not adopted — if twelve months after it is signed no
