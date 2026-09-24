@@ -39,6 +39,16 @@ project announces that a change felt big.
   gateway's control plane are inside the line. A dated section, so the
   original decision stays as written.
 
+### Fixed
+
+- **`go install …/cmd/scout@vX.Y.Z` reports its version.** Without the
+  release pipeline's `-ldflags`, scout reported `dev`, and every
+  attestation a CI job produced from the documented install named
+  `scout dev` as its instrument, which nobody can reproduce. scout now
+  falls back to the module version the Go toolchain embeds; a local
+  build reports its pseudo-version, and `dev` remains only when the
+  toolchain recorded nothing. An injected version still wins.
+
 ## [0.0.5] — 2026-09-24
 
 ### Changed

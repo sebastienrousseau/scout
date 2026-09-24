@@ -13,10 +13,9 @@ description: >-
 go install github.com/sebastienrousseau/scout/cmd/scout@v0.0.5
 ```
 
-A binary built this way reports `scout version dev`; the release
-pipeline stamps the real version with `-ldflags`. Release archives,
-`.deb`/`.rpm` packages and the Homebrew formula are described in the
-repository's `pkg/` directory.
+A binary installed this way reports the version it was installed at.
+Release archives, `.deb`/`.rpm` packages and the Homebrew formula are
+described in the repository's `pkg/` directory.
 
 From source:
 
