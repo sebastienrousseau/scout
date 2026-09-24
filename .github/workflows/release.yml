@@ -301,7 +301,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ -z "${GH_TOKEN}" ]]; then
-            echo "::error::SATELLITE_DISPATCH_TOKEN is not set; scout-action and scout-reporting will not learn about ${VERSION}" >&2
+            echo "::error::SATELLITE_DISPATCH_TOKEN is not set; the satellites will not learn about ${VERSION}" >&2
             exit 1
           fi
           # The multi-arch manifest digest of the image this release pushed.
@@ -315,7 +315,7 @@ jobs:
             "https://ghcr.io/v2/sebastienrousseau/scout/manifests/${VERSION#v}" \
             | tr -d '\r' | awk 'tolower($1) == "docker-content-digest:" { print $2 }')
           [[ -n "${digest}" ]] || { echo "::error::no image digest for ${VERSION#v} on ghcr.io" >&2; exit 1; }
-          for repo in scout-action scout-reporting; do
+          for repo in scout-action scout-mcp scout-reporting; do
             gh api --method POST "repos/sebastienrousseau/${repo}/dispatches" \
               -f event_type=scout-release \
               -f "client_payload[version]=${VERSION}" \

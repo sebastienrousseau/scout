@@ -143,13 +143,18 @@ var Family = []Repo{
 	},
 	{
 		Name:     "scout-mcp",
-		Status:   Planned,
-		Role:     "An MCP server exposing scout's diagnostics as tools, so an agent can evaluate a server from inside the editor.",
+		Status:   Shipping,
+		Role:     "An MCP server exposing scout's diagnostics as read-only tools, so an agent can evaluate a server, or check an attestation about one, from inside the editor.",
 		Language: "go",
 		Licence:  "GPL-3.0-only",
 		Boundary: "Distribution surface. Its deliverable is a registry listing — server.json, glama.json, a container catalogue entry — which is a different release artefact with a different review path.",
 		Lockstep: true,
-		Kill:     "Registry listings produce no measurable referrals across two quarters.",
+		Artefacts: []Artefact{
+			Readme, Changelog, Licence, Licences, Reuse, Development, Security, Support,
+			Governance, Conduct, Contributing, Agents, Citation, Makefile,
+			Docs, ADRs, Scripts, EditorConfig, PreCommit, Workflows,
+		},
+		Kill: "Registry listings produce no measurable referrals across two quarters.",
 	},
 	{
 		Name:     "scout-action",

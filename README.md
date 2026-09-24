@@ -370,7 +370,7 @@ with the manifest — `make ecosystem-verify` fails the build when it does.
 |---|---|---|---|
 | **`scout`** | shipping | GPL-3.0-only | The engine, every check, and the three peer surfaces: CLI, TUI and the embedded local web UI. |
 | `scout-reporting` | shipping | Apache-2.0 | The attestation predicate, its JSON Schema and the offline verifier, as a module with no dependencies; the report schema, the renderers and the rubric as data follow when a consumer needs them. |
-| `scout-mcp` | planned | GPL-3.0-only | An MCP server exposing scout's diagnostics as tools, so an agent can evaluate a server from inside the editor. |
+| `scout-mcp` | shipping | GPL-3.0-only | An MCP server exposing scout's diagnostics as read-only tools, so an agent can evaluate a server, or check an attestation about one, from inside the editor. |
 | `scout-action` | shipping | Apache-2.0 | The GitHub Action wrapping the published image by digest, and a GitLab CI template. |
 | `scout-lsp` | planned | Apache-2.0 | A language server over MCP artefacts — server.json, tool schemas, client configuration, scout policy and attestation files — with check-id hover from the guidance catalogue. |
 | `scout-census` | planned | CC-BY-4.0 | The published reliability census: the dataset, the methodology, the disclosure log and the reproduction command. |
