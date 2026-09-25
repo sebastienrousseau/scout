@@ -114,10 +114,11 @@ The flake ships the binary with its manpages and shell completions, and
 go install github.com/sebastienrousseau/scout/cmd/scout@v0.0.5
 ```
 
-Installs into `$(go env GOPATH)/bin` (or `$GOBIN` when set). Note that a
-binary built this way reports `scout version dev`: the real version is
-stamped by the release pipeline through `-ldflags`, which `go install` does
-not apply. Use a release artefact if you need `version` to be meaningful.
+Installs into `$(go env GOPATH)/bin` (or `$GOBIN` when set). A binary
+installed at a tag reports that version, read from the module information
+the Go toolchain embeds, and attestations it produces name it as their
+instrument. A build of a local checkout reports the commit's
+pseudo-version.
 
 ### Build from source
 

@@ -46,6 +46,12 @@ type RawOptions struct {
 	// metadata the active dialect would add. Use it for a probe whose whole
 	// point is to send something malformed.
 	SkipDialect bool
+	// HeadersOnly returns once the status line and headers arrive, without
+	// reading the body. A GET that opens an event stream is answered with
+	// a stream a conforming server may hold open and idle indefinitely;
+	// reading it would wait out the whole call timeout for nothing the
+	// caller looks at.
+	HeadersOnly bool
 }
 
 // NextID reserves a fresh JSON-RPC id.
@@ -130,7 +136,11 @@ func (s *Streamable) Do(ctx context.Context, opts RawOptions) (*RawResult, error
 	if sid := resp.Header.Get(HeaderSessionID); sid != "" {
 		s.sessionID.Store(sid)
 	}
-	// Bound how long we wait on a stream that never ends (GET SSE).
+	if opts.HeadersOnly {
+		out.Duration = time.Since(start)
+		return out, nil
+	}
+	// Bound how much we read of a stream that never ends.
 	out.Body, _ = io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	out.Duration = time.Since(start)
 	if out.ContentType == "text/event-stream" {

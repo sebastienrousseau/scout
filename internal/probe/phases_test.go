@@ -748,3 +748,31 @@ func TestTheRepeatPassIsBoundedAndRepeatable(t *testing.T) {
 		t.Errorf("a small catalogue was sampled: %d", len(small))
 	}
 }
+
+// TestGetStreamHeldOpen covers a server that answers the GET with an event
+// stream and then holds it open and idle, as a conforming server may. The
+// check needs only the status and content type; reading the body waited
+// out the whole call timeout on every such server.
+func TestGetStreamHeldOpen(t *testing.T) {
+	bearer := &creds.Credentials{Mode: creds.ModeBearer, Token: "tok-1234"}
+	f := newFakeServer(t)
+	f.acceptAnyToken = true
+	f.q.getStream = true
+	f.q.holdStream = true
+	const timeout = 5 * time.Second
+	start := time.Now()
+	_, fs := run(t, f, bearer, func(o *Options) {
+		o.Only = []string{"net", "discovery", "auth", "handshake", "protocol"}
+		o.CallTimeout = timeout
+		// The CLI's client carries the call timeout; without one a read of
+		// the held stream would never end and the test would hang, not fail.
+		o.HTTPClient = &http.Client{Timeout: timeout, Transport: f.srv.Client().Transport}
+	})
+	expect(t, fs, "protocol.get_stream", Pass, "event-stream")
+	if d := time.Duration(fs["protocol.get_stream"].Duration); d >= timeout/2 {
+		t.Errorf("protocol.get_stream took %s: it read the held-open stream instead of stopping at the headers", d)
+	}
+	if elapsed := time.Since(start); elapsed >= timeout {
+		t.Errorf("run took %s, at least one call timeout", elapsed)
+	}
+}

@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestDoBranches(t *testing.T) {
@@ -199,3 +200,38 @@ func TestReadSSEEdgeCases(t *testing.T) {
 type errReader struct{}
 
 func (errReader) Read([]byte) (int, error) { return 0, errors.New("broken pipe") }
+
+// TestDoHeadersOnly holds an event stream open after its headers: with
+// HeadersOnly, Do returns the status and content type without waiting for
+// a body that never ends, and closing it lets the handler go.
+func TestDoHeadersOnly(t *testing.T) {
+	released := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
+		w.Header().Set(HeaderSessionID, "sid-stream")
+		_, _ = w.Write([]byte(": open\n\n"))
+		w.(http.Flusher).Flush()
+		<-r.Context().Done()
+		close(released)
+	}))
+	defer srv.Close()
+	s := New(srv.URL, &http.Client{Timeout: 10 * time.Second})
+	res, err := s.Do(context.Background(), RawOptions{HTTPMethod: http.MethodGet, HeadersOnly: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Status != http.StatusOK || res.ContentType != "text/event-stream" || len(res.Body) != 0 {
+		t.Errorf("got %d %q body %q", res.Status, res.ContentType, res.Body)
+	}
+	if res.Duration >= 5*time.Second {
+		t.Errorf("Do took %s on a held-open stream", res.Duration)
+	}
+	if s.SessionID() != "sid-stream" {
+		t.Errorf("session id %q not recorded", s.SessionID())
+	}
+	select {
+	case <-released:
+	case <-time.After(5 * time.Second):
+		t.Error("the stream was not closed after Do returned")
+	}
+}

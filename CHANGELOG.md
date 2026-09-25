@@ -39,6 +39,23 @@ project announces that a change felt big.
   gateway's control plane are inside the line. A dated section, so the
   original decision stays as written.
 
+### Fixed
+
+- **`go install …/cmd/scout@vX.Y.Z` reports its version.** Without the
+  release pipeline's `-ldflags`, scout reported `dev`, and every
+  attestation a CI job produced from the documented install named
+  `scout dev` as its instrument, which nobody can reproduce. scout now
+  falls back to the module version the Go toolchain embeds; a local
+  build reports its pseudo-version, and `dev` remains only when the
+  toolchain recorded nothing. An injected version still wins.
+- **`protocol.get_stream` no longer waits out the call timeout.** A
+  server that answers the GET with an event stream may hold it open and
+  idle, and scout read the body until the 30-second timeout ended it,
+  on every run, for a check that needs only the status and content
+  type. It now stops at the headers. Against the reference `everything`
+  server the protocol phase drops from about a minute to milliseconds,
+  with the same verdicts and score.
+
 ## [0.0.5] — 2026-09-24
 
 ### Changed
