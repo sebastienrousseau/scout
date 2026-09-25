@@ -111,7 +111,7 @@ The flake ships the binary with its manpages and shell completions, and
 ### Go toolchain
 
 ```bash
-go install github.com/sebastienrousseau/scout/cmd/scout@v0.0.5
+go install github.com/sebastienrousseau/scout/cmd/scout@v0.0.6
 ```
 
 Installs into `$(go env GOPATH)/bin` (or `$GOBIN` when set). A binary
