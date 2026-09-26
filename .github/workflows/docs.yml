@@ -6,14 +6,10 @@ name: Manual
 # Builds the user manual so a change that breaks it is caught before it
 # merges. This workflow does not deploy.
 #
-# Publishing moved to `pages.yml` when the site at scoutmcp.io was added. A
-# repository has exactly one GitHub Pages site, so two workflows that each
-# upload their own artifact do not coexist: whichever ran last replaces the
-# whole site. Deploying from here on a release tag would have left
-# scoutmcp.io showing only the manual until the next push to main.
-#
-# `pages.yml` builds this same manual into /manual and publishes it with
-# everything else, from one artifact.
+# Publishing happens in scout.github.io, the repository that builds
+# scoutmcp.io: it checks out scout at its latest release, builds this
+# manual into /manual, and deploys it with the rest of the site from one
+# artifact.
 
 on:
   push:

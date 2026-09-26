@@ -50,17 +50,6 @@ type Site struct {
 // Sites are scout's ssg surfaces.
 var Sites = []Site{
 	{
-		Name:     "site",
-		Config:   "site/ssg.toml",
-		Layouts:  "site/_layouts",
-		Output:   "site/dist",
-		Embedded: false,
-		Theme:    "scout",
-		Upstream: "https://github.com/sebastienrousseau/ssg-themes.github.io",
-		Revision: "e32f60c",
-		MinSSG:   "0.0.56",
-	},
-	{
 		Name:     "web-shell",
 		Config:   "web/ssg.toml",
 		Layouts:  "web/_layouts",
@@ -124,44 +113,16 @@ var ThemeDeltas = []ThemeDelta{
 		Reason: "The application itself. There is no upstream counterpart.",
 	},
 	{
-		Site: "site", File: "base.html",
-		Reason: "Carries the structured data and the print stylesheet hooks the marketing site needs for the sample report.",
-	},
-	{
-		Site: "site", File: "header.html",
-		Reason: "Marketing navigation, which is site content rather than theme structure.",
-	},
-	{
-		Site: "site", File: "footer.html",
-		Reason: "Marketing footer, same reason.",
-	},
-	{
-		Site: "site", File: "styles.css",
-		Reason: "Landing-page sections the content theme does not have: the readout hero, the metric row and the comparison table.",
-	},
-	{
-		Site: "site", File: "index.html",
-		Reason: "The landing page: the readout hero, the metric row, the comparison table and the FAQ. Marketing structure, not theme structure.",
-	},
-	{
 		Site: "web-shell", File: "index.html",
 		Reason: "The shell has one page and no index listing, so the layout is reduced to the application mount point.",
-	},
-	{
-		Site: "site", File: "404.html",
-		Reason: "Points at scoutmcp.io's own sections rather than the theme demo's.",
 	},
 	{
 		Site: "web-shell", File: "404.html",
 		Reason: "A 404 inside a binary serving one page means the token was wrong, and it says so.",
 	},
 	{
-		Site: "site", File: "styles.styl",
-		Reason: "The Stylus source behind styles.css. Vendored at an older theme revision than the compiled CSS beside it, which is why both are declared: reconciling them is upstream work, not a local edit.",
-	},
-	{
 		Site: "web-shell", File: "styles.styl",
-		Reason: "Same as the site's, and for the same reason.",
+		Reason: "The Stylus source behind styles.css, vendored at an older theme revision than the compiled CSS beside it; reconciling them is upstream work, not a local edit.",
 	},
 
 	// The marketing site once carried two more entries, marked RESIDUE:

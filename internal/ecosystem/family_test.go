@@ -297,11 +297,10 @@ func TestSiteManifestIsTrueOfTheWorkingTree(t *testing.T) {
 	for _, s := range Sites {
 		required := []string{s.Config, s.Layouts}
 		// Output is only required to exist when it is embedded. The shell's
-		// output is committed because go:embed needs it at compile time; the
-		// marketing site's is gitignored and built on demand. Asserting both
-		// passed locally for the wrong reason — the site had been built — and
-		// failed on every CI runner, which is the test being right about the
-		// manifest and wrong about the repository.
+		// output is committed because go:embed needs it at compile time; a
+		// site whose output is built on demand, as the public site's was
+		// before it moved to scout.github.io, is not asserted, because that
+		// passed locally for the wrong reason and failed on every CI runner.
 		if s.Embedded {
 			required = append(required, s.Output)
 		}

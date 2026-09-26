@@ -99,8 +99,6 @@ func main() {
 // is how a tool whose whole argument is "the number is verifiable" ends up
 // publishing a number that is not.
 var publishedCountFiles = []string{
-	"site/content/index.md",
-	"site/ssg.toml",
 	"web/content/index.md",
 	"web/ssg.toml",
 	"docs/index.md",
@@ -111,18 +109,9 @@ var publishedCountFiles = []string{
 	// to remember.
 	"internal/web/dist/index.html",
 	// The vendored layouts, which is where the figure is actually edited.
-	// Checking only the built output finds the drift and then points at a
-	// generated file, so the next person edits the wrong thing. Both of
-	// these had drifted: the shell's facts row said 90 against a source of
-	// 92, and the site's JSON-LD featureList — which is what a search
-	// engine reads, and what nobody opens — still said 76.
-	"site/_layouts/base.html",
+	// scoutmcp.io's own layouts moved to scout.github.io, whose build reads
+	// this count from docs/checks.md and fails on a page that disagrees.
 	"web/_layouts/app.html",
-	// The comparison table, where the figure is the competitive claim and
-	// where it had drifted furthest: 76 against a source of 92. The old
-	// pattern missed it because the sentence is "76 across 9 phases" with no
-	// word "checks" after the number.
-	"site/_layouts/index.html",
 }
 
 // staleCount matches a published figure in any of the three shapes the

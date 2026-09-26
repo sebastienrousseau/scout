@@ -51,10 +51,12 @@ import (
 	"github.com/sebastienrousseau/scout/internal/ecosystem"
 )
 
-// pagesWorkflow is where the ssg version CI installs is pinned.
-const pagesWorkflow = ".github/workflows/pages.yml"
+// pagesWorkflow is where the ssg version the embedded shell is built with is
+// pinned. The public site moved to its own repository, scout.github.io,
+// which pins its own; the web shell is the only site built here.
+const pagesWorkflow = "Makefile"
 
-var installedSSG = regexp.MustCompile(`cargo install ssg\b.*--version\s+(\d+\.\d+\.\d+)`)
+var installedSSG = regexp.MustCompile(`(?m)^SSG_VERSION\s*\?=\s*(\d+\.\d+\.\d+)`)
 
 func main() {
 	themeDir := flag.String("theme", "", "path to a checkout of the SSG theme suite, to measure divergence")
@@ -321,7 +323,7 @@ func checkSSGVersion() []string {
 	}
 	m := installedSSG.FindStringSubmatch(string(b))
 	if m == nil {
-		return []string{fmt.Sprintf("%s does not pin an ssg version; the site would build with whatever is current", pagesWorkflow)}
+		return []string{fmt.Sprintf("%s does not pin an ssg version (SSG_VERSION ?= x.y.z); the shell would build with whatever is current", pagesWorkflow)}
 	}
 	installed := m[1]
 	var problems []string
