@@ -14,7 +14,7 @@ COVER_MIN ?= 85
 
 .PHONY: spec spec-verify reuse-lint reuse-lock web-shell all build docs test test-race vet lint format spdx-check example-check perf \
         fuzz sbom coverage bench api-check checks checks-verify docs-lock \
-        ecosystem ecosystem-verify commitlint ssg-check site readme-check clean help
+        ecosystem ecosystem-verify commitlint ssg-check readme-check clean help
 
 all: format vet lint spdx-check example-check ecosystem-verify ssg-check test test-race build
 
@@ -66,10 +66,6 @@ perf: build
 # API-breakage check against the last release tag. gorelease reports
 # removed or changed exported identifiers; a pre-1.0 module may accept them,
 # but they must be seen and named in the CHANGELOG.
-# Everything the Pages workflow builds, in the same order. Running `ssg
-# build` alone wipes dist and leaves /manual and /sample 404 until someone
-# remembers the other three steps — which is a thing to automate, not to
-# remember.
 # The icons are copied, not generated: ssg wipes its output directory on
 # every build, so anything committed inside it is destroyed. Keeping the
 # source in brand/ and copying afterwards also means neither this build nor
@@ -77,29 +73,18 @@ perf: build
 # changes.
 ICONS = favicon.ico favicon.svg apple-touch-icon.png icon-192.png icon-512.png icon-maskable-512.png
 
-site: web-shell
-	ssg build -f site/ssg.toml
-	@# ssg 0.0.63 fingerprints assets but its syntax-highlight plugin injects
-	@# a link to the unfingerprinted name, so every page with a code block
-	@# asked for /highlight.css and got a 404 — invisibly, because a missing
-	@# stylesheet renders as an unstyled page rather than as an error. Until
-	@# that is fixed upstream the fingerprinted file is also published under
-	@# the name the page actually asks for. ssgcheck's asset invariant is what
-	@# found it and is what will notice if this line stops being needed.
-	@for f in site/dist/highlight.*.css; do 	  test -e "$$f" && cp "$$f" site/dist/highlight.css; 	done
-	mkdir -p site/dist/images && cp -R site/images/. site/dist/images/
-	for f in $(ICONS); do cp brand/$$f site/dist/$$f; done
-	python3 -m mkdocs build --strict --site-dir site/dist/manual
-	go build -o $(DIST)/scout-sample ./cmd/scout
-	go run ./scripts/samplereport/main.go $(DIST)/scout-sample site/dist/sample
-	go run ./scripts/sitemap/main.go site/dist
-	@echo "site/dist is complete: /, /manual, /sample, /images"
-
 # The shell `scout serve` embeds. It is committed because the binary must
 # carry it, and it goes stale the moment anything under web/ changes without
 # this being run — which is how it shipped advertising the wrong check count
 # with every asset under a /scout/ base path.
+# The SSG release the shell is built with, and the one ssgcheck compares with
+# each theme's minimum. The public site moved to scout.github.io, which pins
+# its own.
+SSG_VERSION ?= 0.0.63
+
 web-shell:
+	@v=$$(ssg --version 2>/dev/null | awk '{print $$2}'); [ "$$v" = "$(SSG_VERSION)" ] || { \
+	  echo "web-shell: ssg $(SSG_VERSION) required, found '$$v'" >&2; exit 1; }
 	ssg build -f web/ssg.toml
 	for f in $(ICONS); do cp brand/$$f internal/web/dist/$$f; done
 	@# ssg empties its output directory before writing, so a run that dies

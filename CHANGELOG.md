@@ -16,6 +16,19 @@ project announces that a change felt big.
 
 ## [Unreleased]
 
+### Changed
+
+- **scoutmcp.io is built in its own repository.** The site moved to
+  [scout.github.io](https://github.com/sebastienrousseau/scout.github.io),
+  which builds it with SSG against scout's latest release and serves the
+  domain. `site/`, `pages.yml` and `make site` are gone. The manual stays in
+  `docs/`, and `scripts/samplereport` and `scripts/sitemap` stay here, because
+  the site's build uses them from the release. The site's numbers, the check
+  count included, are read from that release at build time, so the count gate
+  here now covers the web shell, the README and the docs. The ssg version is
+  pinned in the Makefile as `SSG_VERSION`, and `make web-shell` refuses any
+  other.
+
 ### Fixed
 
 - **`scripts/aur-bump.sh` can be re-run after a partial publish.** Its

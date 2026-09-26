@@ -3,7 +3,8 @@
 
 //go:build ignore
 
-// sitemap writes site/dist/sitemap.xml from what is actually on disk.
+// sitemap writes <root>/sitemap.xml from what is actually on disk. scout.github.io
+// runs it against the built scoutmcp.io, passing its dist directory as root.
 //
 // The generator that ran before this produced an empty <urlset> in CI and a
 // full one locally, and the difference was build order: it indexes the

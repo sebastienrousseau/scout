@@ -18,9 +18,10 @@ Everything else here is generated from those two by
 ## Why the output is committed
 
 `ssg` wipes its output directory on every build, so an icon committed inside
-`site/dist` or `internal/web/dist` is destroyed the next time either is
-built. The files live here instead and the build copies them in, which also
-means neither the site build nor CI needs ImageMagick installed.
+`internal/web/dist` is destroyed the next time it is built. The files live
+here instead and the build copies them in, which also means CI needs no
+ImageMagick. scout.github.io copies the same files into scoutmcp.io from
+the scout release it builds against.
 
 | File | Where it is used |
 |---|---|

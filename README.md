@@ -367,6 +367,7 @@ with the manifest — `make ecosystem-verify` fails the build when it does.
 | **`scout`** | shipping | GPL-3.0-only | The engine, every check, and the three peer surfaces: CLI, TUI and the embedded local web UI. |
 | `scout-reporting` | shipping | Apache-2.0 | The attestation predicate, its JSON Schema and the offline verifier, as a module with no dependencies; the report schema, the renderers and the rubric as data follow when a consumer needs them. |
 | `scout-mcp` | shipping | GPL-3.0-only | An MCP server exposing scout's diagnostics as read-only tools, so an agent can evaluate a server, or check an attestation about one, from inside the editor. |
+| `scout.github.io` | shipping | GPL-3.0-only | The public site at scoutmcp.io, built with SSG against scout's latest release: the home page, the manual and a sample report scout generates. |
 | `scout-action` | shipping | Apache-2.0 | The GitHub Action wrapping the published image by digest, and a GitLab CI template. |
 | `scout-lsp` | planned | Apache-2.0 | A language server over MCP artefacts — server.json, tool schemas, client configuration, scout policy and attestation files — with check-id hover from the guidance catalogue. |
 | `scout-census` | planned | CC-BY-4.0 | The published reliability census: the dataset, the methodology, the disclosure log and the reproduction command. |
@@ -1042,7 +1043,6 @@ make ecosystem    # regenerate the family map from internal/ecosystem
 make ssg-check    # every page comes from ssg and the theme suite
 make commitlint   # AGENTS.md section 4 on the commits this branch adds
 make docs         # manpages and shell completions from the cobra definitions
-make site         # the marketing site, via ssg
 make web-shell    # the embedded application shell, via ssg
 make sbom         # CycloneDX bill of materials
 make api-check    # API breakage against the last release
@@ -1081,10 +1081,13 @@ Both are built with [`ssg`](https://static-site-generator.com/) from the
 **Scout theme** in the [SSG theme suite](https://github.com/sebastienrousseau/ssg-themes.github.io),
 which supplies the WCAG AAA colour tokens, the dark mode, the severity ledger,
 the evidence tables and the print stylesheet that turns a report into a PDF.
-The layouts are vendored under `web/_layouts` and `site/_layouts` on purpose,
-so the site builds in CI with nothing but the `ssg` binary: a product site that
-needs a second repository checked out to build is a product site that breaks
-the week nobody is looking.
+The shell's layouts are vendored under `web/_layouts` on purpose, so it builds
+with nothing but the `ssg` binary. The public site at scoutmcp.io is built in
+its own repository,
+[scout.github.io](https://github.com/sebastienrousseau/scout.github.io), against
+scout's latest release: its manual is this repository's `docs/`, its sample
+report is scout's own output, and its numbers, check count included, are read
+from that release when it builds.
 
 There is no second toolchain and no hand-written page — `make ssg-check`
 enforces both. Design changes belong upstream in the theme, not in a local fork

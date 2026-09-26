@@ -14,7 +14,7 @@ ver="${tag#v}"
 grep -Eq "^## \[$ver\]" CHANGELOG.md || { echo "CHANGELOG.md has no '## [$ver]' heading" >&2; exit 1; }
 # Every install snippet pins the release: @latest resolves to whatever the
 # module proxy thinks is highest, which is not always the current release.
-pinned=(README.md docs/*.md site/content/*.md)
+pinned=(README.md docs/*.md)
 if grep -Eo 'scout/cmd/scout@(v[0-9]+\.[0-9]+\.[0-9]+|latest)' "${pinned[@]}" | grep -v "scout@v$ver" ; then
   echo "an install snippet pins something other than v$ver" >&2; exit 1
 fi

@@ -26,6 +26,7 @@ build when they do.
 | `scout` | GPL-3.0-only | yes | The engine, every check, and the three peer surfaces: CLI, TUI and the embedded local web UI. |
 | `scout-reporting` | Apache-2.0 | yes | The attestation predicate, its JSON Schema and the offline verifier, as a module with no dependencies; the report schema, the renderers and the rubric as data follow when a consumer needs them. |
 | `scout-mcp` | GPL-3.0-only | yes | An MCP server exposing scout's diagnostics as read-only tools, so an agent can evaluate a server, or check an attestation about one, from inside the editor. |
+| `scout.github.io` | GPL-3.0-only | no | The public site at scoutmcp.io, built with SSG against scout's latest release: the home page, the manual and a sample report scout generates. |
 | `scout-action` | Apache-2.0 | yes | The GitHub Action wrapping the published image by digest, and a GitLab CI template. |
 
 ### Planned
@@ -61,11 +62,10 @@ table, or when CI would install an ssg older than the theme requires.
 
 | Surface | Theme | Vendored from | Layouts | Output | Embedded |
 |---|---|---|---|---|---|
-| `site` | scout | `e32f60c` (min ssg 0.0.56) | `site/_layouts` | `site/dist` | no |
 | `web-shell` | scout | `e32f60c` (min ssg 0.0.56) | `web/_layouts` | `internal/web/dist` | yes |
 
 The layouts are vendored so the site builds in CI with nothing but the `ssg`
-binary. 16 file(s) deliberately differ from the theme, each with a recorded
+binary. 9 file(s) deliberately differ from the theme, each with a recorded
 reason — a declared delta is a patch on its way upstream, and an undeclared
 one is a fork nobody decided to make. The list is in
 [`internal/ecosystem/sites.go`](https://github.com/sebastienrousseau/scout/blob/main/internal/ecosystem/sites.go).
@@ -85,10 +85,12 @@ settled quietly:
 - **`scout-mcp`** was previously reserved for the public site and hosted
   diagnostic. It is listed above as an MCP server instead, because a
   repository with that name containing no MCP server misleads everyone who
-  finds it. The site keeps its current home in this repository — it is
-  `go:embed`ed, and the published check count is verified across `site/`,
-  `web/`, `docs/`, the README and the embedded shell, so splitting it would
-  reintroduce the drift that gate prevents.
+  finds it. The public site moved to its own repository,
+  [scout.github.io](https://github.com/sebastienrousseau/scout.github.io),
+  on 26 Sep 2026. The drift that kept it here is closed from that side:
+  its build reads the check count, score, ledger and evidence from the scout
+  release it builds against and fails when the page disagrees. The embedded
+  shell stays here, `go:embed`ed, under the same count gate.
 - **`scout-lsp`** was considered and deliberately deferred, on the grounds
   that a language server is a large permanent surface with no demand behind
   it. That reasoning holds for a language server over MCP *server source* and

@@ -157,6 +157,20 @@ var Family = []Repo{
 		Kill: "Registry listings produce no measurable referrals across two quarters.",
 	},
 	{
+		Name:     "scout.github.io",
+		Status:   Shipping,
+		Role:     "The public site at scoutmcp.io, built with SSG against scout's latest release: the home page, the manual and a sample report scout generates.",
+		Language: "web",
+		Licence:  "GPL-3.0-only",
+		Boundary: "A different release cadence and toolchain: the site follows scout's releases daily and builds with SSG and MkDocs, which the engine's CI should not need.",
+		Lockstep: false,
+		Artefacts: []Artefact{
+			Readme, Changelog, Licence, Licences, Reuse, Security, Conduct, Contributing,
+			Makefile, Scripts, Workflows,
+		},
+		Kill: "The page's numbers stop coming from a scout release.",
+	},
+	{
 		Name:     "scout-action",
 		Status:   Shipping,
 		Role:     "The GitHub Action wrapping the published image by digest, and a GitLab CI template.",

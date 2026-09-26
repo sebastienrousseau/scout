@@ -91,14 +91,14 @@ SPDX-License-Identifier = "Apache-2.0"
 # "override" because the footers render a copyright line for the site they
 # build — page text about scout, not a notice about the template.
 [[annotations]]
-path = ["site/_layouts/**", "web/_layouts/**"]
+path = ["web/_layouts/**"]
 precedence = "override"
 SPDX-FileCopyrightText = "2024 - 2026 Sebastien Rousseau <sebastian.rousseau@gmail.com>"
 SPDX-License-Identifier = "MIT"
 
 # scout's own images: the README logo and the site's screenshots.
 [[annotations]]
-path = [".github/logo.png", "site/images/**", "web/images/**"]
+path = [".github/logo.png", "web/images/**"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Sebastien Rousseau <sebastian.rousseau@gmail.com>"
 SPDX-License-Identifier = "GPL-3.0-only"
