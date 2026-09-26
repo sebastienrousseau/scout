@@ -16,6 +16,15 @@ project announces that a change felt big.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`scripts/aur-bump.sh` can be re-run after a partial publish.** Its
+  read-back fetched each package page once, straight after the push; the
+  AUR updates the page some seconds later, so the 0.0.7 bump stopped after
+  its first package. The page is now polled for up to a minute, and a
+  package whose repository already holds the version is read back instead
+  of committed again.
+
 ## [0.0.7] — 2026-09-26
 
 ### Added

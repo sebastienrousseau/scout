@@ -110,11 +110,23 @@ fi
 echo "=== publishing"
 for p in "${packages[@]}"; do
   git -C "${work}/${p}" add PKGBUILD .SRCINFO
-  git -C "${work}/${p}" commit -q -S -m "Update to ${ver}-1"
-  git -C "${work}/${p}" push -q origin HEAD:master
-  [[ "$(git -C "${work}/${p}" ls-remote origin refs/heads/master | cut -f1)" == "$(git -C "${work}/${p}" rev-parse HEAD)" ]] \
-    || { echo "aur-bump: ${p} did not land on the AUR" >&2; exit 1; }
-  page=$(curl -q -fsSL "https://aur.archlinux.org/packages/${p}")
-  grep -q "Package Details: ${p} ${ver}-1" <<<"${page}" || { echo "aur-bump: the ${p} page does not show ${ver}-1 yet" >&2; exit 1; }
+  # Re-runnable: a package whose repository already holds this version has
+  # nothing to commit, and is only read back.
+  if git -C "${work}/${p}" diff --cached --quiet; then
+    echo "    ${p} already at ${ver}-1 in its repository"
+  else
+    git -C "${work}/${p}" commit -q -S -m "Update to ${ver}-1"
+    git -C "${work}/${p}" push -q origin HEAD:master
+    [[ "$(git -C "${work}/${p}" ls-remote origin refs/heads/master | cut -f1)" == "$(git -C "${work}/${p}" rev-parse HEAD)" ]] \
+      || { echo "aur-bump: ${p} did not land on the AUR" >&2; exit 1; }
+  fi
+  # The package page lags the push by some seconds; poll for up to a minute.
+  shown=""
+  for _ in $(seq 12); do
+    page=$(curl -q -fsSL "https://aur.archlinux.org/packages/${p}" || true)
+    if grep -q "Package Details: ${p} ${ver}-1" <<<"${page}"; then shown=yes; break; fi
+    sleep 5
+  done
+  [[ -n "${shown}" ]] || { echo "aur-bump: after a minute the ${p} page still does not show ${ver}-1" >&2; exit 1; }
   echo "    ${p} ${ver}-1 published"
 done
