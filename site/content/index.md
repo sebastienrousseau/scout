@@ -107,7 +107,7 @@ install_lead: "Install it, point it at a server, read the verdict. Everything be
 ```sh
 brew install sebastienrousseau/tap/scout     # macOS and Linux
 mise use -g github:sebastienrousseau/scout   # or with mise
-go install github.com/sebastienrousseau/scout/cmd/scout@v0.0.6
+go install github.com/sebastienrousseau/scout/cmd/scout@v0.0.7
 ```
 
 Then point it at a server:

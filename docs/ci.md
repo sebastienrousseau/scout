@@ -58,7 +58,7 @@ jobs:
           go-version: "1.26"
 
       - name: Install scout
-        run: go install github.com/sebastienrousseau/scout/cmd/scout@v0.0.6
+        run: go install github.com/sebastienrousseau/scout/cmd/scout@v0.0.7
 
       - name: Diagnose
         env:
@@ -210,7 +210,7 @@ mcp-diagnostic:
   image: golang:1.26
   timeout: 10m
   script:
-    - go install github.com/sebastienrousseau/scout/cmd/scout@v0.0.6
+    - go install github.com/sebastienrousseau/scout/cmd/scout@v0.0.7
     - scout check "$MCP_ENDPOINT" --token-env MCP_TOKEN
         --report-dir scout-report --no-color
   artifacts:
@@ -282,7 +282,7 @@ purpose. A new release can add a check, and a gate that moves by itself
 turns a new check into a red build nobody changed anything to cause:
 
 ```bash
-go install github.com/sebastienrousseau/scout/cmd/scout@v0.0.6
+go install github.com/sebastienrousseau/scout/cmd/scout@v0.0.7
 ```
 
 Do not use `@latest`. The module proxy still serves a v0.1.0 that was

@@ -16,15 +16,7 @@ project announces that a change felt big.
 
 ## [Unreleased]
 
-### Fixed
-
-- **The Arch install line installed someone else's program.** The
-  README said `yay -S scout-bin`, and `scout-bin` on the AUR is an
-  unrelated project. scout is now published to the AUR as `scout`, built
-  from the release's source with its manpages and completions, beside
-  `scout-mcp-bin` and `scout-agentgateway-extmcp`. The release no longer
-  attaches a generated `scout-bin` PKGBUILD that could not be published
-  under that name.
+## [0.0.7] — 2026-09-26
 
 ### Added
 
@@ -50,6 +42,16 @@ project announces that a change felt big.
   (`make readme-check`, and a step in the docs-lint workflow) fails on a
   heading out of the template's order and on an unresolved
   `{{VARIABLE}}` outside code, as AGENTS.md §7.3 requires.
+
+### Fixed
+
+- **The Arch install line installed someone else's program.** The
+  README said `yay -S scout-bin`, and `scout-bin` on the AUR is an
+  unrelated project. scout is now published to the AUR as `scout`, built
+  from the release's source with its manpages and completions, beside
+  `scout-mcp-bin` and `scout-agentgateway-extmcp`. The release no longer
+  attaches a generated `scout-bin` PKGBUILD that could not be published
+  under that name.
 
 ## [0.0.6] — 2026-09-25
 
@@ -1184,7 +1186,8 @@ something earlier.
 - The site at <https://scoutmcp.io>, including a sample report produced by
   the binary built from the same commit rather than a screenshot.
 
-[Unreleased]: https://github.com/sebastienrousseau/scout/compare/v0.0.6...HEAD
+[Unreleased]: https://github.com/sebastienrousseau/scout/compare/v0.0.7...HEAD
+[0.0.7]: https://github.com/sebastienrousseau/scout/compare/v0.0.6...v0.0.7
 [0.0.6]: https://github.com/sebastienrousseau/scout/compare/v0.0.5...v0.0.6
 [0.0.5]: https://github.com/sebastienrousseau/scout/compare/v0.0.4...v0.0.5
 [0.0.4]: https://github.com/sebastienrousseau/scout/compare/v0.0.3...v0.0.4
