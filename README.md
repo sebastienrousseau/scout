@@ -85,8 +85,13 @@ alternatives, as are [mise](#mise-macos--linux) and the
 ### Arch Linux (AUR)
 
 ```bash
-yay -S scout-bin    # or: paru -S scout-bin
+yay -S scout    # or: paru -S scout
 ```
+
+`scout` builds from the release's source, with the manpages and shell
+completions. `scout-mcp-bin` and `scout-agentgateway-extmcp` install
+[scout-mcp](https://github.com/sebastienrousseau/scout-mcp) and the
+agentgateway processor. (`scout-bin` on the AUR is an unrelated project.)
 
 ### Nix (any platform)
 

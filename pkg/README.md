@@ -18,7 +18,7 @@ actually produces the artefact, and describes what comes out.
 | --- | --- | --- |
 | [deb](deb/README.md) | `.goreleaser.yaml` → `nfpms` | release workflow |
 | [rpm](rpm/README.md) | `.goreleaser.yaml` → `nfpms` | release workflow |
-| [aur](aur/README.md) | `.goreleaser.yaml` → `aurs` | release workflow (generated, attached to the release) |
+| [aur](aur/README.md) | the AUR repositories themselves | `scripts/aur-bump.sh`, after each release |
 | [brew](brew/README.md) | `.goreleaser.yaml` → `brews` | release workflow |
 | [nix](nix/README.md) | `flake.nix` | in-repo, built on demand |
 | [docker](docker/README.md) | `Dockerfile` + `.goreleaser.yaml` | release workflow |

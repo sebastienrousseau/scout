@@ -16,6 +16,24 @@ project announces that a change felt big.
 
 ## [Unreleased]
 
+### Fixed
+
+- **The Arch install line installed someone else's program.** The
+  README said `yay -S scout-bin`, and `scout-bin` on the AUR is an
+  unrelated project. scout is now published to the AUR as `scout`, built
+  from the release's source with its manpages and completions, beside
+  `scout-mcp-bin` and `scout-agentgateway-extmcp`. The release no longer
+  attaches a generated `scout-bin` PKGBUILD that could not be published
+  under that name.
+
+### Added
+
+- **`scripts/aur-bump.sh` moves the three AUR packages to a release.** It
+  recomputes every checksum from what the release published, then builds,
+  installs and lints each package with `makepkg` and `namcap` in an Arch
+  Linux container before anything is pushed; `--push` publishes and reads
+  each package page back.
+
 ### Changed
 
 - **The README follows the portfolio template.** The sections are the

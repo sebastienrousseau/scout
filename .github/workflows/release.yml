@@ -125,7 +125,6 @@ jobs:
             dist/*.deb
             dist/*.rpm
             dist/checksums.txt
-            dist/aur/
             dist/homebrew/
           if-no-files-found: error
           retention-days: 7
@@ -167,24 +166,6 @@ jobs:
           cp "${BUNDLE}" "${RUNNER_TEMP}/checksums.txt.intoto.jsonl"
           gh release upload "${GITHUB_REF_NAME}" \
             "${RUNNER_TEMP}/checksums.txt.intoto.jsonl" --clobber
-
-      # The PKGBUILD goreleaser generated. Publishing to the AUR needs an
-      # SSH key this repository does not hold, so the file is attached to
-      # the release instead of pushed, and pkg/aur/README.md says so.
-      #
-      # goreleaser names it `<pkgname>.pkgbuild`, not `PKGBUILD`; the old
-      # `-name PKGBUILD` matched nothing and would have failed this step the
-      # moment the one before it stopped failing first.
-      - name: Attach the generated PKGBUILD to the release
-        if: env.DRY_RUN != 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          pkgbuild="$(find dist/aur -name '*.pkgbuild' | head -n1)"
-          test -n "${pkgbuild}" && test -s "${pkgbuild}"
-          cp "${pkgbuild}" "${RUNNER_TEMP}/PKGBUILD"
-          gh release upload "${GITHUB_REF_NAME}" "${RUNNER_TEMP}/PKGBUILD" --clobber
 
       # The cask goreleaser generated, handed to the `brew` job below as an
       # artefact rather than regenerated there, so what reaches the tap is

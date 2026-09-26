@@ -5,36 +5,35 @@ SPDX-License-Identifier: GPL-3.0-only
 
 # Arch User Repository
 
-**Recipe:** the `aurs` section of [`.goreleaser.yaml`](../../.goreleaser.yaml),
-which generates a `PKGBUILD` from the release's own checksums. Not
-duplicated here; see [`../README.md`](../README.md) for why.
+Three packages, all maintained by `srousseau`:
 
-## Not yet published
-
-Pushing to `aur.archlinux.org` needs an SSH key registered with the AUR,
-which this repository does not hold. The release workflow therefore
-generates the `PKGBUILD` and **attaches it to the GitHub release** as an
-asset, and stops there. Until a maintainer registers `scout-bin` and
-adds the key as an `AUR_KEY` secret, the package is not installable
-with `yay` or `paru`.
-
-This is stated here rather than hidden because a package page that says
-"install with yay" while the package does not exist is worse than none.
-
-## Package
-
-`scout-bin`: the released binary, not a source build. The `-bin`
-suffix is the Arch convention and it is accurate: the package installs
-the artefact this project's release workflow built and signed, rather
-than compiling from source on the user's machine.
-
-## Install from the attached PKGBUILD
+| Package | What it installs | Built from |
+| --- | --- | --- |
+| [`scout`](https://aur.archlinux.org/packages/scout) | `scout`, its manpages and bash, zsh and fish completions | the release's source tarball |
+| [`scout-mcp-bin`](https://aur.archlinux.org/packages/scout-mcp-bin) | [scout-mcp](https://github.com/sebastienrousseau/scout-mcp); depends on `scout` | the release archives, checked against `checksums.txt` |
+| [`scout-agentgateway-extmcp`](https://aur.archlinux.org/packages/scout-agentgateway-extmcp) | the agentgateway ExtMcp processor | scout-reporting's source tarball |
 
 ```bash
-mkdir scout-bin && cd scout-bin
-curl -fsSLO "https://github.com/sebastienrousseau/scout/releases/download/v<version>/PKGBUILD"
-makepkg -si
+yay -S scout    # or: paru -S scout
 ```
 
-`makepkg` checks the `sha256sums` in the `PKGBUILD`. For the signature
-and provenance, see [`../VERIFY.md`](../VERIFY.md).
+`scout-bin` on the AUR is an unrelated project with the same name.
+
+## The recipe
+
+**The source of truth is each package's AUR repository**
+(`ssh://aur@aur.archlinux.org/<package>.git`), not a copy here: a
+`PKGBUILD` in this directory would be a second place to change and a
+first place to forget. `scout` builds from source, as Arch's Go
+packaging guidelines describe (PIE, external linking, the build's own
+`CFLAGS` and `LDFLAGS`), and runs the same `scripts/gen_docs.go` step as
+the release for its manpages and completions.
+
+## After a release
+
+[`scripts/aur-bump.sh`](../../scripts/aur-bump.sh) moves all three
+packages to the release: it sets the version, recomputes every checksum
+from the published tarballs and `checksums.txt`, then builds, installs and
+lints each package with `makepkg` and `namcap` in an Arch Linux container
+before regenerating `.SRCINFO`. It pushes only with `--push`, and only
+from a machine whose SSH key the AUR account holds.
