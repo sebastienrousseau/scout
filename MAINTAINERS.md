@@ -35,7 +35,7 @@ account and update the linked configuration file.
 | 2 | GitHub Actions                     | Same repo                                                | CI, release pipeline, SLSA provenance       | `.github/workflows/`                        |
 | 3 | GitHub Container Registry (ghcr)   | `ghcr.io/sebastienrousseau/scout`                           | Multi-arch OCI images                       | `.goreleaser.yaml`                          |
 | 4 | Homebrew tap                       | `github.com/sebastienrousseau/homebrew-tap`                 | macOS Homebrew installs                     | `.goreleaser.yaml` (`brews:` block)         |
-| 5 | Arch User Repository (AUR)         | `aur.archlinux.org/packages/scout-bin`                   | Arch Linux installs                         | `.goreleaser.yaml` (`aurs:` block)          |
+| 5 | Arch User Repository (AUR)         | `aur.archlinux.org/packages/scout` (maintainer `srousseau`); also `scout-mcp-bin`, `scout-agentgateway-extmcp` | Arch Linux installs | the AUR repositories; `scripts/aur-bump.sh` |
 | 6 | Signing key (SSH)                  | The maintainer's key, as published on their GitHub profile (`https://github.com/sebastienrousseau.keys`) | Signs release tags and commits | `.github/workflows/release.yml` |
 | 7 | Sigstore keyless signing           | Fulcio + Rekor (via GitHub OIDC)                         | Cosigns every release artefact              | `.goreleaser.yaml` (`sboms`/`signs` blocks) |
 | 8 | Dependabot / Scorecard             | GitHub-native, tied to the repo                          | Vulnerability alerts, OSSF score            | `.github/dependabot.yml`                    |

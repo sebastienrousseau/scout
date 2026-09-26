@@ -85,8 +85,13 @@ alternatives, as are [mise](#mise-macos--linux) and the
 ### Arch Linux (AUR)
 
 ```bash
-yay -S scout-bin    # or: paru -S scout-bin
+yay -S scout    # or: paru -S scout
 ```
+
+`scout` builds from the release's source, with the manpages and shell
+completions. `scout-mcp-bin` and `scout-agentgateway-extmcp` install
+[scout-mcp](https://github.com/sebastienrousseau/scout-mcp) and the
+agentgateway processor. (`scout-bin` on the AUR is an unrelated project.)
 
 ### Nix (any platform)
 
@@ -101,7 +106,7 @@ The flake ships the binary with its manpages and shell completions, and
 ### Go toolchain
 
 ```bash
-go install github.com/sebastienrousseau/scout/cmd/scout@v0.0.6
+go install github.com/sebastienrousseau/scout/cmd/scout@v0.0.7
 ```
 
 Installs into `$(go env GOPATH)/bin` (or `$GOBIN` when set). A binary

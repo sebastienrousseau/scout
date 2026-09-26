@@ -125,7 +125,6 @@ Every release carries:
 | `checksums.txt.sigstore.json` | Keyless cosign signature (Sigstore bundle) |
 | `checksums.txt.intoto.jsonl` | SLSA build provenance |
 | `*.cdx.sbom.json` | CycloneDX SBOM per archive |
-| `PKGBUILD` | the generated AUR recipe |
 
 Verify a download:
 
@@ -149,11 +148,12 @@ is no `KEYS.asc` to import and no key rotation for you to track.
 
 ## Pre-built packages
 
-The release pipeline publishes `.deb` and `.rpm` (via nfpm), a Homebrew
-formula, and an AUR `PKGBUILD` attached to the release. If you are
-packaging for an archive that prefers to build from source, ignore those
-and use `make install` above; they exist for users, not to forestall
-distribution packaging.
+The release pipeline publishes `.deb` and `.rpm` (via nfpm) and a
+Homebrew formula. On Arch Linux, the AUR package `scout` builds from the
+release's source; its `PKGBUILD` is a reference for anyone packaging
+scout from source elsewhere. If you are packaging for an archive that
+prefers to build from source, use `make install` above; the pre-built
+packages exist for users, not to forestall distribution packaging.
 
 ## What to watch when updating
 
