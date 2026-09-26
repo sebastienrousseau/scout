@@ -16,6 +16,23 @@ project announces that a change felt big.
 
 ## [Unreleased]
 
+### Changed
+
+- **The README follows the portfolio template.** The sections are the
+  template's, in its order; scout's own sections are kept, each under the
+  template section it belongs to, and nothing was dropped. Three sections
+  are new, each backed by a page in the manual: Capabilities at a glance,
+  Ecosystem comparison ([`docs/COMPARISON.md`](docs/COMPARISON.md), built
+  from the migration guides) and Benchmarks
+  ([`docs/BENCHMARKS.md`](docs/BENCHMARKS.md)). The benchmark numbers were
+  re-measured; JSON rendering makes 7 allocations, not the 15 the reports
+  page said, and that page now links to the one table instead of keeping a
+  copy.
+- **CI checks the README against the template.** `scripts/readme-check.sh`
+  (`make readme-check`, and a step in the docs-lint workflow) fails on a
+  heading out of the template's order and on an unresolved
+  `{{VARIABLE}}` outside code, as AGENTS.md §7.3 requires.
+
 ## [0.0.6] — 2026-09-25
 
 ### Added

@@ -5,7 +5,7 @@
   <img src="https://raw.githubusercontent.com/sebastienrousseau/scout/main/.github/logo.svg" alt="scout logo" width="128" />
 </p>
 
-<h1 align="center"><a id="scout"></a>scout</h1>
+<h1 align="center">scout</h1>
 
 <p align="center">
   Test any Model Context Protocol server and find out, in plain language, whether it is ready for your agents — and exactly what to fix if it is not.
@@ -32,37 +32,27 @@
 
 - [Install](#install) — mise, Homebrew, Arch, Nix, Go, or from source
 - [Requirements](#requirements) — the Go floor, the policy for raising it, network
-- [Quick Start](#quick-start) — diagnose a server in one command
-- [Servers that are programs](#servers-that-are-programs) — `--stdio`, for a server you run rather than fetch
+- [Quick Start](#quick-start) — diagnose a server in one command; `--stdio` for a server you run
 
-**The scout ecosystem** (one engine, three surfaces, five satellites)
+**The scout ecosystem**
 
-- [The scout ecosystem](#the-scout-ecosystem) — `scout`, `scout-reporting`, `scout-mcp`, `scout-action`, `scout-lsp`, `scout-census` at a glance
+- [The scout ecosystem](#the-scout-ecosystem) — `scout`, `scout-reporting`, `scout-mcp`, `scout-action`, `scout-lsp`, `scout-census`
 
-**Using scout**
+**Library reference**
 
-- [Features](#features) — nine phases, real credentials, honest scoring
-- [Architecture](#architecture) — end-to-end flow from first contact to report
-- [The nine phases](#the-nine-phases) — what each step sends and what it looks for
-- [Interactive TUI Mode](#interactive-tui-mode) — the live checklist and the tool selector
-- [Credentials](#credentials) — bearer, API key, basic, client credentials, user login
-- [Safety](#safety) — read-only by default, throttled, nothing adversarial
-- [Understanding your report](#understanding-your-report) — the verdict, the score, what to fix
-- [Scoring](#scoring) — six weighted categories, every deduction named
-- [Library use](#library-use) — the public packages the CLI is built on
-- [Usage & Flags](#usage--flags) — complete CLI parameter reference
-- [Configuration file](#configuration-file) — defaults and profiles keyed by flag name
-- [Coming from another tool](#coming-from-another-tool) — Inspector, curl scripts, playgrounds
-- [Examples](#examples) — index of runnable programmatic examples
-- [Troubleshooting](#troubleshooting) — quick solutions to common errors
-- [Frequently Asked Questions](#frequently-asked-questions) — design decisions
+- [Capabilities at a glance](#capabilities-at-a-glance) — the current surface by theme
+- [Ecosystem comparison](#ecosystem-comparison) — short matrix; full table at [`docs/COMPARISON.md`](docs/COMPARISON.md)
+- [Benchmarks](#benchmarks) — headline numbers; full table at [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md)
+- [Features](#features) — the phases, credentials, safety, reports, scoring and library
+- [Configuration](#configuration) — every flag, and the config file
+- [Examples](#examples) — runnable example index
 
 **Operational**
 
 - [When not to use scout](#when-not-to-use-scout) — honest limits
 - [Development](#development) — make targets, what is generated, the site toolchain
 - [Security](#security) — reporting, posture, fuzzing, supply chain
-- [Documentation](#documentation) — manual, API reference, developer docs, ecosystem map
+- [Documentation](#documentation) — manual, API reference, troubleshooting, FAQ
 - [Stability guarantees](#stability-guarantees) — what a breaking change means here
 - [License](#license)
 
@@ -302,9 +292,7 @@ Score
       total           97.5  grade A · 6 of 6 categories assessed
 ```
 
----
-
-## Servers that are programs
+### Servers that are programs
 
 Most MCP servers are not endpoints. They are programs a host starts, talks
 to over a pipe, and is responsible for stopping. Point scout at one with
@@ -356,6 +344,8 @@ scout call --stdio get-sum --arg a=2 --arg b=3 -- npx -y @modelcontextprotocol/s
 ```
 
 The full picture is in [the manual](https://scoutmcp.io/manual/stdio/).
+
+---
 
 ## The scout ecosystem
 
@@ -417,6 +407,82 @@ the tool, and editor marketplaces keep their own cadence.
 
 ---
 
+## Capabilities at a glance
+
+| Area | Capability | Status |
+| :--- | :--- | :--- |
+| Diagnosis | Nine phases from DNS to token recovery, 120 checks, each finding citing the requests that showed it | Shipped |
+| Transports | Streamable HTTP, and stdio servers run under process custody with `--stdio` | Shipped |
+| Credentials | Bearer, API key, basic, OAuth 2.1 client credentials, user login with PKCE, dynamic and metadata-document registration | Shipped |
+| Safety | Read-only by default; mutations and destructive tools only by explicit opt-in | Shipped |
+| Behaviour | Egress witness, credential canaries, upstream fault injection, memory soak (stdio) | Shipped |
+| Reports | Text, JSON, NDJSON, Markdown and HTML; HAR and OTLP telemetry; a weighted, explained score | Shipped |
+| Gating | `--policy`, baselines, `scout verify --against`, `scout watch`, exit status 2 on a failed finding | Shipped |
+| Attestation | In-toto statements with `scout attest`, offline checks with `scout verify`, reproduction from the recorded plan | Shipped |
+| Surfaces | CLI, interactive TUI, `scout serve` web UI, Go library, GitHub Action, MCP server | Shipped |
+| Supply chain | `scout sbom` for binaries and lockfiles, with opt-in OSV advisories | Shipped |
+
+### The nine phases
+
+| Phase | What happens | Examples of findings |
+| :--- | :--- | :--- |
+| **net** | URL scheme, DNS, TCP, TLS handshake | plain HTTP to a public host, TLS 1.2 only, certificate expiring in 9 days |
+| **discovery** | unauthenticated first contact; on 401, the challenge, RFC 9728 protected-resource metadata (hint, then path-aware and root well-known), RFC 8414/OIDC server metadata, PKCE, grants, registration path | no `WWW-Authenticate`, PRM resource differs from endpoint, S256 not advertised, no DCR or CIMD |
+| **auth** | token acquisition with your credentials (static, CIMD, or dynamic registration), token shape, and whether the server rejects a made-up token | no `expires_in`, granted scope narrower than requested, **server accepts any bearer token** |
+| **handshake** | `initialize`: protocol version, `serverInfo`, capabilities, instructions, session id | empty `serverInfo.version`, no capabilities declared |
+| **protocol** | `ping`, unknown method, id echo, malformed JSON, invalid params, unknown tool, missing `Accept`, GET stream, bogus session id, bad protocol-version header | unknown method answered with HTTP 400, unknown session accepted |
+| **catalog** | tools, resources, templates, prompts: unique names, descriptions, `inputSchema` shape, annotations, `outputSchema`, absolute URIs; capabilities vs what actually lists | 3 tools unannotated, tools listed without the capability |
+| **execution** | invoke what the policy allows with generated or supplied arguments; validate `structuredContent` against `outputSchema`; omit a required argument and expect rejection; read resources; render prompts | `search` returns `hits` as a string, `lax` accepts a call with `x` missing |
+| **performance** | ping baseline, repeat-call p50/p95/max per tool, cold vs warm, bounded parallel burst, 429 and `Retry-After` | p95 above 2s, errors under 4 workers |
+| **resilience** | lose the session and recover, invalidate the token and recover | server ignores unknown session ids |
+
+Run a subset with `--phases net,discovery,auth` or `--skip-phases
+performance`. `scout connect` and `scout tools` are shorthands for the
+connection phases and the catalog.
+
+---
+
+## Ecosystem comparison
+
+MCP Inspector, a hand-written curl script and a hosted playground are what most people use before scout. Each is good at something scout does not do; the table is what scout adds. The [migration guides](docs/migrating/README.md) are the evidence, one per tool.
+
+| Project | Unattended, gates CI | Negative-path probes | Findings cite requests | Runs on your network |
+| :--- | :---: | :---: | :---: | :---: |
+| **scout** | yes | yes | yes | yes |
+| MCP Inspector | no | no | no | yes |
+| curl script | yes | no | no | yes |
+| Hosted playground | no | no | no | no |
+
+See [`docs/COMPARISON.md`](docs/COMPARISON.md) for the evidence and complete matrix.
+
+### Coming from another tool
+
+Migration guides live in [`docs/migrating/`](docs/migrating/README.md):
+from [MCP Inspector](docs/migrating/from-mcp-inspector.md), from
+[a curl script](docs/migrating/from-a-curl-script.md), or from
+[an online playground](docs/migrating/from-an-online-playground.md).
+
+Each says what carries over, what is genuinely different, and what scout
+will not do — nothing there touches the server, and `scout connect` shows
+you the handshake before anything else runs.
+
+---
+
+## Benchmarks
+
+A run's wall clock belongs to the server: roughly fifty throttled requests. What scout itself costs is rendering the report, measured on a 200-tool report with two findings per tool. Allocation ceilings and the 18 MiB binary budget are gated in CI; wall-clock times are published, not gated.
+
+| Scenario | Result | Environment |
+| :--- | ---: | :--- |
+| Render JSON | 0.31 ms · 7 allocs | Apple A18 Pro, darwin/arm64, go1.27.1 |
+| Render Markdown | 0.60 ms · 2,873 allocs | Apple A18 Pro, darwin/arm64, go1.27.1 |
+| Render text | 0.89 ms · 7,039 allocs | Apple A18 Pro, darwin/arm64, go1.27.1 |
+| Render HTML | 1.83 ms · 10,014 allocs | Apple A18 Pro, darwin/arm64, go1.27.1 |
+
+See [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) for methodology and full results.
+
+---
+
 ## Features
 
 | Feature | Description |
@@ -430,9 +496,7 @@ the tool, and editor marketplaces keep their own cadence.
 | **Honest scoring** | Six weighted categories, each deduction named with the finding behind it, and the report says how many categories were actually assessed. |
 | **Zero configuration** | Flags cover everything; a config file with profiles is there when you test the same servers repeatedly. |
 
----
-
-## Architecture
+### Architecture
 
 A single run builds one HTTP client whose transport is wrapped by the
 telemetry recorder, then wraps it again for the MCP client with tracing,
@@ -470,29 +534,7 @@ Every request, whichever phase made it, passes through the same recorder,
 so the report's telemetry section and the HAR file are complete by
 construction.
 
----
-
-## The nine phases
-
-| Phase | What happens | Examples of findings |
-| :--- | :--- | :--- |
-| **net** | URL scheme, DNS, TCP, TLS handshake | plain HTTP to a public host, TLS 1.2 only, certificate expiring in 9 days |
-| **discovery** | unauthenticated first contact; on 401, the challenge, RFC 9728 protected-resource metadata (hint, then path-aware and root well-known), RFC 8414/OIDC server metadata, PKCE, grants, registration path | no `WWW-Authenticate`, PRM resource differs from endpoint, S256 not advertised, no DCR or CIMD |
-| **auth** | token acquisition with your credentials (static, CIMD, or dynamic registration), token shape, and whether the server rejects a made-up token | no `expires_in`, granted scope narrower than requested, **server accepts any bearer token** |
-| **handshake** | `initialize`: protocol version, `serverInfo`, capabilities, instructions, session id | empty `serverInfo.version`, no capabilities declared |
-| **protocol** | `ping`, unknown method, id echo, malformed JSON, invalid params, unknown tool, missing `Accept`, GET stream, bogus session id, bad protocol-version header | unknown method answered with HTTP 400, unknown session accepted |
-| **catalog** | tools, resources, templates, prompts: unique names, descriptions, `inputSchema` shape, annotations, `outputSchema`, absolute URIs; capabilities vs what actually lists | 3 tools unannotated, tools listed without the capability |
-| **execution** | invoke what the policy allows with generated or supplied arguments; validate `structuredContent` against `outputSchema`; omit a required argument and expect rejection; read resources; render prompts | `search` returns `hits` as a string, `lax` accepts a call with `x` missing |
-| **performance** | ping baseline, repeat-call p50/p95/max per tool, cold vs warm, bounded parallel burst, 429 and `Retry-After` | p95 above 2s, errors under 4 workers |
-| **resilience** | lose the session and recover, invalidate the token and recover | server ignores unknown session ids |
-
-Run a subset with `--phases net,discovery,auth` or `--skip-phases
-performance`. `scout connect` and `scout tools` are shorthands for the
-connection phases and the catalog.
-
----
-
-## Interactive TUI Mode
+### Interactive TUI Mode
 
 On a terminal, `scout check` shows a calm live checklist while it works —
 the wordmark, the endpoint, and each of the nine checks with a spinner on
@@ -534,7 +576,7 @@ mutating, destructive) and whether the default policy would run them, and
 preselects the ones it would. Selecting a mutating or destructive tool is
 an explicit opt-in for that tool only.
 
-### Keybindings
+#### Keybindings
 
 - `[space]` — Toggle selection of the current tool.
 - `[ctrl+a]` — Select all currently filtered tools.
@@ -543,7 +585,7 @@ an explicit opt-in for that tool only.
 - `[enter]` — Confirm selection and start the run.
 - `[esc]` — Exit without running.
 
-### In-Session Commands
+#### In-Session Commands
 
 Press `/` inside the TUI to enter Command Mode. Commands support
 prefix-based autocompletion (press `[tab]` or `[right-arrow]` to
@@ -561,9 +603,7 @@ autocomplete):
 
 `SCOUT_SHOW_LOGO=0` replaces the flame with a plain title in both views.
 
----
-
-## Credentials
+### Credentials
 
 Whatever you were handed, there is a flag for it, an environment variable,
 and a config-profile setting with the same name.
@@ -585,9 +625,7 @@ and a config-profile setting with the same name.
 client id chose it deliberately. The report records where each credential
 came from — flag, environment variable, profile — never its value.
 
----
-
-## Safety
+### Safety
 
 - **Read-only by default.** Only tools with `readOnlyHint: true` are
   invoked. Tools without annotations are destructive by the MCP
@@ -608,7 +646,7 @@ came from — flag, environment variable, profile — never its value.
   is sent, and scout has no mode that would: there are no exploit probes
   behind any flag ([ADR 0008](docs/adr/0008-no-adversarial-mode.md)).
 
-### Safety in the other direction
+#### Safety in the other direction
 
 Those rules protect the server. These protect you, because the server you
 point scout at is by definition one you have not vetted yet.
@@ -639,9 +677,7 @@ point scout at is by definition one you have not vetted yet.
   schema that overflows an integer — and every one must produce a finding or
   a typed error rather than a panic, a hang, or an unbounded allocation.
 
----
-
-## Understanding your report
+### Understanding your report
 
 Every run answers one question first: **is this server ready for agents?**
 
@@ -665,7 +701,7 @@ worst first. That is the whole executive summary. Developers add
 that were called, the speed measurements, and a `req#N` reference tying
 each finding to a recorded request.
 
-### Formats and telemetry
+#### Formats and telemetry
 
 `--output text` (the default, coloured on a terminal) prints the report
 above to your terminal's scrollback, so you scroll it the normal way.
@@ -719,9 +755,7 @@ registered, so a token issued mid-run is masked wherever it appears
 afterwards. Content types are not trusted — a body that starts with `{` is
 treated as JSON, because token endpoints answer `text/plain` often enough.
 
----
-
-## Scoring
+### Scoring
 
 Six categories, weighted: connectivity 10, authorization 20, protocol 20,
 catalog 15, execution 20, performance 15. Each starts at 100; a critical
@@ -737,9 +771,7 @@ The rubric is published as data in [`spec/rubric/`](spec/rubric/), generated
 from the scorer and versioned, so anyone can recompute a score from the
 verdicts in a report or an attestation.
 
----
-
-## Library use
+### Library use
 
 The CLI is built on public packages you can use directly:
 
@@ -763,9 +795,13 @@ library, so a gateway can embed it without taking on scout's GPL.
 
 ---
 
-## Usage & Flags
+## Configuration
 
-### Positional Arguments
+Flags cover everything, `SCOUT_*` environment variables cover the credentials, and a config file adds defaults and named profiles when you test the same servers repeatedly. The complete reference follows.
+
+### Usage & Flags
+
+#### Positional Arguments
 
 ```bash
 scout check <endpoint>
@@ -778,7 +814,7 @@ scout check --stdio -- <command> [args...]
   Everything after `--` belongs to it, including its own flags. It is
   executed as named: there is no shell, so nothing is expanded or split.
 
-### Target Options
+#### Target Options
 
 | Option | Default | Description |
 | :--- | :--- | :--- |
@@ -787,7 +823,7 @@ scout check --stdio -- <command> [args...]
 | `--stdio-env` | — | Forward this environment variable to the server by name (repeatable) |
 | `--stdio-set` | — | Set a variable as `NAME=value` (repeatable; replaces the forwarded set entirely) |
 
-### Credential Options
+#### Credential Options
 
 | Option | Default | Description |
 | :--- | :--- | :--- |
@@ -808,7 +844,7 @@ scout check --stdio -- <command> [args...]
 | `--redirect-port` | `8976` | Loopback port for the authorization-code redirect |
 | `--token-auth-method` | — | Token endpoint auth: `client_secret_basic`, `client_secret_post` or `none` |
 
-### Policy Options
+#### Policy Options
 
 | Option | Default | Description |
 | :--- | :--- | :--- |
@@ -827,7 +863,7 @@ everything past your own endpoint is chosen by the server under test. Leave
 them off unless you know why you are turning one on; see
 [Safety](#safety).
 
-### Pacing Options
+#### Pacing Options
 
 | Option | Default | Description |
 | :--- | :--- | :--- |
@@ -842,7 +878,7 @@ them off unless you know why you are turning one on; see
 | `--max-prompts` | `25` | Max prompts to render |
 | `--soak` | `0` | After the run, call the fastest tool that succeeded this many more times and report the trend in the server's resident memory (stdio only, read on Linux; at least `100`; paced by `--rps`) |
 
-### Output Options
+#### Output Options
 
 | Option | Short | Default | Description |
 | :--- | :--- | :--- | :--- |
@@ -863,7 +899,7 @@ them off unless you know why you are turning one on; see
 | `--profile` | — | — | Profile from the configuration file supplying the endpoint and settings |
 | `--log-level` | — | `info` | Diagnostic verbosity on stderr: `error`, `warn`, `info`, `debug` |
 
-### Diagnostics
+#### Diagnostics
 
 Results go to stdout in the format `--output` selects. Diagnostics — which
 phase is running, what failed, why something was skipped — go to stderr, so
@@ -884,7 +920,7 @@ scout check https://mcp.example.com/mcp --output json --log-level error > report
 SCOUT_LOG_LEVEL=debug scout check https://mcp.example.com/mcp --report-dir ./out 2> diagnostics.log
 ```
 
-### Operational Commands
+#### Operational Commands
 
 ```bash
 scout connect https://mcp.example.com/mcp --token-env MCP_TOKEN
@@ -899,9 +935,7 @@ scout config validate
 runs the PKCE flow and stores the token (0600) under
 `~/.config/scout/tokens.json` for `--auth authorization-code` runs.
 
----
-
-## Configuration file
+### Configuration file
 
 `~/.config/scout/config.json` (or `$XDG_CONFIG_HOME/scout/config.json`, or
 `SCOUT_CONFIG`). Keys are flag names, so the file has no schema of its own
@@ -938,19 +972,6 @@ not a silent no-op.
 
 ---
 
-## Coming from another tool
-
-Migration guides live in [`docs/migrating/`](docs/migrating/README.md):
-from [MCP Inspector](docs/migrating/from-mcp-inspector.md), from
-[a curl script](docs/migrating/from-a-curl-script.md), or from
-[an online playground](docs/migrating/from-an-online-playground.md).
-
-Each says what carries over, what is genuinely different, and what scout
-will not do — nothing there touches the server, and `scout connect` shows
-you the handshake before anything else runs.
-
----
-
 ## Examples
 
 To inspect the package layout and programmatically drive scout modules,
@@ -963,59 +984,6 @@ see the self-contained, copy-pasteable Go code examples in the
 2. **[Safe diagnostics](examples/safe_diagnostics.go)** — Run the
    library's read-only `diagnostics` runner against an open server and
    print the quality score with its deductions.
-
----
-
-## Troubleshooting
-
-| Error Message | Cause | Solution |
-| :--- | :--- | :--- |
-| `server requires authorization and no credentials were supplied` | The server answered 401 and `--auth` resolved to `none`. | Pass `--token-env`, `--client-id`/`--client-secret-env`, or run `scout login`. |
-| `--auth client-credentials needs --client-id` | Client-credentials mode with nothing to identify the client. | Supply `--client-id`, `--client-metadata-url`, or `SCOUT_CLIENT_ID`. |
-| `token endpoint invalid_target` | The authorization server rejected the RFC 8707 resource indicator. | Pass `--resource` with the value the server expects. |
-| `no stored token for this endpoint` | `--auth authorization-code` without a prior login. | Run `scout login <endpoint>` first. |
-| `credentials rejected at initialize` | The token was issued but the MCP server did not accept it. | Check audience/resource, scope and expiry; `--log-level debug` shows the challenge. |
-| `unknown setting "rsp"` | A config key does not match any flag name. | Settings are named after flags; see `scout check --help`. |
-
----
-
-## Frequently Asked Questions
-
-- **Does it test stdio servers?**  
-  No. scout speaks Streamable HTTP. Put a stdio-to-HTTP bridge in front of
-  a stdio server, or run it in HTTP mode if it has one.
-- **Why were my tools skipped?**  
-  They declare no annotations, or `destructiveHint` is true. The MCP
-  specification's default for an unannotated tool is destructive, and scout
-  honours it. Add `readOnlyHint: true` to the tools that are, or opt in with
-  `--allow-mutations` / `--allow-destructive` on a tenant you control.
-- **Why did a tool return `isError` and count as a warning, not a failure?**  
-  Generated arguments are representative, not real; a server that rejects
-  `"probe"` as a repository name is behaving correctly. Give it real values
-  with `--arg tool.field=value` and the call becomes a proper test.
-- **Can I run it inside cron or CI?**  
-  Yes. The command is non-interactive, stdout carries the report in the
-  format you chose, and the exit status is 2 when any finding failed.
-- **Where do the secrets go?**  
-  Nowhere. They are registered with the redactor before the first request
-  and masked in every event, body and report. The token store is written
-  with mode 0600, and a store that is readable by anyone else is refused
-  rather than read.
-- **Can a server under test steal my token?**  
-  Not by asking for it. Credentials are bound to the origin you named, so a
-  redirect pointing somewhere else is refused rather than followed, and the
-  OAuth endpoints a server advertises are checked for HTTPS and for pointing
-  at a public host before scout will talk to them. That is what
-  `--insecure-allow-http-auth` and `--insecure-allow-private-hosts` turn
-  off, which is why they say `insecure`.
-- **Are the `*_ms` fields in the JSON milliseconds?**  
-  Yes. `scout.schema_version` in the report says which format version you
-  are reading; pin it if you build on the JSON.
-
----
-
-**THE ARCHITECT** ᛫ [Sebastien Rousseau](https://sebastienrousseau.com)  
-**THE ENGINE** ᛞ [EUXIS](https://euxis.co) ᛫ Enterprise Unified Execution Intelligence System
 
 ---
 
@@ -1187,6 +1155,55 @@ The four entry points, identical across every repo in the family:
 Once installed, `man scout` works offline, and every subcommand has its own
 page (`man scout-check`).
 
+### Troubleshooting
+
+| Error Message | Cause | Solution |
+| :--- | :--- | :--- |
+| `server requires authorization and no credentials were supplied` | The server answered 401 and `--auth` resolved to `none`. | Pass `--token-env`, `--client-id`/`--client-secret-env`, or run `scout login`. |
+| `--auth client-credentials needs --client-id` | Client-credentials mode with nothing to identify the client. | Supply `--client-id`, `--client-metadata-url`, or `SCOUT_CLIENT_ID`. |
+| `token endpoint invalid_target` | The authorization server rejected the RFC 8707 resource indicator. | Pass `--resource` with the value the server expects. |
+| `no stored token for this endpoint` | `--auth authorization-code` without a prior login. | Run `scout login <endpoint>` first. |
+| `credentials rejected at initialize` | The token was issued but the MCP server did not accept it. | Check audience/resource, scope and expiry; `--log-level debug` shows the challenge. |
+| `unknown setting "rsp"` | A config key does not match any flag name. | Settings are named after flags; see `scout check --help`. |
+
+### Frequently Asked Questions
+
+- **Does it test stdio servers?**  
+  No. scout speaks Streamable HTTP. Put a stdio-to-HTTP bridge in front of
+  a stdio server, or run it in HTTP mode if it has one.
+- **Why were my tools skipped?**  
+  They declare no annotations, or `destructiveHint` is true. The MCP
+  specification's default for an unannotated tool is destructive, and scout
+  honours it. Add `readOnlyHint: true` to the tools that are, or opt in with
+  `--allow-mutations` / `--allow-destructive` on a tenant you control.
+- **Why did a tool return `isError` and count as a warning, not a failure?**  
+  Generated arguments are representative, not real; a server that rejects
+  `"probe"` as a repository name is behaving correctly. Give it real values
+  with `--arg tool.field=value` and the call becomes a proper test.
+- **Can I run it inside cron or CI?**  
+  Yes. The command is non-interactive, stdout carries the report in the
+  format you chose, and the exit status is 2 when any finding failed.
+- **Where do the secrets go?**  
+  Nowhere. They are registered with the redactor before the first request
+  and masked in every event, body and report. The token store is written
+  with mode 0600, and a store that is readable by anyone else is refused
+  rather than read.
+- **Can a server under test steal my token?**  
+  Not by asking for it. Credentials are bound to the origin you named, so a
+  redirect pointing somewhere else is refused rather than followed, and the
+  OAuth endpoints a server advertises are checked for HTTPS and for pointing
+  at a public host before scout will talk to them. That is what
+  `--insecure-allow-http-auth` and `--insecure-allow-private-hosts` turn
+  off, which is why they say `insecure`.
+- **Are the `*_ms` fields in the JSON milliseconds?**  
+  Yes. `scout.schema_version` in the report says which format version you
+  are reading; pin it if you build on the JSON.
+
+---
+
+**THE ARCHITECT** ᛫ [Sebastien Rousseau](https://sebastienrousseau.com)  
+**THE ENGINE** ᛞ [EUXIS](https://euxis.co) ᛫ Enterprise Unified Execution Intelligence System
+
 ---
 
 ## Stability guarantees
@@ -1228,4 +1245,4 @@ types, the offline verifier and the predicate's JSON Schema live in
 [scout-reporting](https://github.com/sebastienrousseau/scout-reporting),
 and the scoring rubric in [`spec/`](spec/) here.
 
-<p align="right"><a href="#scout">Back to Top</a></p>
+<p align="right"><a href="#contents">Back to Top</a></p>

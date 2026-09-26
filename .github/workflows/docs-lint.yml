@@ -35,6 +35,9 @@ jobs:
           GOTOOLCHAIN: auto
         run: make spdx-check
 
+      - name: The README follows the template
+        run: scripts/readme-check.sh
+
   markdown:
     name: Markdown & Spelling
     runs-on: ubuntu-latest

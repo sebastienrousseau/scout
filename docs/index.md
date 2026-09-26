@@ -32,6 +32,8 @@ as passing without one.
 | [Reports and telemetry](reports.md) | output formats, the report directory, HAR and NDJSON, scoring |
 | [Configuration](configuration.md) | the config file, profiles, precedence, the token store |
 | [Library use](library.md) | the Go packages the CLI is built on |
+| [Comparison](COMPARISON.md) | scout beside MCP Inspector, curl scripts and hosted playgrounds |
+| [Benchmarks](BENCHMARKS.md) | what scout's own work costs, and which budgets CI gates |
 
 ## Safety, in one paragraph
 
