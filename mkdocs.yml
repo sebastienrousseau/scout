@@ -77,6 +77,8 @@ nav:
       - From MCP Inspector: migrating/from-mcp-inspector.md
       - From a curl script: migrating/from-a-curl-script.md
       - From an online playground: migrating/from-an-online-playground.md
+      - Comparison: COMPARISON.md
+  - Benchmarks: BENCHMARKS.md
   - For contributors:
       - Ecosystem: ecosystem.md
       - Architecture: architecture.md
